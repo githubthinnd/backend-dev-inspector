@@ -4,6 +4,15 @@ import { randomUUID } from "node:crypto"
 export interface StoreOptions {
   maxRequests: number
   maxQueriesPerRequest: number
+  /**
+   * Requests whose last activity is older than this many milliseconds are dropped.
+   * Unset or 0 keeps them until `maxRequests` pushes them out.
+   */
+  maxAgeMs?: number
+}
+
+function lastActivity(trace: RequestTrace): number {
+  return trace.queries.at(-1)?.startedAt ?? trace.startedAt
 }
 
 export type StoreChange
@@ -38,6 +47,7 @@ export class TraceStore {
 
   /** Statements issued outside any request (startup, timers, queues) are gathered into one trace. */
   backgroundTrace(): RequestTrace {
+    this.purgeExpired()
     this.background ??= {
       ...this.startRequest("-", "(outside any request)"),
       id: BACKGROUND_REQUEST_ID
@@ -46,6 +56,7 @@ export class TraceStore {
   }
 
   record(trace: RequestTrace, query: QueryEvent) {
+    this.purgeExpired(trace)
     if (!this.traces.includes(trace)) {
       this.traces.push(trace)
       if (this.traces.length > this.options.maxRequests) {
@@ -75,10 +86,12 @@ export class TraceStore {
 
   /** Newest first. */
   list(): RequestTrace[] {
+    this.purgeExpired()
     return [...this.traces].reverse()
   }
 
   get(id: string): RequestTrace | undefined {
+    this.purgeExpired()
     return this.traces.find(trace => trace.id === id)
   }
 
@@ -91,6 +104,26 @@ export class TraceStore {
   subscribe(listener: (change: StoreChange) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+
+  /**
+   * Expiry is checked whenever the store is read or written, not on a timer, so an idle
+   * inspector never keeps the process alive. `keep` is the trace being written to right now.
+   */
+  private purgeExpired(keep?: RequestTrace) {
+    const maxAge = this.options.maxAgeMs
+    if (!maxAge || maxAge <= 0) {
+      return
+    }
+    const cutoff = Date.now() - maxAge
+    const alive = this.traces.filter(trace => trace === keep || lastActivity(trace) >= cutoff)
+    if (alive.length === this.traces.length) {
+      return
+    }
+    this.traces.splice(0, this.traces.length, ...alive)
+    if (this.background && this.background !== keep && !this.traces.includes(this.background)) {
+      this.background = null
+    }
   }
 
   private emit(change: StoreChange) {

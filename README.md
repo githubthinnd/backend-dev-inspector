@@ -168,6 +168,7 @@ Settings (including language) are stored in `localStorage`. The panel loads only
 | `SQL_INSPECTOR_LOG` | on | `0` disables the terminal output |
 | `SQL_INSPECTOR_SLOW_MS` | `100` | slow-query threshold |
 | `SQL_INSPECTOR_MAX_REQUESTS` | `200` | requests kept in memory |
+| `SQL_INSPECTOR_TTL_MINUTES` | `60` | drop requests with no new query for this many minutes (`0` = keep until the request cap pushes them out) |
 | `SQL_INSPECTOR_MAX_QUERIES` | `1000` | statements kept per request |
 | `SQL_INSPECTOR_TX_CONVENTION` | off | `1` enables the transaction-convention insights |
 | `NO_COLOR` | — | disables terminal colors |

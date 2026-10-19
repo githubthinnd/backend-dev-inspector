@@ -20,6 +20,13 @@ function positiveNumber(raw: string | undefined, fallback: number) {
   return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
+/** Minutes to milliseconds; `0` means "never expire", anything unusable falls back. */
+function minutesToMs(raw: string | undefined, fallbackMinutes: number) {
+  const value = raw === undefined || raw === "" ? Number.NaN : Number(raw)
+  const minutes = Number.isFinite(value) && value >= 0 ? value : fallbackMinutes
+  return Math.round(minutes * 60_000)
+}
+
 /**
  * Development only. Never in production (`NODE_ENV=production` is a hard stop, even with
  * `SQL_INSPECTOR=1`); otherwise on when `NODE_ENV=development` (what `nuxt dev`, `next dev`,
@@ -42,7 +49,8 @@ export function getInspector(env: NodeJS.ProcessEnv = process.env): Inspector {
     localeHint: hint,
     store: new TraceStore({
       maxRequests: positiveNumber(env.SQL_INSPECTOR_MAX_REQUESTS, 200),
-      maxQueriesPerRequest: positiveNumber(env.SQL_INSPECTOR_MAX_QUERIES, 1000)
+      maxQueriesPerRequest: positiveNumber(env.SQL_INSPECTOR_MAX_QUERIES, 1000),
+      maxAgeMs: minutesToMs(env.SQL_INSPECTOR_TTL_MINUTES, 60)
     }),
     report: {
       ...DEFAULT_REPORT_OPTIONS,
