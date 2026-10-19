@@ -41,6 +41,11 @@ export function renderPage(localeHint: Locale | null = null): string {
       <button type="button" data-mode="issues" aria-pressed="false" data-i18n="filter.issues"></button>
       <button type="button" data-mode="errors" aria-pressed="false" data-i18n="filter.errors"></button>
     </span>
+    <label class="field slow" id="slow-field">
+      <span data-icon="timer"></span>
+      <input id="slow" class="input" type="number" min="1" max="600000" step="1" inputmode="numeric" data-i18n-aria="widget.slowMs">
+      <span class="unit" aria-hidden="true">ms</span>
+    </label>
     <span class="dd" id="lang-dd">
       <button type="button" class="dd-btn" id="lang" aria-haspopup="listbox" aria-expanded="false" data-i18n-aria="lang.label" data-i18n-title="lang.label"><span data-icon="globe"></span><span id="lang-label"></span><span data-icon="down"></span></button>
       <ul class="dd-menu" id="lang-menu" role="listbox" tabindex="-1" hidden></ul>

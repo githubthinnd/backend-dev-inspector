@@ -62,13 +62,18 @@ export function buildTree(queries: QueryEvent[]): TraceNode[] {
     openByConnection.set(query.connectionId, stack)
   }
 
-  const close = (query: QueryEvent, status: TransactionNode["status"], until: (node: TransactionNode) => boolean) => {
+  // `until` names the savepoint to stop at. A release / rollback of a savepoint that is not open
+  // (already rolled back, or opened before the capped window) must leave the transaction alone.
+  const close = (query: QueryEvent, status: TransactionNode["status"], until?: (node: TransactionNode) => boolean) => {
     const stack = openByConnection.get(query.connectionId) ?? []
+    if (until && !stack.some(until)) {
+      return
+    }
     while (stack.length > 0) {
       const node = stack.pop()!
       node.status = status
       node.durationMs = endOf(query) - node.startedAt
-      if (until(node)) {
+      if (until?.(node)) {
         break
       }
     }
@@ -83,16 +88,16 @@ export function buildTree(queries: QueryEvent[]): TraceNode[] {
         open(query, "savepoint")
         break
       case "tx-commit":
-        close(query, "committed", () => false)
+        close(query, "committed")
         break
       case "tx-rollback":
-        close(query, "rolled-back", () => false)
+        close(query, "rolled-back")
         break
       case "savepoint-release":
-        close(query, "committed", node => node.name === query.analysis.savepoint)
+        close(query, "committed", node => node.type === "savepoint" && node.name === query.analysis.savepoint)
         break
       case "savepoint-rollback":
-        close(query, "rolled-back", node => node.name === query.analysis.savepoint)
+        close(query, "rolled-back", node => node.type === "savepoint" && node.name === query.analysis.savepoint)
         break
       case "tx-config":
         break
@@ -117,9 +122,30 @@ function groupBy<T>(items: T[], keyOf: (item: T) => string): Map<string, T[]> {
   const groups = new Map<string, T[]>()
   for (const item of items) {
     const key = keyOf(item)
-    groups.set(key, [...(groups.get(key) ?? []), item])
+    const group = groups.get(key)
+    if (group) {
+      group.push(item)
+    } else {
+      groups.set(key, [item])
+    }
   }
   return groups
+}
+
+/**
+ * What makes two statements the same call: the text, plus the bound values of a prepared
+ * statement (`execute`), whose text is identical for every value. `query()` has the values
+ * inlined in its text already.
+ */
+function callKey(query: QueryEvent): string {
+  if (!query.params || query.params.length === 0) {
+    return query.sql
+  }
+  try {
+    return `${query.sql}\u0000${JSON.stringify(query.params)}`
+  } catch {
+    return `${query.sql}\u0000${query.params.map(String).join(",")}`
+  }
 }
 
 const shorten = (text: string, max = 90) => text.length > max ? `${text.slice(0, max)}…` : text
@@ -138,7 +164,7 @@ function findInsights(tree: TraceNode[], queries: QueryEvent[], options: ReportO
     if (group.length < options.nPlusOneThreshold) {
       continue
     }
-    const distinctSql = new Set(group.map(q => q.sql)).size
+    const distinctSql = new Set(group.map(callKey)).size
     // Same text repeated is plain duplication; same shape with different values is the N+1 signature.
     const isNPlusOne = distinctSql > 1
     insights.push({
@@ -152,7 +178,7 @@ function findInsights(tree: TraceNode[], queries: QueryEvent[], options: ReportO
     group.forEach(q => flagged.add(q.seq))
   }
 
-  for (const group of groupBy(statements.filter(q => !flagged.has(q.seq)), q => q.sql).values()) {
+  for (const group of groupBy(statements.filter(q => !flagged.has(q.seq)), callKey).values()) {
     if (group.length >= 2) {
       insights.push({ type: "duplicate", severity: "warn", params: { count: group.length, sql: shorten(group[0]!.sql) }, seqs: group.map(q => q.seq) })
     }

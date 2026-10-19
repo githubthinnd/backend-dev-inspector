@@ -71,6 +71,8 @@ export function startMockMysql(): MockServer {
         } else {
           conn.writeOk({ affectedRows: 1, insertId: 7 })
         }
+        // The next command starts a new sequence at 0; without this mysql2 warns "packets out of order".
+        conn.sequenceId = 0
       }, delay)
     })
   })

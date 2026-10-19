@@ -95,6 +95,19 @@ describe("buildTree", () => {
     expect(second?.type === "transaction" && (second.children[0] as { query: QueryEvent }).query.sql).toContain("into b")
   })
 
+  it("ignores a release or rollback of a savepoint that is not open, instead of closing the transaction", () => {
+    const tree = buildTree([
+      event("begin"),
+      event("savepoint sp1"),
+      event("rollback to savepoint sp1"),
+      event("release savepoint sp1"),
+      event("insert into t values (1)"),
+      event("rollback to savepoint never_opened"),
+      event("commit")
+    ])
+    expect(shape(tree)).toEqual([{ "transaction": [{ "savepoint:sp1": [], "status": "rolled-back" }, "insert"], "status": "committed" }])
+  })
+
   it("times a transaction from begin to commit", () => {
     const tree = buildTree([event("begin", { startedAt: 1000, durationMs: 1 }), event("commit", { startedAt: 1040, durationMs: 3 })])
     expect(tree[0]).toMatchObject({ type: "transaction", durationMs: 43 })
@@ -119,6 +132,31 @@ describe("buildReport insights", () => {
   it("flags exact repeats as duplicates, not N+1", () => {
     expect(types([event("select 1 from a"), event("select 1 from a")])).toEqual(["duplicate"])
     expect(types([event("select 1 from a"), event("select 1 from a"), event("select 1 from a")])).toEqual(["duplicate"])
+  })
+
+  it("tells N+1 from a repeat for prepared statements, whose text never changes", () => {
+    const run = (values: number[]) => values.map(id => event("select `id` from `orders` where `user_id` = ?", { api: "execute", params: [id] }))
+    expect(types(run([1, 2, 3]))).toEqual(["n-plus-one"])
+    expect(types(run([1, 1, 1]))).toEqual(["duplicate"])
+  })
+
+  it("does not call two prepared executions with different values a duplicate", () => {
+    const update = (id: number) => event("update `a` set `n` = 1 where `id` = ?", { api: "execute", params: [id] })
+    expect(types([update(1), update(2)])).toEqual([])
+    expect(types([update(1), update(1)])).toEqual(["duplicate"])
+  })
+
+  it("survives values JSON cannot express", () => {
+    const queries = [1n, 2n, 3n].map(id => event("select 1 from a where id = ?", { api: "execute", params: [id] }))
+    expect(types(queries)).toEqual(["n-plus-one"])
+  })
+
+  it("analyses thousands of identical statements without choking", () => {
+    const queries = Array.from({ length: 5000 }, () => event("select 1 from a"))
+    const started = performance.now()
+    const report = buildReport(trace(queries))
+    expect(performance.now() - started).toBeLessThan(1500)
+    expect(report.insights.map(i => i.type)).toContain("duplicate")
   })
 
   it("flags slow statements against the threshold", () => {

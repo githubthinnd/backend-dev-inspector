@@ -1,12 +1,13 @@
 import { Window } from "happy-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { HOTKEYS, mountSqlInspectorWidget, STORAGE_KEY, type WidgetHandle } from "../src/client/widget"
+import { HOTKEYS, mountSqlInspectorWidget, SLOW_STORAGE_KEY, STORAGE_KEY, type WidgetHandle } from "../src/client/widget"
 
 type Summary = { id: string, queryCount: number, warnings: number, errors: number }
 
 class FakeEventSource {
   static instances: FakeEventSource[] = []
   onmessage: (() => void) | null = null
+  onopen: (() => void) | null = null
   closed = false
   constructor(public url: string) {
     FakeEventSource.instances.push(this)
@@ -208,6 +209,20 @@ describe("floating launcher", () => {
     expect(FakeEventSource.instances).toHaveLength(2)
   })
 
+  it("hooks the hotkeys into the panel page on every load, not only the first (a language change reloads it)", () => {
+    const { q, press } = mount()
+    press("KeyS")
+    const frame = q<HTMLIFrameElement>("iframe")
+    const added: string[] = []
+    const innerWindow = { addEventListener: (type: string) => added.push(type) }
+    Object.defineProperty(frame, "contentWindow", { value: innerWindow, configurable: true })
+
+    frame.dispatchEvent(new (frame.ownerDocument.defaultView as unknown as { Event: typeof Event }).Event("load"))
+    frame.dispatchEvent(new (frame.ownerDocument.defaultView as unknown as { Event: typeof Event }).Event("load"))
+
+    expect(added).toEqual(["keydown", "keydown"])
+  })
+
   it("clears the history through the inspector API", () => {
     const { q, press } = mount()
     press("KeyS")
@@ -215,6 +230,96 @@ describe("floating launcher", () => {
     ;(q<HTMLElement>("[data-act=clear]")).ownerDocument.defaultView!.fetch = post as never
     q<HTMLElement>("[data-act=clear]").click()
     expect(post).toHaveBeenCalledWith("/__sql-inspector/api/clear", { method: "POST" })
+  })
+
+  describe("slow query threshold", () => {
+    const SETTINGS_URL = "/__sql-inspector/api/settings"
+    const settingsReply = (slowMs: number, defaultSlowMs = 100) => ({ slowMs, defaultSlowMs, min: 1, max: 600000 })
+
+    function mountWithServer(saved?: number, reply = settingsReply(100)) {
+      const view = mount()
+      if (saved !== undefined) {
+        view.win.localStorage.setItem(SLOW_STORAGE_KEY, String(saved))
+      }
+      const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve({ json: () => Promise.resolve(reply) }))
+      ;(view.win as unknown as { fetch: unknown }).fetch = fetchMock
+      const input = view.q<HTMLInputElement>("[data-slow-input]")
+      const commit = (value: string) => {
+        input.value = value
+        input.dispatchEvent(new view.win.Event("change") as never)
+      }
+      const connect = async () => {
+        FakeEventSource.instances[0]!.onopen!()
+        await settle()
+      }
+      const saved$ = () => view.win.localStorage.getItem(SLOW_STORAGE_KEY)
+      return { ...view, fetchMock, input, commit, connect, saved: saved$ }
+    }
+
+    it("starts empty with the server default as the placeholder", async () => {
+      const { input, connect, q } = mountWithServer()
+      await connect()
+      expect(input.value).toBe("")
+      expect(input.placeholder).toBe("100")
+      expect(q<HTMLElement>("[data-slow-hint]").textContent).toContain("100")
+    })
+
+    it("shows a value that is set on the server", async () => {
+      const { input, connect } = mountWithServer(undefined, settingsReply(250))
+      await connect()
+      expect(input.value).toBe("250")
+    })
+
+    it("sends the new threshold, remembers it, and resets to the default when emptied", async () => {
+      const { commit, fetchMock, saved } = mountWithServer()
+
+      commit("250")
+      expect(fetchMock).toHaveBeenLastCalledWith(SETTINGS_URL, expect.objectContaining({ method: "POST", body: JSON.stringify({ slowMs: 250 }) }))
+      expect(saved()).toBe("250")
+
+      commit("")
+      expect(fetchMock).toHaveBeenLastCalledWith(SETTINGS_URL, expect.objectContaining({ body: JSON.stringify({ slowMs: null }) }))
+      expect(saved()).toBeNull()
+    })
+
+    it("rounds decimals and ignores values below 1 ms", async () => {
+      const { commit, fetchMock, input, saved, connect } = mountWithServer(300, settingsReply(300))
+      await connect()
+      fetchMock.mockClear()
+
+      commit("0")
+      commit("-5")
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(saved()).toBe("300")
+      expect(input.value).toBe("300")
+
+      commit("99.6")
+      expect(saved()).toBe("100")
+    })
+
+    it("re-applies the saved threshold whenever the stream (re)connects, e.g. after a server restart", async () => {
+      const { connect, fetchMock } = mountWithServer(300)
+      await connect()
+      expect(fetchMock).toHaveBeenCalledWith(SETTINGS_URL, expect.objectContaining({ method: "POST", body: JSON.stringify({ slowMs: 300 }) }))
+    })
+
+    it("only reads the server's value when nothing was saved", async () => {
+      const { connect, fetchMock } = mountWithServer()
+      await connect()
+      expect(fetchMock).toHaveBeenCalledWith(SETTINGS_URL, undefined)
+    })
+
+    it("follows a change made elsewhere, announced on the stream", async () => {
+      const reply = settingsReply(100)
+      const { input, fetchMock } = mountWithServer(undefined, reply)
+      fetchMock.mockImplementation(() => Promise.resolve({ json: () => Promise.resolve(reply) }))
+      reply.slowMs = 400
+
+      ;(FakeEventSource.instances[0]!.onmessage as unknown as (event: { data: string }) => void)({ data: JSON.stringify({ changed: ["settings"] }) })
+      await settle()
+
+      expect(input.value).toBe("400")
+    })
   })
 
   it("speaks the browser language by default, and an explicit choice wins over it", () => {

@@ -59,7 +59,11 @@ interface Options {
   stored?: Record<string, string>
   width?: number
   clipboard?: (text: string) => Promise<void>
+  /** What the server says about the slow-query threshold. */
+  slow?: { slowMs: number, defaultSlowMs: number }
 }
+
+interface Source { onopen: (() => void) | null, onmessage: ((event: { data: string }) => void) | null, onerror: (() => void) | null }
 
 function render(options: Options = {}) {
   const traces = buildTraces()
@@ -69,7 +73,18 @@ function render(options: Options = {}) {
   for (const [key, value] of Object.entries(options.stored ?? {})) {
     window.localStorage.setItem(key, value)
   }
-  const respond = (path: string) => {
+  const calls: { path: string, init?: RequestInit }[] = []
+  const sources: Source[] = []
+  const slow = { slowMs: 100, defaultSlowMs: 100, min: 1, max: 600000, ...options.slow }
+  const respond = (path: string, init?: RequestInit) => {
+    calls.push({ path, init })
+    if (path === "settings") {
+      if (init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { slowMs: number | null }
+        slow.slowMs = body.slowMs ?? slow.defaultSlowMs
+      }
+      return { ...slow }
+    }
     if (path === "clear") {
       return { ok: true }
     }
@@ -92,8 +107,15 @@ function render(options: Options = {}) {
   }
   const clipboard = options.clipboard ?? (() => Promise.resolve())
   Object.assign(window, {
-    fetch: (url: string) => Promise.resolve({ json: () => Promise.resolve(respond(String(url).replace("./api/", ""))) }),
-    EventSource: class { onopen: (() => void) | null = null; onmessage: (() => void) | null = null; onerror: (() => void) | null = null }
+    fetch: (url: string, init?: RequestInit) => Promise.resolve({ json: () => Promise.resolve(respond(String(url).replace("./api/", ""), init)) }),
+    EventSource: class {
+      onopen: (() => void) | null = null
+      onmessage: ((event: { data: string }) => void) | null = null
+      onerror: (() => void) | null = null
+      constructor() {
+        sources.push(this)
+      }
+    }
   })
   Object.defineProperty(window.navigator, "clipboard", { value: { writeText: clipboard }, configurable: true })
 
@@ -103,7 +125,7 @@ function render(options: Options = {}) {
   const script = /<script>([\s\S]*)<\/script>/.exec(html)![1]!
   window.document.write(html.replace(/<script>[\s\S]*<\/script>/, ""))
   window.eval(script)
-  return { window, document: window.document, html }
+  return { window, document: window.document, html, calls, sources, slow }
 }
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 25))
@@ -281,6 +303,80 @@ describe("inspector page", () => {
     click(document.getElementById("clear"))
     await settle()
     expect(calls).toContain("POST ./api/clear")
+  })
+})
+
+describe("slow query threshold box", () => {
+  const SLOW_KEY = "sqlDevInspector.slowMs"
+  const box = (document: ReturnType<typeof render>["document"]) => document.getElementById("slow") as unknown as HTMLInputElement
+  const commit = (window: ReturnType<typeof render>["window"], input: HTMLInputElement, value: string) => {
+    input.value = value
+    input.dispatchEvent(new window.Event("change") as never)
+  }
+  const settingsPosts = (calls: ReturnType<typeof render>["calls"]) => calls.filter(c => c.path === "settings" && c.init?.method === "POST").map(c => JSON.parse(String(c.init!.body)))
+
+  it("is in the top bar, empty, with the server default as its placeholder once connected", async () => {
+    const { document, sources } = render({ slow: { slowMs: 150, defaultSlowMs: 150 } })
+    await settle()
+    expect(document.querySelector(".topbar #slow")).not.toBeNull()
+    sources[0]!.onopen!()
+    await settle()
+    expect(box(document).value).toBe("")
+    expect(box(document).placeholder).toBe("150")
+    expect(box(document).getAttribute("aria-label")).toBe("Slow query threshold")
+  })
+
+  it("sends a typed threshold, remembers it, and goes back to the default when emptied", async () => {
+    const { document, window, calls, slow } = render()
+    await settle()
+
+    commit(window, box(document), "250")
+    await settle()
+    expect(settingsPosts(calls)).toEqual([{ slowMs: 250 }])
+    expect(slow.slowMs).toBe(250)
+    expect(window.localStorage.getItem(SLOW_KEY)).toBe("250")
+    expect(box(document).value).toBe("250")
+
+    commit(window, box(document), "")
+    await settle()
+    expect(settingsPosts(calls).at(-1)).toEqual({ slowMs: null })
+    expect(window.localStorage.getItem(SLOW_KEY)).toBeNull()
+    expect(box(document).value).toBe("")
+  })
+
+  it("ignores values below 1 ms and puts the real value back", async () => {
+    const { document, window, calls, sources } = render({ slow: { slowMs: 300, defaultSlowMs: 100 } })
+    await settle()
+    sources[0]!.onopen!()
+    await settle()
+    const before = settingsPosts(calls).length
+
+    commit(window, box(document), "0")
+    await settle()
+
+    expect(settingsPosts(calls)).toHaveLength(before)
+    expect(box(document).value).toBe("300")
+  })
+
+  it("re-applies a saved threshold when the stream connects, e.g. after a server restart", async () => {
+    const { calls, sources } = render({ stored: { [SLOW_KEY]: "400" } })
+    await settle()
+    sources[0]!.onopen!()
+    await settle()
+    expect(settingsPosts(calls)).toEqual([{ slowMs: 400 }])
+  })
+
+  it("follows a change announced on the stream, so another viewer's value shows up", async () => {
+    const { document, sources, slow } = render()
+    await settle()
+    sources[0]!.onopen!()
+    await settle()
+    slow.slowMs = 500
+
+    sources[0]!.onmessage!({ data: JSON.stringify({ changed: ["settings"] }) })
+    await settle()
+
+    expect(box(document).value).toBe("500")
   })
 })
 

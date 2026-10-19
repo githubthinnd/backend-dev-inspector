@@ -18,6 +18,7 @@ function lastActivity(trace: RequestTrace): number {
 export type StoreChange
   = | { type: "query" | "request-end", requestId: string }
     | { type: "clear" }
+    | { type: "settings" }
 
 export const BACKGROUND_REQUEST_ID = "background"
 
@@ -29,6 +30,8 @@ export class TraceStore {
   private readonly traces: RequestTrace[] = []
   private readonly listeners = new Set<(change: StoreChange) => void>()
   private background: RequestTrace | null = null
+  /** Bumped whenever a trace changes, so a cached report can tell it is stale without comparing the trace. */
+  private readonly versions = new WeakMap<RequestTrace, number>()
 
   constructor(private readonly options: StoreOptions) {}
 
@@ -68,20 +71,28 @@ export class TraceStore {
       trace.queries.shift()
       trace.droppedQueries++
     }
+    this.bump(trace)
     this.emit({ type: "query", requestId: trace.id })
   }
 
   /** A statement finished after it was recorded; listeners only need to know the trace changed. */
   touch(trace: RequestTrace) {
+    this.bump(trace)
     this.emit({ type: "query", requestId: trace.id })
   }
 
   finishRequest(trace: RequestTrace, status: number) {
     trace.status = status
     trace.durationMs = Date.now() - trace.startedAt
+    this.bump(trace)
     if (this.traces.includes(trace)) {
       this.emit({ type: "request-end", requestId: trace.id })
     }
+  }
+
+  /** Changes every time `trace` does; equal versions mean an unchanged trace. */
+  versionOf(trace: RequestTrace): number {
+    return this.versions.get(trace) ?? 0
   }
 
   /** Newest first. */
@@ -99,6 +110,11 @@ export class TraceStore {
     this.traces.length = 0
     this.background = null
     this.emit({ type: "clear" })
+  }
+
+  /** A report setting (the slow-query threshold) changed, so every shown report is stale. */
+  settingsChanged() {
+    this.emit({ type: "settings" })
   }
 
   subscribe(listener: (change: StoreChange) => void): () => void {
@@ -124,6 +140,10 @@ export class TraceStore {
     if (this.background && this.background !== keep && !this.traces.includes(this.background)) {
       this.background = null
     }
+  }
+
+  private bump(trace: RequestTrace) {
+    this.versions.set(trace, (this.versions.get(trace) ?? 0) + 1)
   }
 
   private emit(change: StoreChange) {

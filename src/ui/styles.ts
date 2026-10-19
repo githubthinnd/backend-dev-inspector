@@ -194,7 +194,12 @@ svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; s
 .footer span { display: inline-flex; align-items: center; gap: 5px; }
 
 /* Narrow (the docked panel can be ~400px wide): one pane at a time */
+.slow .input { width: 104px; padding: 0 30px 0 32px; text-align: right; font: 600 12.5px var(--mono); -moz-appearance: textfield; }
+.slow .input::-webkit-inner-spin-button, .slow .input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.slow .input::placeholder { font-weight: 500; }
+.slow .unit { position: absolute; right: 9px; color: var(--text-3); font-size: 11px; pointer-events: none; }
 .narrow .topbar { gap: 8px; padding: 0 10px; }
+.narrow .slow .input { width: 88px; }
 .narrow .brand span.name, .narrow .footer, .narrow .live span, .narrow .btn .label { display: none; }
 .narrow .input { width: 150px; }
 .narrow .layout { display: block; }

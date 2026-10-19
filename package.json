@@ -52,10 +52,8 @@
   "files": [
     "CHANGELOG.md",
     "LICENSE",
-    "README.VI.md",
     "README.md",
-    "dist",
-    "docs"
+    "dist"
   ],
   "engines": {
     "node": ">=20"

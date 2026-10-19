@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import type { Inspector } from "./runtime.js"
-import { buildReport } from "./report.js"
-import { formatSql } from "./sql-analyzer.js"
+import { rejectReason } from "./guard.js"
+import { cachedReport, formattedSql } from "./report-cache.js"
 import { renderPage } from "./ui/page.js"
 
 const TRAILING_SLASHES = /\/+$/
@@ -16,9 +16,49 @@ export function inspectorSubPath(url: string | undefined): string | null {
   return match ? (match[2] ?? "") : null
 }
 
+/** Range the UI may set the slow-query threshold to, in milliseconds. */
+export const SLOW_MS_RANGE = { min: 1, max: 600_000 } as const
+const MAX_BODY_BYTES = 1024
+
 function sendJson(res: ServerResponse, body: unknown, status = 200) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" })
   res.end(JSON.stringify(body))
+}
+
+function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let size = 0
+    const chunks: Buffer[] = []
+    req.on("data", (chunk: Buffer | string) => {
+      const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk
+      size += buffer.length
+      if (size > MAX_BODY_BYTES) {
+        reject(new Error("body too large"))
+        return
+      }
+      chunks.push(buffer)
+    })
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")))
+      } catch (error) {
+        reject(error as Error)
+      }
+    })
+    req.on("error", reject)
+  })
+}
+
+/** `null` asks for the default; a number must be a whole millisecond count in `SLOW_MS_RANGE`. */
+function parseSlowMs(body: unknown): number | null | undefined {
+  const value = (body as { slowMs?: unknown } | null)?.slowMs
+  if (value === null) {
+    return null
+  }
+  if (typeof value === "number" && Number.isInteger(value) && value >= SLOW_MS_RANGE.min && value <= SLOW_MS_RANGE.max) {
+    return value
+  }
+  return undefined
 }
 
 /**
@@ -29,6 +69,12 @@ function sendJson(res: ServerResponse, body: unknown, status = 200) {
 export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse, subPath: string, inspector: Inspector) {
   const { store } = inspector
   const path = subPath.replace(TRAILING_SLASHES, "")
+
+  const refusal = rejectReason(req, inspector.allowedHosts)
+  if (refusal) {
+    sendJson(res, { message: refusal }, 403)
+    return
+  }
 
   if (subPath === "") {
     res.writeHead(308, { location: `${req.url!.split("?")[0]}/` })
@@ -44,7 +90,7 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
 
   if (req.method === "GET" && path === "/api/requests") {
     sendJson(res, store.list().map((trace) => {
-      const { totals, insights } = buildReport(trace, inspector.report)
+      const { totals, insights } = cachedReport(store, trace, inspector.report)
       return {
         id: trace.id,
         method: trace.method,
@@ -54,7 +100,7 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
         durationMs: trace.durationMs,
         queryCount: totals.queryCount,
         sqlTimeMs: totals.sqlTimeMs,
-        warnings: insights.filter(i => i.severity !== "info").length,
+        warnings: insights.filter(i => i.severity === "warn").length,
         errors: insights.filter(i => i.severity === "error").length
       }
     }))
@@ -68,10 +114,10 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
       sendJson(res, { message: "Request not found (evicted or cleared)" }, 404)
       return
     }
-    const report = buildReport(trace, inspector.report)
+    const report = cachedReport(store, trace, inspector.report)
     sendJson(res, {
       ...report,
-      formattedSql: Object.fromEntries(trace.queries.map(q => [q.seq, formatSql(q.sql)]))
+      formattedSql: Object.fromEntries(trace.queries.map(q => [q.seq, formattedSql(q)]))
     })
     return
   }
@@ -82,7 +128,7 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
     let timer: NodeJS.Timeout | null = null
     const pending = new Set<string>()
     const unsubscribe = store.subscribe((change) => {
-      pending.add(change.type === "clear" ? "clear" : change.requestId)
+      pending.add(change.type === "clear" || change.type === "settings" ? change.type : change.requestId)
       // A burst of statements becomes one event, so a 500-query request cannot flood the page.
       timer ??= setTimeout(() => {
         timer = null
@@ -96,6 +142,30 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
         clearTimeout(timer)
       }
     })
+    return
+  }
+
+  if (req.method === "GET" && path === "/api/settings") {
+    sendJson(res, { slowMs: inspector.report.slowMs, defaultSlowMs: inspector.defaultSlowMs, ...SLOW_MS_RANGE })
+    return
+  }
+
+  if (req.method === "POST" && path === "/api/settings") {
+    // Only a JSON content type: a cross-origin page cannot send one without a CORS preflight, which this server never answers.
+    if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
+      sendJson(res, { message: "Expected application/json" }, 415)
+      return
+    }
+    readJsonBody(req).then((body) => {
+      const slowMs = parseSlowMs(body)
+      if (slowMs === undefined) {
+        sendJson(res, { message: `slowMs must be a whole number from ${SLOW_MS_RANGE.min} to ${SLOW_MS_RANGE.max}, or null` }, 400)
+        return
+      }
+      inspector.report.slowMs = slowMs ?? inspector.defaultSlowMs
+      store.settingsChanged()
+      sendJson(res, { slowMs: inspector.report.slowMs, defaultSlowMs: inspector.defaultSlowMs, ...SLOW_MS_RANGE })
+    }).catch(() => sendJson(res, { message: "Invalid JSON body" }, 400))
     return
   }
 

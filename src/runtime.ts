@@ -1,4 +1,5 @@
 import process from "node:process"
+import { parseAllowedHosts } from "./guard.js"
 import { chosenLocale, DEFAULT_LOCALE, type Locale } from "./i18n/index.js"
 import { DEFAULT_REPORT_OPTIONS, type ReportOptions } from "./report.js"
 import { TraceStore } from "./store.js"
@@ -6,6 +7,10 @@ import { TraceStore } from "./store.js"
 export interface Inspector {
   store: TraceStore
   report: ReportOptions
+  /** The slow-query threshold the process started with (`SQL_INSPECTOR_SLOW_MS`), what a reset from the UI returns to. */
+  defaultSlowMs: number
+  /** Host names besides loopback and IP addresses that may open the inspector (`SQL_INSPECTOR_ALLOWED_HOSTS`). */
+  allowedHosts: string[]
   logToTerminal: boolean
   /** Language of server-side text (terminal output, `Insight.message`). */
   locale: Locale
@@ -44,9 +49,12 @@ export function isInspectorEnabled(env: NodeJS.ProcessEnv = process.env): boolea
 export function getInspector(env: NodeJS.ProcessEnv = process.env): Inspector {
   const holder = globalThis as unknown as Record<symbol, Inspector | undefined>
   const hint = chosenLocale(env)
+  const slowMs = positiveNumber(env.SQL_INSPECTOR_SLOW_MS, DEFAULT_REPORT_OPTIONS.slowMs)
   holder[KEY] ??= {
     locale: hint ?? DEFAULT_LOCALE,
     localeHint: hint,
+    defaultSlowMs: slowMs,
+    allowedHosts: parseAllowedHosts(env.SQL_INSPECTOR_ALLOWED_HOSTS),
     store: new TraceStore({
       maxRequests: positiveNumber(env.SQL_INSPECTOR_MAX_REQUESTS, 200),
       maxQueriesPerRequest: positiveNumber(env.SQL_INSPECTOR_MAX_QUERIES, 1000),
@@ -54,7 +62,7 @@ export function getInspector(env: NodeJS.ProcessEnv = process.env): Inspector {
     }),
     report: {
       ...DEFAULT_REPORT_OPTIONS,
-      slowMs: positiveNumber(env.SQL_INSPECTOR_SLOW_MS, DEFAULT_REPORT_OPTIONS.slowMs),
+      slowMs,
       transactionConvention: env.SQL_INSPECTOR_TX_CONVENTION === "1",
       locale: hint ?? DEFAULT_LOCALE
     },

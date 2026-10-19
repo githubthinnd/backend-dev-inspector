@@ -44,8 +44,6 @@ pnpm add -D sql-dev-inspector
 yarn add -D sql-dev-inspector
 ```
 
-Other ways to install (from GitHub, from a `.tgz` file): see [docs/PUBLISH-AND-INSTALL.md](docs/PUBLISH-AND-INSTALL.md) *(Vietnamese)*.
-
 ## Quick start
 
 The inspector turns on when `NODE_ENV=development` (or `SQL_INSPECTOR=1`). Most dev servers (`nuxt dev`, `next dev`, `vite`) set `NODE_ENV` for you; for a plain Node script run `NODE_ENV=development node server.js`.
@@ -140,6 +138,7 @@ If your frontend runs on a different origin than the API (e.g. Vite on :5173, AP
 | Resize the panel | Drag its edge |
 | Dock bottom / right | the two dock icons in the panel header |
 | Auto-open on warnings or errors | Settings menu (off by default) |
+| Slow-query threshold | Settings menu, or the box in the inspector page's top bar: a number of ms (1 to 600000), empty for the default. Applies to every viewer and the terminal, and is re-applied after a server restart |
 | Open in a new tab · clear history | the ↗ icon in the header · "Clear history" in the settings menu |
 | Turn it off completely | Settings menu → disable (`Alt+Shift+S` brings it back) |
 
@@ -166,9 +165,10 @@ Settings (including language) are stored in `localStorage`. The panel loads only
 | `SQL_INSPECTOR` | — | `1` forces on outside production (e.g. `test`); `0` forces off |
 | `SQL_INSPECTOR_LANG` | `en` | Language of terminal output (`en`, `vi`, `ja`) and the web page's starting language. Only this variable counts — your machine's `LANG` is deliberately ignored |
 | `SQL_INSPECTOR_LOG` | on | `0` disables the terminal output |
-| `SQL_INSPECTOR_SLOW_MS` | `100` | slow-query threshold |
+| `SQL_INSPECTOR_SLOW_MS` | `100` | slow-query threshold (the floating panel's settings menu can override it while the app runs) |
 | `SQL_INSPECTOR_MAX_REQUESTS` | `200` | requests kept in memory |
 | `SQL_INSPECTOR_TTL_MINUTES` | `60` | drop requests with no new query for this many minutes (`0` = keep until the request cap pushes them out) |
+| `SQL_INSPECTOR_ALLOWED_HOSTS` | — | extra host names allowed to open the inspector, comma separated (`myapp.test,*.dev.example.com`; `*` allows any). `localhost`, `*.localhost` and IP addresses are always allowed |
 | `SQL_INSPECTOR_MAX_QUERIES` | `1000` | statements kept per request |
 | `SQL_INSPECTOR_TX_CONVENTION` | off | `1` enables the transaction-convention insights |
 | `NO_COLOR` | — | disables terminal colors |
@@ -196,7 +196,7 @@ Lower level, for custom integrations: `startInspector`, `getInspector`, `isInspe
 | `sql-dev-inspector/nitro` | Nitro plugin |
 | `sql-dev-inspector/client` | `mountSqlInspectorWidget({ baseURL })` — floating button for any frontend |
 
-HTTP routes, all under `/__sql-inspector/`: `GET /` (page), `GET /api/requests`, `GET /api/requests/:id`, `GET /api/stream` (SSE), `POST /api/clear`.
+HTTP routes, all under `/__sql-inspector/`: `GET /` (page), `GET /api/requests`, `GET /api/requests/:id`, `GET /api/stream` (SSE), `GET` / `POST /api/settings` (slow-query threshold, JSON body `{"slowMs": 250}` or `{"slowMs": null}` to reset), `POST /api/clear`.
 
 ## How it works
 
@@ -231,6 +231,8 @@ The tool must never make your app look worse, so:
 - Data lives in the memory of the dev process only: no files written, no network calls.
 - ⚠️ **Displayed SQL contains real values**, possibly personal data from the database you point at. Don't share your screen or screenshots while connected to staging or production-like data.
 - `/__sql-inspector/` has **no authentication** — it is meant for `localhost`. Don't expose your dev server to a shared network (e.g. `--host 0.0.0.0`) while it is on.
+- It refuses any request whose `Host` is not `localhost`, `*.localhost` or an IP address (this stops DNS-rebinding pages from reading your SQL), answering `403` with the variable to set. If you open your dev server by another name (`myapp.test`, a tunnel), list it in `SQL_INSPECTOR_ALLOWED_HOSTS`.
+- State-changing calls (clear history, set the threshold) refuse requests a browser marks as cross-site.
 
 ## Limitations
 
@@ -258,7 +260,7 @@ The tool must never make your app look worse, so:
 ```bash
 npm install
 npm run typecheck
-npm test            # 131 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
+npm test            # 201 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
 npm run build
 ```
 

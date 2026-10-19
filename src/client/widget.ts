@@ -28,6 +28,11 @@ export interface WidgetSettings {
   lang: "auto" | Locale
 }
 
+interface ServerSettings {
+  slowMs: number
+  defaultSlowMs: number
+}
+
 interface RequestSummary {
   id: string
   queryCount: number
@@ -36,6 +41,8 @@ interface RequestSummary {
 }
 
 export const STORAGE_KEY = "sqlDevInspector.widget"
+/** The slow-query threshold the user chose, shared with the inspector page (same origin). Absent means "server default". */
+export const SLOW_STORAGE_KEY = "sqlDevInspector.slowMs"
 export const HOTKEYS = { togglePanel: "Alt+Shift+S", toggleButton: "Alt+Shift+D" } as const
 
 const DEFAULTS: WidgetSettings = {
@@ -48,6 +55,9 @@ const DEFAULTS: WidgetSettings = {
   offset: { right: 20, bottom: 20 },
   lang: "auto"
 }
+
+const SLOW_MS_MIN = 1
+const SLOW_MS_MAX = 600_000
 
 const TRAILING_SLASHES = /\/+$/
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -136,6 +146,10 @@ iframe { flex: 1; width: 100%; border: 0; background: var(--surface); color-sche
 .opt .code { margin-left: auto; color: var(--text-3); font: 600 10.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-transform: uppercase !important; }
 .keys { display: flex; align-items: center; gap: 3px; }
 kbd { font: 600 10.5px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 3px 5px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2); color: var(--text-2); }
+.num { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 12px; }
+.num input { width: 78px; height: 26px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--text); font: 600 12.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-align: right; -moz-appearance: textfield; }
+.num input::placeholder { color: var(--text-3); font-weight: 500; }
+.num input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .menu .sep { height: 1px; margin: 6px 0; background: var(--border); }
 .menu .action { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; padding: 0 8px; border-radius: 6px; font-size: 12.5px; }
 .menu .action:hover { background: var(--surface-2); }
@@ -207,6 +221,8 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
           <div class="row clickable" role="switch" tabindex="0" data-opt="buttonVisible"><span class="label" data-t="widget.showButton"></span><span class="switch"></span></div>
           <div class="row clickable" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" data-lang-toggle><span class="label" data-t="widget.language"></span><span class="value"><span data-lang-current></span>${ICONS.down}</span></div>
           <div class="options" role="listbox" data-lang-options hidden></div>
+          <label class="row"><span class="label" data-t="widget.slowMs"></span><span class="num"><input type="number" inputmode="numeric" min="${SLOW_MS_MIN}" max="${SLOW_MS_MAX}" step="1" data-slow-input>ms</span></label>
+          <div class="hint" data-slow-hint></div>
           <div class="sep"></div>
           <div class="section" data-t="widget.shortcuts"></div>
           <div class="row"><span class="label" data-t="widget.shortcut.toggle"></span><span class="keys">${keyChips(HOTKEYS.togglePanel)}</span></div>
@@ -230,6 +246,8 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
   const frame = $<HTMLIFrameElement>("iframe")
   const langToggle = $<HTMLElement>("[data-lang-toggle]")
   const langOptions = $<HTMLElement>("[data-lang-options]")
+  const slowInput = $<HTMLInputElement>("[data-slow-input]")
+  const slowHint = $<HTMLElement>("[data-slow-hint]")
 
   // A custom listbox, not a <select>: the browser/OS draws a native select's popup, which no CSS can restyle.
   const langChoices: { value: WidgetSettings["lang"], code: string }[] = [{ value: "auto", code: "" }, ...LOCALES.map(l => ({ value: l.code, code: l.code }))]
@@ -239,6 +257,70 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
 
   const query = () => settings.lang === "auto" ? "" : `?lang=${settings.lang}`
   const frameUrl = () => `${inspectorUrl}${query()}#latest`
+
+  // What the server reports for the threshold; null until the first answer.
+  let serverSlow: ServerSettings | null = null
+  const isServerSettings = (value: unknown): value is ServerSettings =>
+    typeof value === "object" && value !== null
+    && typeof (value as ServerSettings).slowMs === "number" && typeof (value as ServerSettings).defaultSlowMs === "number"
+
+  const savedSlow = (): number | null => {
+    try {
+      const raw = win.localStorage.getItem(SLOW_STORAGE_KEY)
+      const value = raw === null ? Number.NaN : Number(raw)
+      return Number.isFinite(value) && value >= SLOW_MS_MIN ? clamp(Math.round(value), SLOW_MS_MIN, SLOW_MS_MAX) : null
+    } catch {
+      return null
+    }
+  }
+  const saveSlow = (value: number | null) => {
+    try {
+      if (value === null) {
+        win.localStorage.removeItem(SLOW_STORAGE_KEY)
+      } else {
+        win.localStorage.setItem(SLOW_STORAGE_KEY, String(value))
+      }
+    } catch {
+      // storage can be blocked; the server then keeps the value until it restarts
+    }
+  }
+
+  const showSlow = (server: ServerSettings | null = null) => {
+    serverSlow = server ?? serverSlow
+    // The server holds the value. An empty box means "server default"; a value set elsewhere shows up here too.
+    const custom = serverSlow !== null && serverSlow.slowMs !== serverSlow.defaultSlowMs
+    slowInput.value = custom ? String(serverSlow!.slowMs) : ""
+    slowInput.placeholder = serverSlow ? String(serverSlow.defaultSlowMs) : ""
+    slowHint.textContent = t("widget.slowMs.hint", { ms: serverSlow?.defaultSlowMs ?? "…" })
+  }
+  const requestSlow = async (init?: RequestInit) => {
+    try {
+      const data: unknown = await (await win.fetch(`${inspectorUrl}api/settings`, init)).json()
+      if (isServerSettings(data)) {
+        showSlow(data)
+      }
+    } catch {
+      // inspector not reachable (server restarting): the next connection tries again
+    }
+  }
+  const pushSlow = (value: number | null) => requestSlow({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ slowMs: value }) })
+  // After a (re)connect: push the threshold saved in this browser, or pick up the server's.
+  const syncSlow = () => {
+    const saved = savedSlow()
+    return saved === null ? requestSlow() : pushSlow(saved)
+  }
+  const commitSlow = () => {
+    const raw = slowInput.value.trim()
+    const rounded = Math.round(Number(raw))
+    if (raw !== "" && (!Number.isFinite(rounded) || rounded < SLOW_MS_MIN)) {
+      showSlow()
+      return
+    }
+    const value = raw === "" ? null : clamp(rounded, SLOW_MS_MIN, SLOW_MS_MAX)
+    saveSlow(value)
+    void pushSlow(value)
+  }
+  slowInput.addEventListener("change", commitSlow)
 
   const applyTexts = () => {
     for (const el of Array.from(root.querySelectorAll<HTMLElement>("[data-t]"))) {
@@ -270,6 +352,7 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
       opt.querySelector("svg")!.setAttribute("class", "check")
     }
     $<HTMLElement>("[data-lang-current]").textContent = langName(settings.lang)
+    showSlow()
   }
 
   const setLangList = (open: boolean) => {
@@ -311,7 +394,6 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
     // Loaded on first open only: a closed panel costs the app nothing.
     if (settings.open && !frame.getAttribute("src")) {
       frame.setAttribute("src", frameUrl())
-      frame.addEventListener("load", () => frame.contentWindow?.addEventListener("keydown", onKeydown), { once: true })
     }
     save()
     if (settings.enabled) {
@@ -354,6 +436,8 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
     }
   }
   win.addEventListener("keydown", onKeydown)
+  // Every load is a new window inside the frame (first open, language change), and it needs the hotkeys again.
+  frame.addEventListener("load", () => frame.contentWindow?.addEventListener("keydown", onKeydown))
   // Key events from inside the shadow root are composed, so the window listener already sees them.
 
   // Drag the button; a move under 4px is a plain click. A real `click` event does the toggling (so
@@ -508,7 +592,12 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
     }
     void refreshBadge()
     stream = new win.EventSource(`${inspectorUrl}api/stream`)
-    stream.onmessage = () => {
+    stream.onopen = () => void syncSlow()
+    stream.onmessage = (event) => {
+      // Someone (this widget, the page, another tab) changed the threshold: show the server's value.
+      if (typeof event?.data === "string" && event.data.includes("settings")) {
+        void requestSlow()
+      }
       timer ??= setTimeout(() => {
         timer = null
         void refreshBadge()

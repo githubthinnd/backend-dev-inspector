@@ -6,12 +6,14 @@ export const CLIENT_SCRIPT = String.raw`
   var CFG = __SQLI__;
   var MESSAGES = CFG.messages, LOCALES = CFG.locales;
   var KEY_LANG = "sqlDevInspector.lang", KEY_THEME = "sqlDevInspector.theme", KEY_FOLLOW = "sqlDevInspector.follow";
+  var KEY_SLOW = "sqlDevInspector.slowMs", SLOW_MIN = 1, SLOW_MAX = 600000;
 
   // ── tiny helpers ───────────────────────────────────────────────────
   function $(id) { return document.getElementById(id); }
   var storage = {
     get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage may be blocked */ } }
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage may be blocked */ } },
+    del: function (k) { try { localStorage.removeItem(k); } catch (e) { /* storage may be blocked */ } }
   };
   function h(tag, props, kids) {
     var el = document.createElement(tag);
@@ -50,7 +52,8 @@ export const CLIENT_SCRIPT = String.raw`
     monitor: "<svg viewBox='0 0 24 24'><rect x='3' y='4' width='18' height='12' rx='2'/><path d='M8 20h8M12 16v4'/></svg>",
     globe: "<svg viewBox='0 0 24 24'><circle cx='12' cy='12' r='9'/><path d='M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3Z'/></svg>",
     check: "<svg viewBox='0 0 24 24'><path d='m5 12.5 4.5 4.5L19 7.5'/></svg>",
-    inbox: "<svg viewBox='0 0 24 24'><path d='M3 13h5l1.5 3h5L16 13h5'/><path d='M5 5h14l2 8v6H3v-6l2-8Z'/></svg>"
+    inbox: "<svg viewBox='0 0 24 24'><path d='M3 13h5l1.5 3h5L16 13h5'/><path d='M5 5h14l2 8v6H3v-6l2-8Z'/></svg>",
+    timer: "<svg viewBox='0 0 24 24'><circle cx='12' cy='13' r='8'/><path d='M12 9v4l2.5 2M9 2h6'/></svg>"
   };
   function icon(name) { var s = document.createElement("span"); s.innerHTML = ICONS[name] || ""; return s.firstChild; }
 
@@ -111,7 +114,7 @@ export const CLIENT_SCRIPT = String.raw`
     Array.prototype.forEach.call(document.querySelectorAll("[data-i18n-placeholder]"), function (el) { el.setAttribute("placeholder", t(el.getAttribute("data-i18n-placeholder"))); });
     Array.prototype.forEach.call(document.querySelectorAll("[data-i18n-aria]"), function (el) { el.setAttribute("aria-label", t(el.getAttribute("data-i18n-aria"))); });
     updateLangMenu();
-    applyTheme(); renderLive();
+    applyTheme(); renderLive(); showSlow(null);
   }
 
   // ── SQL highlighting (DOM nodes only: SQL text is never parsed as HTML) ──
@@ -374,6 +377,38 @@ export const CLIENT_SCRIPT = String.raw`
     document.addEventListener("click", function (e) { if (!menu.hidden && !$("lang-dd").contains(e.target)) { setLangMenu(false, false); } });
   }
 
+  // ── slow-query threshold ──────────────────────────────────────────
+  // The server holds the value; this box only shows it. The choice is also kept in localStorage
+  // (shared with the floating panel, same origin) so it can be re-applied after a server restart.
+  var serverSlow = null;
+  function showSlow(server) {
+    serverSlow = server || serverSlow;
+    var input = $("slow");
+    var custom = serverSlow && serverSlow.slowMs !== serverSlow.defaultSlowMs;
+    input.value = custom ? String(serverSlow.slowMs) : "";
+    input.placeholder = serverSlow ? String(serverSlow.defaultSlowMs) : "";
+    $("slow-field").setAttribute("title", t("widget.slowMs") + " — " + t("widget.slowMs.hint", { ms: serverSlow ? serverSlow.defaultSlowMs : "…" }));
+  }
+  function requestSlow(init) {
+    return fetch("./api/settings", init).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && typeof d.slowMs === "number" && typeof d.defaultSlowMs === "number") { showSlow(d); }
+    }).catch(function () { /* server restarting; the next connection retries */ });
+  }
+  function pushSlow(value) {
+    return requestSlow({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ slowMs: value }) });
+  }
+  function syncSlow() {
+    var saved = storage.get(KEY_SLOW) === null ? NaN : Number(storage.get(KEY_SLOW));
+    return Number.isFinite(saved) && saved >= SLOW_MIN ? pushSlow(saved) : requestSlow();
+  }
+  function commitSlow() {
+    var raw = $("slow").value.trim(), rounded = Math.round(Number(raw));
+    if (raw === "") { storage.del(KEY_SLOW); pushSlow(null); return; }
+    if (!Number.isFinite(rounded) || rounded < SLOW_MIN) { showSlow(null); return; }
+    rounded = Math.min(SLOW_MAX, rounded);
+    storage.set(KEY_SLOW, String(rounded)); pushSlow(rounded);
+  }
+
   // ── actions ───────────────────────────────────────────────────────
   var toastTimer = null;
   function toast(text) {
@@ -418,8 +453,11 @@ export const CLIENT_SCRIPT = String.raw`
   function connect() {
     if (typeof EventSource === "undefined") { return; }
     var es = new EventSource("./api/stream");
-    es.onopen = function () { state.live = true; renderLive(); refresh(); };
-    es.onmessage = function () { refresh(); };
+    es.onopen = function () { state.live = true; renderLive(); syncSlow(); refresh(); };
+    es.onmessage = function (e) {
+      if (e && typeof e.data === "string" && e.data.indexOf("settings") >= 0) { requestSlow(); }
+      refresh();
+    };
     es.onerror = function () { state.live = false; renderLive(); };
   }
   function move(delta) {
@@ -452,6 +490,7 @@ export const CLIENT_SCRIPT = String.raw`
     api("clear", { method: "POST" }).then(function () { state.selectedId = null; state.report = null; renderDetail(); refresh(); });
   });
   $("follow").addEventListener("click", function () { setFollow(!state.follow); });
+  $("slow").addEventListener("change", commitSlow);
   var search = $("search");
   search.addEventListener("input", function () { state.term = search.value; renderList(); });
   Array.prototype.forEach.call(document.querySelectorAll("[data-mode]"), function (b) { b.addEventListener("click", function () { setMode(b.getAttribute("data-mode")); }); });
