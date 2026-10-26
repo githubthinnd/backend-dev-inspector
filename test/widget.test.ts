@@ -1,4 +1,4 @@
-import { Window } from "happy-dom"
+import { createWindow } from "./dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { HOTKEYS, mountSqlInspectorWidget, SLOW_STORAGE_KEY, STORAGE_KEY, type WidgetHandle } from "../src/client/widget"
 
@@ -25,7 +25,7 @@ const fetchCalls: string[] = []
 function mount(stored?: object, baseURL = "/") {
   FakeEventSource.instances = []
   fetchCalls.length = 0
-  const win = new Window({ url: "http://localhost:3000/", settings: { disableIframePageLoading: true } })
+  const win = createWindow({ url: "http://localhost:3000/" })
   if (stored) {
     win.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
   }
@@ -47,7 +47,7 @@ function mount(stored?: object, baseURL = "/") {
 
 function mountWithLanguages(languages: string[], stored?: object) {
   FakeEventSource.instances = []
-  const win = new Window({ url: "http://localhost:3000/", settings: { disableIframePageLoading: true } })
+  const win = createWindow({ url: "http://localhost:3000/" })
   Object.defineProperty(win.navigator, "languages", { value: languages, configurable: true })
   if (stored) {
     win.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
@@ -149,7 +149,7 @@ describe("floating launcher", () => {
     expect(q<HTMLElement>(".fab").style.display).toBe("none")
     handle!.destroy()
 
-    const win = new Window({ url: "http://localhost:3000/", settings: { disableIframePageLoading: true } })
+    const win = createWindow({ url: "http://localhost:3000/" })
     win.localStorage.setItem(STORAGE_KEY, "{not json")
     Object.assign(win, { EventSource: FakeEventSource, fetch: () => Promise.resolve({ json: () => Promise.resolve([]) }) })
     handle = mountSqlInspectorWidget({ baseURL: "/", win: win as never })

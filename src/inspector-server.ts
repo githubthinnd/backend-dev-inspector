@@ -8,7 +8,8 @@ const TRAILING_SLASHES = /\/+$/
 const REQUEST_DETAIL = /^\/api\/requests\/([\w-]+)$/
 
 export const INSPECTOR_PATH = "__sql-inspector"
-const MATCH = new RegExp(`^((?:/[^/?#]+)*?)/${INSPECTOR_PATH}(/[^?#]*)?(?:[?#].*)?$`)
+// A literal, not built from INSPECTOR_PATH at runtime: nothing in this package compiles code from strings.
+const MATCH = /^((?:\/[^/?#]+)*?)\/__sql-inspector(\/[^?#]*)?(?:[?#].*)?$/
 
 /** Matches `/__sql-inspector/...` under any base path; returns the part after it, or null. */
 export function inspectorSubPath(url: string | undefined): string | null {

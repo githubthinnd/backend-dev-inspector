@@ -234,6 +234,15 @@ The tool must never make your app look worse, so:
 - It refuses any request whose `Host` is not `localhost`, `*.localhost` or an IP address (this stops DNS-rebinding pages from reading your SQL), answering `403` with the variable to set. If you open your dev server by another name (`myapp.test`, a tunnel), list it in `SQL_INSPECTOR_ALLOWED_HOSTS`.
 - State-changing calls (clear history, set the threshold) refuse requests a browser marks as cross-site.
 
+### Dependencies and supply chain
+
+- **No runtime dependencies.** `package.json` has no `dependencies`: the only requirement is the `mysql2` your application already has, declared as a peer dependency. Scanners that resolve peers (Socket lists "1 dependency: mysql2") attribute the alerts of `mysql2` and its own dependencies to this package; they are not code shipped here.
+- **No install scripts**, no network calls, no child processes, no `eval` / `new Function` / `new RegExp(string)`. Tests fail if any of that appears in `src/`.
+- **Environment variables:** the package reads only the ones in [`src/env.ts`](src/env.ts) (`NODE_ENV`, `NO_COLOR` and `SQL_INSPECTOR_*`), through an allow-list, never the whole environment. Scanners still flag "environment variable access" because the tool is configured that way, and `NODE_ENV=production` is its safety switch.
+- **Reflection:** the tracer wraps `Connection.prototype.query` / `execute` and `Pool.prototype.getConnection` of `mysql2` (that is how it sees every statement) and keeps request context with `AsyncLocalStorage`. It restores the originals when uninstalled.
+- **Provenance:** releases are built and published by GitHub Actions with npm provenance, using npm trusted publishing (no long-lived token). Check an install with `npm audit signatures`. The publishing job installs with `npm ci --ignore-scripts`, so no dependency script runs where the publish credentials exist.
+- CI runs `npm audit` and `npm audit signatures` weekly and on every push; Dependabot proposes dependency and Actions updates. Report a vulnerability as described in [SECURITY.md](SECURITY.md).
+
 ## Limitations
 
 - **MySQL via `mysql2` only.** Not PostgreSQL, SQLite, or other MySQL drivers (e.g. `mariadb`). ORMs that don't use `mysql2` underneath (e.g. Prisma's own engine) bypass the patched point.
@@ -260,7 +269,7 @@ The tool must never make your app look worse, so:
 ```bash
 npm install
 npm run typecheck
-npm test            # 201 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
+npm test            # 209 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
 npm run build
 ```
 

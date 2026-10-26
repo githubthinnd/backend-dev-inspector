@@ -1,9 +1,10 @@
 import type { QueryEvent, RequestReport, TraceNode } from "./types.js"
 import process from "node:process"
+import { pickEnv } from "./env.js"
 import { type Locale, translate } from "./i18n/index.js"
 import { isControlStatement } from "./sql-analyzer.js"
 
-const useColor = Boolean(process.stdout?.isTTY) && !process.env.NO_COLOR
+const useColor = Boolean(process.stdout?.isTTY) && !pickEnv().NO_COLOR
 const paint = (code: number) => (text: string) => useColor ? `\u001B[${code}m${text}\u001B[0m` : text
 const dim = paint(2)
 const bold = paint(1)

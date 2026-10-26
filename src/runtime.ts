@@ -1,4 +1,4 @@
-import process from "node:process"
+import { type InspectorEnv, pickEnv } from "./env.js"
 import { parseAllowedHosts } from "./guard.js"
 import { chosenLocale, DEFAULT_LOCALE, type Locale } from "./i18n/index.js"
 import { DEFAULT_REPORT_OPTIONS, type ReportOptions } from "./report.js"
@@ -38,7 +38,7 @@ function minutesToMs(raw: string | undefined, fallbackMinutes: number) {
  * `vite` and most dev scripts set) or when asked for with `SQL_INSPECTOR=1`.
  * `SQL_INSPECTOR=0` switches it off.
  */
-export function isInspectorEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+export function isInspectorEnabled(env: InspectorEnv = pickEnv()): boolean {
   if (env.NODE_ENV === "production" || env.SQL_INSPECTOR === "0") {
     return false
   }
@@ -46,7 +46,7 @@ export function isInspectorEnabled(env: NodeJS.ProcessEnv = process.env): boolea
 }
 
 /** One inspector per process, however many bundles import this module. */
-export function getInspector(env: NodeJS.ProcessEnv = process.env): Inspector {
+export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
   const holder = globalThis as unknown as Record<symbol, Inspector | undefined>
   const hint = chosenLocale(env)
   const slowMs = positiveNumber(env.SQL_INSPECTOR_SLOW_MS, DEFAULT_REPORT_OPTIONS.slowMs)

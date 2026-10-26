@@ -1,6 +1,6 @@
 import type { Locale } from "../src/i18n"
 import type { QueryEvent, RequestTrace } from "../src/types"
-import { Window } from "happy-dom"
+import { createWindow } from "./dom"
 import { describe, expect, it, vi } from "vitest"
 import { buildReport } from "../src/report"
 import { analyzeSql, formatSql } from "../src/sql-analyzer"
@@ -68,7 +68,7 @@ interface Source { onopen: (() => void) | null, onmessage: ((event: { data: stri
 function render(options: Options = {}) {
   const traces = buildTraces()
   const reports = new Map(traces.map(t => [t.id, buildReport(t)]))
-  const window = new Window({ url: "http://localhost/__sql-inspector/", width: options.width ?? 1280, height: 800 })
+  const window = createWindow({ url: "http://localhost/__sql-inspector/", width: options.width ?? 1280, height: 800 })
   Object.defineProperty(window.navigator, "languages", { value: options.languages ?? ["en-US"], configurable: true })
   for (const [key, value] of Object.entries(options.stored ?? {})) {
     window.localStorage.setItem(key, value)
@@ -119,11 +119,13 @@ function render(options: Options = {}) {
   })
   Object.defineProperty(window.navigator, "clipboard", { value: { writeText: clipboard }, configurable: true })
 
-  // happy-dom does not run scripts written into the document, so the page's one script is
+  // the page script is not run by the DOM when written into the document, so written into the document, so the page's one script is
   // evaluated by hand, against the same markup the browser would get.
   const html = renderPage(options.hint ?? null)
   const script = /<script>([\s\S]*)<\/script>/.exec(html)![1]!
+  window.document.open()
   window.document.write(html.replace(/<script>[\s\S]*<\/script>/, ""))
+  window.document.close()
   window.eval(script)
   return { window, document: window.document, html, calls, sources, slow }
 }
@@ -279,7 +281,7 @@ describe("inspector page", () => {
 
   it("shows one pane at a time when narrow, with a way back", async () => {
     const { document, window } = render({ width: 480 })
-    window.innerWidth = 480
+    ;(window as { innerWidth: number }).innerWidth = 480
     window.dispatchEvent(new window.Event("resize") as never)
     await settle()
     const app = document.getElementById("app")!
@@ -470,11 +472,13 @@ describe("inspector page i18n", () => {
   })
 
   it("a ?lang= query parameter wins, so the floating panel can pass its language on", async () => {
-    const window = new Window({ url: "http://localhost/__sql-inspector/?lang=ja" })
+    const window = createWindow({ url: "http://localhost/__sql-inspector/?lang=ja" })
     Object.defineProperty(window.navigator, "languages", { value: ["en"], configurable: true })
     Object.assign(window, { fetch: () => Promise.resolve({ json: () => Promise.resolve([]) }), EventSource: class {} })
     const html = renderPage(null)
+    window.document.open()
     window.document.write(html.replace(/<script>[\s\S]*<\/script>/, ""))
+    window.document.close()
     window.eval(/<script>([\s\S]*)<\/script>/.exec(html)![1]!)
     await settle()
     expect(window.document.documentElement.lang).toBe("ja")

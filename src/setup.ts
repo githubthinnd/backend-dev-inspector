@@ -1,4 +1,4 @@
-import process from "node:process"
+import { type InspectorEnv, pickEnv } from "./env.js"
 import { buildReport } from "./report.js"
 import { getInspector, type Inspector, isInspectorEnabled } from "./runtime.js"
 import { hasVisibleStatements, renderReport } from "./terminal.js"
@@ -10,7 +10,7 @@ const STARTED = Symbol.for("sqlDevInspector.started")
  * Patches mysql2 and starts the terminal printer, once per process. Returns null when the
  * environment says no (production, opted out), in which case nothing has been touched.
  */
-export function startInspector(env: NodeJS.ProcessEnv = process.env): Inspector | null {
+export function startInspector(env: InspectorEnv = pickEnv()): Inspector | null {
   if (!isInspectorEnabled(env)) {
     return null
   }

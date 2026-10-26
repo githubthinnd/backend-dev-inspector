@@ -3,9 +3,8 @@ import { CLIENT_SCRIPT } from "./client.js"
 import { STYLES } from "./styles.js"
 
 /** Keeps a JSON blob inert inside an inline <script>: no `</script>`, no `<!--`. */
-// Built from a string: a literal U+2028 / U+2029 inside a regex literal is itself a line terminator in older engines.
-// eslint-disable-next-line prefer-regex-literals
-const LINE_SEPARATORS = new RegExp("[\\u2028\\u2029]", "g")
+// Written as escapes: a literal U+2028 / U+2029 inside a regex literal is itself a line terminator in older engines.
+const LINE_SEPARATORS = /[\u2028\u2029]/g
 const LESS_THAN = /</g
 const toInlineJson = (value: unknown) => JSON.stringify(value).replace(LESS_THAN, "\\u003c").replace(LINE_SEPARATORS, " ")
 

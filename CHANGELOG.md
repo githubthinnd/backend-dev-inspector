@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.4] - 2026-10-26
+
+### Security
+
+- Release workflow: the publishing job now installs with `npm ci --ignore-scripts` (exactly the lockfile, no dependency script in a job that can mint publish credentials), checkout no longer keeps the token, and `publishConfig.provenance` makes a publish outside a trusted CI fail instead of going out unsigned.
+- CI installs with `npm ci`, and a new `audit` job runs `npm audit` and `npm audit signatures` on every push and weekly. Dependabot is enabled for npm and GitHub Actions. Added `SECURITY.md`.
+- The package reads environment variables in one module, through an allow-list of its own settings (`src/env.ts`), never the whole environment.
+- No code is compiled from strings anywhere in the package: the two remaining `new RegExp(...)` calls are literals now.
+
+### Changed
+
+- Tests use `jsdom` instead of `happy-dom`, which had an open high-severity advisory with no fix. `npm audit` reports 0 vulnerabilities (the advisory only ever affected the development environment, never the published package).
+- Tests check the package's supply-chain properties: no runtime dependencies, no install scripts, `process.env` only in `src/env.ts`, no `eval` / `new Function` / child processes / outbound HTTP, and every `files` entry exists.
+- README documents the dependency and supply-chain posture, including why scanners list `mysql2`.
+
 ## [1.0.3] - 2026-10-19
 
 ### Added
