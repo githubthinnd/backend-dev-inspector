@@ -504,7 +504,7 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
   root.addEventListener("click", (event) => {
     const target = event.target as HTMLElement
     if (target.closest("[data-lang-toggle]")) {
-      setLangList(langOptions.hidden)
+      setLangList(Boolean(langOptions.hidden))
       if (!langOptions.hidden) {
         langOptions.querySelector<HTMLElement>(`[aria-selected="true"]`)?.focus()
       }
@@ -519,7 +519,7 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
     if (action === "close") {
       setOpen(false)
     } else if (action === "menu") {
-      setMenu(menu.hidden)
+      setMenu(Boolean(menu.hidden))
     } else if (action === "dock-bottom" || action === "dock-right") {
       settings.dock = action === "dock-bottom" ? "bottom" : "right"
       render()
