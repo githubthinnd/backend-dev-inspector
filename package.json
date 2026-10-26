@@ -1,7 +1,7 @@
 {
   "name": "sql-dev-inspector",
   "type": "module",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Dev-only SQL inspector for Node apps that talk to MySQL through mysql2 (Drizzle, Knex, Sequelize, TypeORM…): see which SQL each request ran, how transactions and subqueries nest, N+1 and slow queries. Terminal tree, web UI and a floating in-app launcher.",
   "author": "Nhu Duy Thin",
   "license": "MIT",
