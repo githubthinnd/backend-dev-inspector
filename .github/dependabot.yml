@@ -8,6 +8,10 @@ updates:
     groups:
       dev-dependencies:
         dependency-type: development
+    ignore:
+      # Keep the types on the oldest Node we support (engines), so a newer API cannot slip in unnoticed.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Requires Node.js 22 or newer** (was 20). Node 20 is end of life, and the current test tooling (vitest 5, jsdom 30) no longer runs on it. CI tests on Node 22 and 24.
+- Development toolchain: TypeScript 7, vitest 5, jsdom 30, `@types/node` 22 (matches the oldest supported Node) and `@types/jsdom` 30.
+- Typecheck under TypeScript 7: the DOM `hidden` property is normalised with `Boolean()` (no behaviour change).
+
 ## [1.0.4] - 2026-10-26
 
 ### Security

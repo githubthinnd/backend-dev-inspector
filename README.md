@@ -31,7 +31,7 @@ GET /api/orders/42 → 200  163ms total · 12 queries · 148ms in SQL
 
 ## Requirements
 
-- Node.js **20+**
+- Node.js **22+** (Node 20 is end of life)
 - `mysql2` **3+** (peer dependency; tested with 3.20)
 - Your app must send SQL through `mysql2` (pool, connection, or an ORM that uses it)
 
