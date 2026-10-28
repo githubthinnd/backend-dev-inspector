@@ -11,7 +11,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       matrix:
         node: [22, 24]
@@ -24,8 +24,11 @@ jobs:
           node-version: ${{ matrix.node }}
       # `npm ci` installs exactly what package-lock.json says; install scripts of dependencies do not run.
       - run: npm ci --ignore-scripts
-      - run: npm run typecheck
+      # The one dependency script this job runs: better-sqlite3's native build, for the SQLite driver's tests.
+      # This job holds no publishing credentials.
+      - run: npm rebuild better-sqlite3
       - run: npm run build
+      - run: npm run typecheck
       - run: npm test
   audit:
     runs-on: ubuntu-latest

@@ -1,0 +1,168 @@
+{
+  "name": "backend-dev-inspector",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Dev-only inspector for what your backend talks to: PostgreSQL, MySQL/MariaDB, SQLite, MongoDB, Redis and outbound HTTP, with the same request tree, N+1 and slow-call warnings, web UI and in-app launcher as sql-dev-inspector, plus adapters for Fastify, Koa, Hono, Next.js, SvelteKit and Vite.",
+  "author": "Nhu Duy Thin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/githubthinnd/sql-dev-inspector.git",
+    "directory": "packages/backend-dev-inspector"
+  },
+  "homepage": "https://github.com/githubthinnd/sql-dev-inspector/tree/main/packages/backend-dev-inspector#readme",
+  "bugs": {
+    "url": "https://github.com/githubthinnd/sql-dev-inspector/issues"
+  },
+  "keywords": [
+    "postgresql",
+    "pg",
+    "mysql",
+    "mariadb",
+    "sqlite",
+    "mongodb",
+    "mongoose",
+    "redis",
+    "ioredis",
+    "http",
+    "fetch",
+    "prisma",
+    "drizzle",
+    "debug",
+    "devtools",
+    "inspector",
+    "n+1",
+    "fastify",
+    "koa",
+    "hono",
+    "nextjs",
+    "sveltekit",
+    "astro",
+    "vite",
+    "nuxt",
+    "nitro",
+    "express"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./nuxt": {
+      "types": "./dist/nuxt.d.ts",
+      "import": "./dist/nuxt.js"
+    },
+    "./nitro": {
+      "types": "./dist/nitro.d.ts",
+      "import": "./dist/nitro.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./prisma": {
+      "types": "./dist/prisma.d.ts",
+      "import": "./dist/prisma.js"
+    },
+    "./fastify": {
+      "types": "./dist/frameworks/fastify.d.ts",
+      "import": "./dist/frameworks/fastify.js"
+    },
+    "./koa": {
+      "types": "./dist/frameworks/koa.d.ts",
+      "import": "./dist/frameworks/koa.js"
+    },
+    "./hono": {
+      "types": "./dist/frameworks/hono.d.ts",
+      "import": "./dist/frameworks/hono.js"
+    },
+    "./next": {
+      "types": "./dist/frameworks/next.d.ts",
+      "import": "./dist/frameworks/next.js"
+    },
+    "./sveltekit": {
+      "types": "./dist/frameworks/sveltekit.d.ts",
+      "import": "./dist/frameworks/sveltekit.js"
+    },
+    "./astro": {
+      "types": "./dist/frameworks/astro.d.ts",
+      "import": "./dist/frameworks/astro.js"
+    },
+    "./vite": {
+      "types": "./dist/frameworks/vite.d.ts",
+      "import": "./dist/frameworks/vite.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run clean && npm run build && npm test"
+  },
+  "dependencies": {
+    "sql-dev-inspector": "^1.2.0"
+  },
+  "peerDependencies": {
+    "better-sqlite3": ">=9",
+    "ioredis": ">=5",
+    "mongodb": ">=5",
+    "mysql2": ">=3",
+    "pg": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
+    "mongodb": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/koa": "^3.0.3",
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
+    "better-sqlite3": "^13.0.3",
+    "bson": "^7.3.3",
+    "fastify": "^5.12.7",
+    "hono": "^4.13.14",
+    "ioredis": "^6.0.0",
+    "koa": "^3.2.1",
+    "light-my-request": "^6.8.0",
+    "mariadb": "^3.5.4",
+    "mongodb": "^7.7.0",
+    "pg": "^8.23.1",
+    "redis": "^6.3.0",
+    "typescript": "^7.0.2",
+    "undici": "^8.12.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,10 +1,10 @@
 # Security policy
 
-sql-dev-inspector is a development-time tool. It has no runtime dependencies of its own (it patches the `mysql2` your app already has), makes no outbound network calls, and does nothing when `NODE_ENV=production`.
+This repository publishes two development-time tools, `sql-dev-inspector` and `backend-dev-inspector`. Neither makes network calls of its own, and both do nothing when `NODE_ENV=production`. `sql-dev-inspector` has no runtime dependencies (it patches the `mysql2` your app already has); `backend-dev-inspector` has one, `sql-dev-inspector`, and patches or subscribes to the libraries your app already has (`pg`, `better-sqlite3`, `mongodb`, `ioredis`, `redis`, Node's HTTP clients…).
 
 ## Supported versions
 
-Only the latest release receives fixes.
+Only the latest release of each package receives fixes.
 
 ## Reporting a vulnerability
 

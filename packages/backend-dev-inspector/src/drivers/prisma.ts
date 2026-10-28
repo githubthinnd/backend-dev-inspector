@@ -1,0 +1,115 @@
+import type { DriverAdapter, OperationEnd, Recorder, StatementKind } from "sql-dev-inspector"
+import { describeOperation } from "sql-dev-inspector"
+
+/**
+ * Prisma, through a client extension. Prisma runs queries in a native engine that gives the
+ * application no hook per call, but a client extension runs inside the application's own async
+ * context, so every operation can be attributed to its request:
+ *
+ *   import { prismaExtension } from "backend-dev-inspector/prisma"
+ *   const prisma = new PrismaClient().$extends(prismaExtension())
+ *
+ * Operations are described by model and operation (`User.findMany {"where":…}`), because the SQL
+ * Prisma generates is not available at this point. Outside development (no inspector running)
+ * the extension passes every call through untouched.
+ */
+
+let active: Recorder | null = null
+
+export const prismaDriver: DriverAdapter = {
+  name: "prisma",
+  install(recorder) {
+    active = recorder
+    return () => {
+      if (active === recorder) {
+        active = null
+      }
+    }
+  }
+}
+
+const MAX_TEXT = 300
+
+function kindOf(operation: string): StatementKind {
+  if (/^(find|count|aggregate|groupBy|\$queryRaw)/.test(operation)) {
+    return "select"
+  }
+  if (/^(create|\$executeRaw)/.test(operation)) {
+    return operation.startsWith("$executeRaw") ? "update" : "insert"
+  }
+  if (/^(update|upsert)/.test(operation)) {
+    return "update"
+  }
+  return operation.startsWith("delete") ? "delete" : "other"
+}
+
+function render(value: unknown): string {
+  try {
+    return JSON.stringify(value, (_key, item) => typeof item === "bigint" ? String(item) : item) ?? ""
+  } catch {
+    return "{…}"
+  }
+}
+
+/** `$queryRaw` hands over either a plain SQL string (the Unsafe variants) or a tagged template. */
+function rawText(args: unknown): string | null {
+  if (Array.isArray(args) && typeof args[0] === "string") {
+    return args[0]
+  }
+  const strings = args && typeof args === "object" ? (args as { strings?: unknown }).strings : null
+  return Array.isArray(strings) ? strings.join("?") : null
+}
+
+function outcomeOf(result: unknown): OperationEnd {
+  if (Array.isArray(result)) {
+    return { rowCount: result.length }
+  }
+  if (result && typeof result === "object" && "count" in result && typeof result.count === "number") {
+    return { affectedRows: result.count }
+  }
+  return { rowCount: result === null || result === undefined ? 0 : 1 }
+}
+
+interface OperationParams {
+  model?: string
+  operation: string
+  args: unknown
+  query: (args: unknown) => Promise<unknown>
+}
+
+async function record({ model, operation, args, query }: OperationParams): Promise<unknown> {
+  const recorder = active
+  if (!recorder) {
+    return await query(args)
+  }
+  const raw = operation.startsWith("$") ? rawText(args) : null
+  const text = (raw ?? `${model ? `${model}.` : ""}${operation}${args === undefined || args === null ? "" : ` ${render(args)}`}`).slice(0, MAX_TEXT)
+  const handle = recorder.begin({
+    driver: "prisma",
+    api: operation,
+    text,
+    connectionId: 0,
+    analysis: describeOperation({ kind: kindOf(operation), label: operation.replace(/^\$/, "").toUpperCase(), targets: model ? [model] : [], text })
+  })
+  try {
+    const result = await query(args)
+    handle?.end(outcomeOf(result))
+    return result
+  } catch (error) {
+    handle?.end({ error })
+    throw error
+  }
+}
+
+/** The argument of `prisma.$extends(...)`. */
+export function prismaExtension() {
+  return {
+    name: "backend-dev-inspector",
+    query: {
+      $allModels: {
+        $allOperations: (params: OperationParams) => record(params)
+      },
+      $allOperations: (params: OperationParams) => record(params)
+    }
+  }
+}

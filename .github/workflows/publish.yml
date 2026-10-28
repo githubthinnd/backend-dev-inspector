@@ -1,11 +1,13 @@
 name: Publish
+# Tag a release as `<package>@<version>`: `sql-dev-inspector@1.2.0`, `backend-dev-inspector@1.0.0`.
+# Publish sql-dev-inspector first; backend-dev-inspector builds on it.
 on:
   push:
-    tags: ["v*"]
+    tags: ["*@*"]
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: write
       id-token: write
@@ -17,31 +19,60 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      - name: Check tag matches package.json version
+      - name: Resolve the package from the tag and check its version
+        id: pkg
         run: |
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+          NAME="${GITHUB_REF_NAME%@*}"
+          VERSION="${GITHUB_REF_NAME##*@}"
+          DIR="packages/$NAME"
+          if [ ! -f "$DIR/package.json" ]; then
+            echo "The tag $GITHUB_REF_NAME names no package in packages/"
             exit 1
           fi
+          PKG_NAME=$(node -p "require('./$DIR/package.json').name")
+          PKG_VERSION=$(node -p "require('./$DIR/package.json').version")
+          if [ "$PKG_NAME" != "$NAME" ] || [ "$PKG_VERSION" != "$VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match $DIR/package.json ($PKG_NAME@$PKG_VERSION)"
+            exit 1
+          fi
+          {
+            echo "name=$NAME"
+            echo "dir=$DIR"
+            echo "version=$VERSION"
+          } >> "$GITHUB_OUTPUT"
       - name: Check whether this version is already on npm
         id: npm
+        env:
+          NAME: ${{ steps.pkg.outputs.name }}
+          VERSION: ${{ steps.pkg.outputs.version }}
         run: |
-          NAME=$(node -p "require('./package.json').name")
-          VERSION=$(node -p "require('./package.json').version")
           if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
             echo "$NAME@$VERSION is already published, skipping npm publish"
             echo "published=true" >> "$GITHUB_OUTPUT"
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Check that the package it builds on is published
+        if: steps.npm.outputs.published != 'true'
+        env:
+          DIR: ${{ steps.pkg.outputs.dir }}
+        run: |
+          RANGE=$(node -p "require('./$DIR/package.json').dependencies?.['sql-dev-inspector'] ?? ''")
+          if [ -n "$RANGE" ] && ! npm view "sql-dev-inspector@$RANGE" version >/dev/null 2>&1; then
+            echo "sql-dev-inspector@$RANGE is not on npm yet: tag and publish sql-dev-inspector first"
+            exit 1
+          fi
       # This job can mint an npm publish token (id-token: write), so no dependency script may run in it:
       # `npm ci` installs exactly package-lock.json, and `--ignore-scripts` skips every install hook.
       - if: steps.npm.outputs.published != 'true'
         run: npm ci --ignore-scripts
+      # The new package compiles against the built sql-dev-inspector.
       - if: steps.npm.outputs.published != 'true'
-        run: npm publish --access public
+        run: npm run build -w sql-dev-inspector
+      - if: steps.npm.outputs.published != 'true'
+        env:
+          DIR: ${{ steps.pkg.outputs.dir }}
+        run: npm publish -w "$DIR" --access public
       - name: Create GitHub Release
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
