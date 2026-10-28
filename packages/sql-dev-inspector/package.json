@@ -1,18 +1,18 @@
 {
   "name": "sql-dev-inspector",
   "type": "module",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Dev-only SQL inspector for Node apps that talk to MySQL through mysql2 (Drizzle, Knex, Sequelize, TypeORM…): see which SQL each request ran, how transactions and subqueries nest, N+1 and slow queries. Terminal tree, web UI and a floating in-app launcher. For PostgreSQL, SQLite, MongoDB, Redis, HTTP and more frameworks, see backend-dev-inspector.",
   "author": "Nhu Duy Thin",
   "license": "MIT",
-  "homepage": "https://github.com/githubthinnd/sql-dev-inspector/tree/main/packages/sql-dev-inspector#readme",
+  "homepage": "https://github.com/githubthinnd/backend-dev-inspector/tree/main/packages/sql-dev-inspector#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/githubthinnd/sql-dev-inspector.git",
+    "url": "git+https://github.com/githubthinnd/backend-dev-inspector.git",
     "directory": "packages/sql-dev-inspector"
   },
   "bugs": {
-    "url": "https://github.com/githubthinnd/sql-dev-inspector/issues"
+    "url": "https://github.com/githubthinnd/backend-dev-inspector/issues"
   },
   "keywords": [
     "debug",

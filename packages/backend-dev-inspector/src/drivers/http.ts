@@ -124,18 +124,26 @@ export const httpDriver: DriverAdapter = {
         }
       }],
       ["http.client.response.finish", (message) => {
-        const { request, response } = message as { request: object, response: { statusCode?: number } }
-        const handle = open.get(request)
-        open.delete(request)
-        if (handle) {
-          finish(handle, response.statusCode)
+        try {
+          const { request, response } = message as { request: object, response: { statusCode?: number } }
+          const handle = open.get(request)
+          open.delete(request)
+          if (handle) {
+            finish(handle, response?.statusCode)
+          }
+        } catch {
+          // best effort: a diagnostics_channel subscriber that throws would crash the application
         }
       }],
       ["http.client.request.error", (message) => {
-        const { request, error } = message as { request: object, error: unknown }
-        const handle = open.get(request)
-        open.delete(request)
-        handle?.end({ error })
+        try {
+          const { request, error } = message as { request: object, error: unknown }
+          const handle = open.get(request)
+          open.delete(request)
+          handle?.end({ error })
+        } catch {
+          // best effort
+        }
       }]
     ])
   }
@@ -168,18 +176,26 @@ export const fetchDriver: DriverAdapter = {
         }
       }],
       ["undici:request:headers", (message) => {
-        const { request, response } = message as { request: object, response: { statusCode?: number } }
-        const handle = open.get(request)
-        open.delete(request)
-        if (handle) {
-          finish(handle, response.statusCode)
+        try {
+          const { request, response } = message as { request: object, response: { statusCode?: number } }
+          const handle = open.get(request)
+          open.delete(request)
+          if (handle) {
+            finish(handle, response?.statusCode)
+          }
+        } catch {
+          // best effort
         }
       }],
       ["undici:request:error", (message) => {
-        const { request, error } = message as { request: object, error: unknown }
-        const handle = open.get(request)
-        open.delete(request)
-        handle?.end({ error })
+        try {
+          const { request, error } = message as { request: object, error: unknown }
+          const handle = open.get(request)
+          open.delete(request)
+          handle?.end({ error })
+        } catch {
+          // best effort
+        }
       }]
     ])
   }

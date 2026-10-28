@@ -9,7 +9,7 @@ Only the latest release of each package receives fixes.
 ## Reporting a vulnerability
 
 Please do not open a public issue. Use GitHub's private reporting:
-<https://github.com/githubthinnd/sql-dev-inspector/security/advisories/new>
+<https://github.com/githubthinnd/backend-dev-inspector/security/advisories/new>
 
 Include the version, how to reproduce it, and what an attacker could read or change. You can expect a first answer within a few days.
 

@@ -1,18 +1,18 @@
 {
   "name": "backend-dev-inspector",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Dev-only inspector for what your backend talks to: PostgreSQL, MySQL/MariaDB, SQLite, MongoDB, Redis and outbound HTTP, with the same request tree, N+1 and slow-call warnings, web UI and in-app launcher as sql-dev-inspector, plus adapters for Fastify, Koa, Hono, Next.js, SvelteKit and Vite.",
   "author": "Nhu Duy Thin",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/githubthinnd/sql-dev-inspector.git",
+    "url": "git+https://github.com/githubthinnd/backend-dev-inspector.git",
     "directory": "packages/backend-dev-inspector"
   },
-  "homepage": "https://github.com/githubthinnd/sql-dev-inspector/tree/main/packages/backend-dev-inspector#readme",
+  "homepage": "https://github.com/githubthinnd/backend-dev-inspector/tree/main/packages/backend-dev-inspector#readme",
   "bugs": {
-    "url": "https://github.com/githubthinnd/sql-dev-inspector/issues"
+    "url": "https://github.com/githubthinnd/backend-dev-inspector/issues"
   },
   "keywords": [
     "postgresql",
