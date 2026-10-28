@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.1] - 2026-10-28
+
+### Fixed
+
+- Package links (`repository`, `homepage`, `bugs`) point at the renamed GitHub repository, so npm provenance matches the repository that builds the release.
+
+### Documentation
+
+- README: badges and corrected repository links.
+
 ## [1.2.0] - 2026-10-28
 
 The package is now the base of [`backend-dev-inspector`](https://www.npmjs.com/package/backend-dev-inspector), which adds PostgreSQL, SQLite, MongoDB, Redis, outbound HTTP, Prisma and more frameworks. It keeps its own job (MySQL through `mysql2`) and every API it had.

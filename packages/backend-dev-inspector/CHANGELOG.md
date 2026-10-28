@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.1] - 2026-10-28
+
+### Fixed
+
+- Package links (`repository`, `homepage`, `bugs`) point at the renamed GitHub repository, so npm provenance matches the repository that builds the release.
+- The outbound HTTP driver no longer lets an unexpected `diagnostics_channel` message throw inside a subscriber (which would reach the application as an uncaught exception); the response and error handlers are best effort, like the start handlers.
+
+### Documentation
+
+- README: badges, a clearer introduction, and a "Dependencies and supply chain" section explaining that scanner alerts (eval, network, minified code, unmaintained packages) come from the optional peers and their dependencies, not from this package's code.
+
 ## [1.0.0] - 2026-10-28
 
 First release. It builds on [`sql-dev-inspector`](https://www.npmjs.com/package/sql-dev-inspector) 1.2 and exports everything it does.

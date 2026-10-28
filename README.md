@@ -1,15 +1,17 @@
-# sql-dev-inspector
+<h1 align="center">backend-dev-inspector</h1>
 
-Dev-only inspectors that show **what your backend does for each request**: every database query, cache call and outbound HTTP request, in order, with timings, transactions, N+1 and slow-call warnings. Terminal tree, live web page and a floating panel inside your app. Nothing runs in production.
+<p align="center">
+  <b>See what your backend does for every request — in development only.</b><br>
+  Every query, cache call and outbound HTTP request, in order, with N+1 and slow-call warnings.
+</p>
 
-This repository holds two npm packages:
-
-| Package | What it is | Install |
-|---|---|---|
-| [`backend-dev-inspector`](packages/backend-dev-inspector) | **PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis and outbound HTTP**, plus Prisma, and adapters for Express, Fastify, Koa, Hono, Nuxt / Nitro, Next.js, SvelteKit, Astro and Vite. Builds on `sql-dev-inspector`. | `npm i -D backend-dev-inspector` |
-| [`sql-dev-inspector`](packages/sql-dev-inspector) | The original: MySQL through `mysql2` (and with it Drizzle, Knex, Sequelize, TypeORM), on Express, Nuxt and Nitro. It is the base of the other package and keeps working on its own. | `npm i -D sql-dev-inspector` |
-
-Not sure which one? Use **`backend-dev-inspector`**: it exports everything `sql-dev-inspector` does, so switching later means changing an import path.
+<p align="center">
+  <a href="https://www.npmjs.com/package/backend-dev-inspector"><img alt="npm" src="https://img.shields.io/npm/v/backend-dev-inspector?label=backend-dev-inspector"></a>
+  <a href="https://www.npmjs.com/package/sql-dev-inspector"><img alt="npm" src="https://img.shields.io/npm/v/sql-dev-inspector?label=sql-dev-inspector"></a>
+  <a href="https://github.com/githubthinnd/backend-dev-inspector/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/githubthinnd/backend-dev-inspector/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Node 22+" src="https://img.shields.io/badge/node-%E2%89%A522-339933">
+  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
 
 ```
 GET /api/orders/42 → 200  210ms total · 9 queries · 188ms in SQL
@@ -20,20 +22,68 @@ GET /api/orders/42 → 200  210ms total · 9 queries · 188ms in SQL
 ⚠ N+1 suspected: 4×, 7.1ms total — GET customer:?
 ```
 
-## Repository layout
+## Why
+
+A slow endpoint is usually not one slow query: it is the same query run forty times, a cache that misses on every call, or a payment API called inside a loop. Logs do not show that, and an APM is overkill on your laptop. This tool puts it in front of you while you build:
+
+- **A tree per request**, in your terminal, on a live page (`/__sql-inspector/`) and in a floating panel inside your app.
+- **Warnings that point at the cause**: N+1 loops, repeated calls, slow calls, SQL errors.
+- **Works across technologies**: PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis, outbound HTTP and Prisma, behind Express, Fastify, Koa, Hono, Nuxt / Nitro, Next.js, SvelteKit, Astro or plain Node.
+- **No change to your code paths**: it observes the libraries your app already uses.
+
+## Get started
+
+```bash
+npm install --save-dev backend-dev-inspector
+```
+
+```ts
+// Express, Connect, NestJS
+import { createInspector } from "backend-dev-inspector"
+
+const inspector = createInspector()
+app.use(inspector.middleware)
+```
+
+Run your app with `NODE_ENV=development`, make a request, then open `http://localhost:3000/__sql-inspector/`. Setup for every framework is in the [package guide](packages/backend-dev-inspector#quick-start).
+
+## Two packages
+
+| Package | What it is | Install |
+|---|---|---|
+| [`backend-dev-inspector`](packages/backend-dev-inspector) | **PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis and outbound HTTP**, plus Prisma, and adapters for Express, Fastify, Koa, Hono, Nuxt / Nitro, Next.js, SvelteKit, Astro and Vite. | `npm i -D backend-dev-inspector` |
+| [`sql-dev-inspector`](packages/sql-dev-inspector) | The original: MySQL through `mysql2` (and with it Drizzle, Knex, Sequelize, TypeORM) on Express, Nuxt and Nitro. It is the core of the other package and keeps working on its own. | `npm i -D sql-dev-inspector` |
+
+Not sure which one? Use **`backend-dev-inspector`**. It exports everything `sql-dev-inspector` does, so switching later is an import path.
+
+## Safe to leave in your project
+
+- **Off in production.** With `NODE_ENV=production` nothing is patched and the middleware only calls `next()`.
+- **Local only.** The inspector page refuses non-local `Host` headers (DNS rebinding) and cross-site POSTs. Data stays in the memory of the dev process; nothing is written to disk or sent anywhere.
+- **Secrets stay out.** Redis values and HTTP credentials are not recorded; credential-looking URL parameters are hidden.
+- **Small supply chain.** `sql-dev-inspector` has no runtime dependencies; `backend-dev-inspector` has one, `sql-dev-inspector`. The libraries it watches are optional peers. Tests fail if the source uses `eval`, child processes, network calls of its own or reads environment variables outside one allow-list.
+- **Verifiable releases.** Published from GitHub Actions with npm provenance and trusted publishing. Check an install with `npm audit signatures`.
+
+Details and the reasoning behind scanner alerts: [SECURITY.md](SECURITY.md) and the "Dependencies and supply chain" sections of each package.
+
+## Develop
+
+```bash
+npm install            # both packages (workspaces)
+npm run build          # sql-dev-inspector first, then backend-dev-inspector
+npm run typecheck
+npm test               # Node 22+; run `npm rebuild better-sqlite3` if you installed with --ignore-scripts
+```
+
+Tests drive the real client libraries against in-memory protocol servers, so no database or open port is needed.
 
 ```
 packages/sql-dev-inspector/       core: request tree, analysis, UI, MySQL driver, Express / Nuxt / Nitro / web adapters
 packages/backend-dev-inspector/   drivers (pg, SQLite, MongoDB, Redis, HTTP, …) and framework adapters, on top of the core
 ```
 
-```bash
-npm install            # both packages (workspaces)
-npm run build          # sql-dev-inspector first, then backend-dev-inspector
-npm run typecheck
-npm test               # needs Node 22+; run `npm rebuild better-sqlite3` if you installed with --ignore-scripts
-```
+Releases are tagged `<package>@<version>` (`sql-dev-inspector@1.2.1`); a tag starts the publish workflow. Publish `sql-dev-inspector` before `backend-dev-inspector`.
 
-Releases are tagged `<package>@<version>` (`sql-dev-inspector@1.2.0`); a tag starts the publish workflow, which publishes with npm provenance and creates the GitHub Release. Publish `sql-dev-inspector` before `backend-dev-inspector`.
+## License
 
-Security: see [SECURITY.md](SECURITY.md). License: MIT.
+[MIT](LICENSE)

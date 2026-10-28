@@ -1,5 +1,13 @@
 # backend-dev-inspector
 
+<p>
+  <a href="https://www.npmjs.com/package/backend-dev-inspector"><img alt="npm version" src="https://img.shields.io/npm/v/backend-dev-inspector"></a>
+  <a href="https://www.npmjs.com/package/backend-dev-inspector"><img alt="npm downloads" src="https://img.shields.io/npm/dm/backend-dev-inspector"></a>
+  <a href="https://github.com/githubthinnd/backend-dev-inspector/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/githubthinnd/backend-dev-inspector/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Node 22+" src="https://img.shields.io/badge/node-%E2%89%A522-339933">
+  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue">
+</p>
+
 **See what your backend talks to, for each request — in development only.**
 
 When a client calls your API, `backend-dev-inspector` shows every call your server made to **PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis and other services over HTTP**: in what order, inside which transaction, how long each took, how many rows came back. It flags N+1 loops, repeated calls, slow calls and errors, in the terminal, on a live web page and in a floating panel inside your app.
@@ -220,6 +228,13 @@ Change the import path; nothing else:
 ```
 
 `sql-dev-inspector/nuxt` → `backend-dev-inspector/nuxt`, `/nitro` and `/client` likewise. The old package keeps working and keeps printing a one-line tip (hide it with `SQL_INSPECTOR_NOTICE=0`).
+
+## Dependencies and supply chain
+
+- **One runtime dependency:** `sql-dev-inspector`. The libraries it watches (`pg`, `better-sqlite3`, `mongodb`, `ioredis`, `mysql2`) are optional peer dependencies, never installed by this package. Scanners that resolve peers (Socket) attribute the alerts of those libraries and of their own dependencies (`eval` in `mysql2` / `generate-function`, native install scripts in `better-sqlite3`, network access in the database clients, minified or unmaintained transitive packages, URL strings in comments) to this package. None of that is code shipped here.
+- **What this package's own code does:** no install scripts, no network calls of its own, no child processes, no `eval` / `new Function` / `new RegExp(string)`, and it reads no environment variable (the only reader is the allow-list in `sql-dev-inspector`). `test/supply-chain.test.ts` fails if any of that appears in `src/`.
+- **Reflection:** drivers are observed by patching a prototype, subscribing to a `diagnostics_channel`, or wrapping an object you pass in; the originals are restored on uninstall.
+- **Provenance:** releases are built by GitHub Actions with npm provenance and trusted publishing. Check an install with `npm audit signatures`.
 
 ## Limitations
 

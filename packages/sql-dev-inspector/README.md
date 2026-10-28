@@ -1,5 +1,13 @@
 # sql-dev-inspector
 
+<p>
+  <a href="https://www.npmjs.com/package/sql-dev-inspector"><img alt="npm version" src="https://img.shields.io/npm/v/sql-dev-inspector"></a>
+  <a href="https://www.npmjs.com/package/sql-dev-inspector"><img alt="npm downloads" src="https://img.shields.io/npm/dm/sql-dev-inspector"></a>
+  <a href="https://github.com/githubthinnd/backend-dev-inspector/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/githubthinnd/backend-dev-inspector/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Node 22+" src="https://img.shields.io/badge/node-%E2%89%A522-339933">
+  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue">
+</p>
+
 > **Need more than MySQL?** [`backend-dev-inspector`](https://www.npmjs.com/package/backend-dev-inspector) builds on this package and adds PostgreSQL, SQLite, MongoDB, Redis, outbound HTTP, Prisma, and adapters for Fastify, Koa, Hono, Next.js, SvelteKit, Astro and Vite. Same UI, same warnings. `npm i backend-dev-inspector`. This package keeps working and stays focused on MySQL / `mysql2`; it also prints a one-line tip about the new one in development (hide it with `SQL_INSPECTOR_NOTICE=0`).
 
 **See exactly which SQL your backend ran for each request — in development only.**
@@ -256,10 +264,10 @@ The tool must never make your app look worse, so:
 
 - **No runtime dependencies.** `package.json` has no `dependencies`: the only requirement is the `mysql2` your application already has, declared as an optional peer dependency. Scanners that resolve peers (Socket lists "1 dependency: mysql2") attribute the alerts of `mysql2` and its own dependencies to this package; they are not code shipped here.
 - **No install scripts**, no network calls, no child processes, no `eval` / `new Function` / `new RegExp(string)`. Tests fail if any of that appears in `src/`.
-- **Environment variables:** the package reads only the ones in [`src/env.ts`](https://github.com/githubthinnd/sql-dev-inspector/blob/main/packages/sql-dev-inspector/src/env.ts) (`NODE_ENV`, `NO_COLOR` and `SQL_INSPECTOR_*`), through an allow-list, never the whole environment. Scanners still flag "environment variable access" because the tool is configured that way, and `NODE_ENV=production` is its safety switch.
+- **Environment variables:** the package reads only the ones in [`src/env.ts`](https://github.com/githubthinnd/backend-dev-inspector/blob/main/packages/sql-dev-inspector/src/env.ts) (`NODE_ENV`, `NO_COLOR` and `SQL_INSPECTOR_*`), through an allow-list, never the whole environment. Scanners still flag "environment variable access" because the tool is configured that way, and `NODE_ENV=production` is its safety switch.
 - **Reflection:** the tracer wraps `Connection.prototype.query` / `execute` and `Pool.prototype.getConnection` of `mysql2` (that is how it sees every statement) and keeps request context with `AsyncLocalStorage`. It restores the originals when uninstalled.
 - **Provenance:** releases are built and published by GitHub Actions with npm provenance, using npm trusted publishing (no long-lived token). Check an install with `npm audit signatures`. The publishing job installs with `npm ci --ignore-scripts`, so no dependency script runs where the publish credentials exist.
-- CI runs `npm audit` and `npm audit signatures` weekly and on every push; Dependabot proposes dependency and Actions updates. Report a vulnerability as described in [SECURITY.md](https://github.com/githubthinnd/sql-dev-inspector/blob/main/SECURITY.md).
+- CI runs `npm audit` and `npm audit signatures` weekly and on every push; Dependabot proposes dependency and Actions updates. Report a vulnerability as described in [SECURITY.md](https://github.com/githubthinnd/backend-dev-inspector/blob/main/SECURITY.md).
 
 ## Limitations
 
@@ -293,7 +301,7 @@ npm run build
 
 Tests need no MySQL installation and open no ports: `test/mock-mysql-server.ts` speaks the real wire protocol over in-memory streams.
 
-This package lives in the `packages/sql-dev-inspector` folder of the [monorepo](https://github.com/githubthinnd/sql-dev-inspector); run the commands above from the repository root (they cover both packages) or with `-w sql-dev-inspector`.
+This package lives in the `packages/sql-dev-inspector` folder of the [monorepo](https://github.com/githubthinnd/backend-dev-inspector); run the commands above from the repository root (they cover both packages) or with `-w sql-dev-inspector`.
 
 ## License
 
