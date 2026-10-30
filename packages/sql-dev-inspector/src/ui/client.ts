@@ -338,6 +338,24 @@ export const CLIENT_SCRIPT = String.raw`
         }).catch(function () { toast(t("toast.copyFailed")); });
       } }, [icon("copy"), h("span", { text: t("detail.downloadJson") })])
     ]));
+    // warnings come first: they are what to act on
+    var slowSeqs = {};
+    rep.insights.forEach(function (i) { if (i.type === "slow") { i.seqs.forEach(function (s) { slowSeqs[s] = true; }); } });
+    var insightsCard = h("div", { class: "card" });
+    if (!rep.insights.length) { insightsCard.appendChild(h("div", { class: "empty-ok" }, [icon("ok"), h("span", { text: t("insights.none") })])); }
+    rep.insights.forEach(function (i) {
+      var ico = i.severity === "error" ? "error" : i.severity === "warn" ? "warn" : "info";
+      insightsCard.appendChild(h("button", { class: "insight " + i.severity, onclick: function () { focusSeqs(i.seqs); } }, [
+        h("span", { class: "ico" }, [icon(ico)]),
+        h("div", {}, [h("div", { class: "insight-title", text: t("insight.title." + i.type) }), h("div", { class: "insight-msg", text: t("insight.msg." + i.type, i.params) }),
+          i.params && i.params.caller ? h("div", { class: "insight-where", text: t("sql.caller") + " " + relPath(String(i.params.caller)) }) : null,
+          hintOf(i) ? h("div", { class: "insight-hint" }, [h("strong", { text: t("hint.title") + ": " }), h("span", { text: hintOf(i) })]) : null])
+      ]));
+    });
+    inner.appendChild(h("section", { class: "section" }, [
+      h("div", { class: "section-head" }, [h("h2", { text: t("insights.title") }), h("span", { class: "count", text: String(rep.insights.length) })]),
+      insightsCard
+    ]));
     inner.appendChild(h("div", { class: "kpis" }, [
       kpi(t("kpi.total"), fmtMs(tr.durationMs)),
       kpi(t("kpi.queries"), String(tot.queryCount)),
@@ -360,24 +378,6 @@ export const CLIENT_SCRIPT = String.raw`
 
     inner.appendChild(compareSection(tr));
 
-    // insights
-    var slowSeqs = {};
-    rep.insights.forEach(function (i) { if (i.type === "slow") { i.seqs.forEach(function (s) { slowSeqs[s] = true; }); } });
-    var insightsCard = h("div", { class: "card" });
-    if (!rep.insights.length) { insightsCard.appendChild(h("div", { class: "empty-ok" }, [icon("ok"), h("span", { text: t("insights.none") })])); }
-    rep.insights.forEach(function (i) {
-      var ico = i.severity === "error" ? "error" : i.severity === "warn" ? "warn" : "info";
-      insightsCard.appendChild(h("button", { class: "insight " + i.severity, onclick: function () { focusSeqs(i.seqs); } }, [
-        h("span", { class: "ico" }, [icon(ico)]),
-        h("div", {}, [h("div", { class: "insight-title", text: t("insight.title." + i.type) }), h("div", { class: "insight-msg", text: t("insight.msg." + i.type, i.params) }),
-          i.params && i.params.caller ? h("div", { class: "insight-where", text: t("sql.caller") + " " + relPath(String(i.params.caller)) }) : null,
-          hintOf(i) ? h("div", { class: "insight-hint" }, [h("strong", { text: t("hint.title") + ": " }), h("span", { text: hintOf(i) })]) : null])
-      ]));
-    });
-    inner.appendChild(h("section", { class: "section" }, [
-      h("div", { class: "section-head" }, [h("h2", { text: t("insights.title") }), h("span", { class: "count", text: String(rep.insights.length) })]),
-      insightsCard
-    ]));
     if (tr.logs && tr.logs.length) {
       var logCard = h("div", { class: "card logs" });
       tr.logs.forEach(function (l) {

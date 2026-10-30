@@ -699,6 +699,19 @@ describe("saving and loading history", () => {
   })
 })
 
+describe("warnings come first", () => {
+  it("are the first thing under the request's title, above the totals", async () => {
+    const { document } = render()
+    await settle()
+    await selectRequest(document)
+    const sections = Array.from(document.querySelectorAll(".detail-inner > *"))
+    const warnings = sections.findIndex(el => el.querySelector(".insight, .empty-ok"))
+    const totals = sections.findIndex(el => el.classList.contains("kpis"))
+    expect(warnings).toBe(1)
+    expect(totals).toBeGreaterThan(warnings)
+  })
+})
+
 describe("the overview", () => {
   it("opens from the top bar, shows the routes and opens the slowest request of one", async () => {
     const { document, window } = render()
