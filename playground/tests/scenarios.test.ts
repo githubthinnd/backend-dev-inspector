@@ -19,14 +19,14 @@ afterEach(() => {
   resetInspectorForTests()
 })
 
-describe.each(stacks)("$name", ({ boot, savepoints, available }) => {
+describe.each(stacks)("$name", ({ boot, sqlTransactions, available }) => {
   const run = available?.() === false ? it.skip : it
 
   run("serves the home page and a request without a database call", async () => {
     const get = await boot()
     const home = await get("/")
     expect(home.status).toBe(200)
-    expect(home.body).toContain("/__sql-inspector/")
+    expect(home.body).toContain("/assets/app.js")
     expect((await get("/api/health")).status).toBe(200)
   })
 
@@ -63,7 +63,7 @@ describe.each(stacks)("$name", ({ boot, savepoints, available }) => {
     const get = await boot()
     const response = await get("/api/orders/error")
     expect(response.status).toBe(500)
-    expect(response.body).toContain("FOREIGN KEY")
+    expect(response.body).toMatch(/foreign key/i)
     expect(insightsFor("/api/orders/error")).toContain("error")
   })
 
@@ -72,10 +72,14 @@ describe.each(stacks)("$name", ({ boot, savepoints, available }) => {
     expect((await get("/api/orders/transaction")).status).toBe(200)
     const trace = store().list().find(candidate => candidate.url === "/api/orders/transaction")!
     const statements = trace.queries.map(query => query.analysis.kind)
-    expect(statements).toContain("tx-commit")
-    if (savepoints) {
+    if (sqlTransactions) {
+      expect(statements).toContain("tx-commit")
       expect(statements).toContain("savepoint")
       expect(statements).toContain("savepoint-rollback")
+    } else {
+      // Prisma shows the operations of the transaction: the order, its item, and the item that failed.
+      expect(statements.filter(kind => kind === "insert")).toHaveLength(3)
+      expect(trace.queries.filter(query => query.error)).toHaveLength(1)
     }
   })
 })

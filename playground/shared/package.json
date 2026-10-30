@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./drizzle": "./src/drizzle.ts",
+    "./content": "./src/content.ts",
     "./dev-env": "./src/dev-env.ts"
   },
   "dependencies": {

@@ -29,8 +29,31 @@ export const DDL = `
   );
 `
 
-const COUNTRIES = ["VN", "JP", "US", "DE", "FR"]
+export interface CustomerSeed {
+  name: string
+  country: string
+}
+
+/** The 25 demo customers; the fake customer service answers with the same names. */
+export const CUSTOMERS: CustomerSeed[] = [
+  { name: "Aiko Tanaka", country: "JP" }, { name: "Minh Anh Nguyen", country: "VN" }, { name: "Liam Carter", country: "US" },
+  { name: "Sofia Rossi", country: "IT" }, { name: "Hiroshi Sato", country: "JP" }, { name: "Linh Tran", country: "VN" },
+  { name: "Emma Dubois", country: "FR" }, { name: "Noah Müller", country: "DE" }, { name: "Yuki Nakamura", country: "JP" },
+  { name: "Olivia Brown", country: "US" }, { name: "Kenji Watanabe", country: "JP" }, { name: "Thu Hà Pham", country: "VN" },
+  { name: "Lucas Martin", country: "FR" }, { name: "Mia Schneider", country: "DE" }, { name: "Daniel Kim", country: "US" },
+  { name: "Chloé Bernard", country: "FR" }, { name: "Anh Tuan Le", country: "VN" }, { name: "Grace Miller", country: "US" },
+  { name: "Takumi Ito", country: "JP" }, { name: "Isabella Conti", country: "IT" }, { name: "Ethan Walker", country: "US" },
+  { name: "Hana Suzuki", country: "JP" }, { name: "Quang Huy Vo", country: "VN" }, { name: "Amélie Laurent", country: "FR" },
+  { name: "Oliver Hoffmann", country: "DE" }
+]
+
+const PRODUCTS = [
+  "Mechanical Keyboard", "Wireless Mouse", "USB-C Dock", "27-inch Monitor",
+  "Noise-cancelling Headphones", "4K Webcam", "Laptop Stand", "Desk Lamp"
+]
 const STATUSES = ["paid", "shipped", "pending"]
+
+const emailOf = (name: string) => `${name.normalize("NFD").replace(/[\u0300-\u036F]/g, "").toLowerCase().replace(/[^a-z]+/g, ".")}@example.com`
 
 /** Deterministic demo data: 25 customers, 8 products, 40 orders with 1 to 3 items each. */
 export function seed(db: Database.Database): void {
@@ -39,19 +62,15 @@ export function seed(db: Database.Database): void {
   const order = db.prepare("insert into orders (id, customer_id, status, total_cents, created_at) values (?, ?, ?, ?, ?)")
   const item = db.prepare("insert into order_items (order_id, product_id, quantity, unit_price_cents) values (?, ?, ?, ?)")
   db.transaction(() => {
-    for (let id = 1; id <= 25; id++) {
-      customer.run(id, `Customer ${id}`, `customer${id}@example.com`, COUNTRIES[id % COUNTRIES.length])
-    }
-    for (let id = 1; id <= 8; id++) {
-      product.run(id, `SKU-${String(id).padStart(3, "0")}`, `Product ${id}`, 500 * id)
-    }
+    CUSTOMERS.forEach(({ name, country }, index) => customer.run(index + 1, name, emailOf(name), country))
+    PRODUCTS.forEach((name, index) => product.run(index + 1, `SKU-${String(index + 1).padStart(3, "0")}`, name, 1900 * (index + 1) + 900))
     for (let id = 1; id <= 40; id++) {
       const lines = Array.from({ length: 1 + (id % 3) }, (_unused, line) => {
-        const productId = 1 + ((id + line) % 8)
-        return { productId, quantity: 1 + (line % 2), unitPrice: 500 * productId }
+        const productId = 1 + ((id + line) % PRODUCTS.length)
+        return { productId, quantity: 1 + (line % 2), unitPrice: 1900 * productId + 900 }
       })
       const total = lines.reduce((sum, { quantity, unitPrice }) => sum + quantity * unitPrice, 0)
-      order.run(id, 1 + (id % 25), STATUSES[id % STATUSES.length], total, `2026-01-${String(1 + (id % 28)).padStart(2, "0")}T10:00:00Z`)
+      order.run(id, 1 + (id % CUSTOMERS.length), STATUSES[id % STATUSES.length], total, `2026-01-${String(1 + (id % 28)).padStart(2, "0")}T10:00:00Z`)
       for (const { productId, quantity, unitPrice } of lines) {
         item.run(id, productId, quantity, unitPrice)
       }

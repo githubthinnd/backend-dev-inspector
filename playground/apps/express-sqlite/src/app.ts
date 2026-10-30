@@ -1,6 +1,6 @@
 import express from "express"
 import { createInspector } from "backend-dev-inspector"
-import { DEFAULT_MOCK_API_URL, renderIndex, runScenario, scenarios } from "@playground/shared"
+import { DEFAULT_MOCK_API_URL, runScenario, scenarios, serveWeb } from "@playground/shared"
 import { createSqliteRepository, openDatabase } from "@playground/shared"
 
 export function createApp() {
@@ -10,8 +10,14 @@ export function createApp() {
   const repo = createSqliteRepository(openDatabase())
   const context = { mockApiUrl: process.env.MOCK_API_URL ?? DEFAULT_MOCK_API_URL }
 
-  app.get("/", (_request, response) => {
-    response.type("html").send(renderIndex("express-sqlite"))
+  const info = { framework: "Express 5", data: "better-sqlite3" }
+  app.get(["/", "/assets/:file"], (request, response) => {
+    const page = serveWeb(request.path, info)
+    if (!page) {
+      response.status(404).json({ error: "not found" })
+      return
+    }
+    response.status(page.status).type(page.type).send(page.body)
   })
   app.get("/api/health", (_request, response) => {
     response.json({ ok: true })

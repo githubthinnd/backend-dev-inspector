@@ -1,20 +1,50 @@
 # Playground
 
-Runnable example apps for [`backend-dev-inspector`](../packages/backend-dev-inspector) (and the core, [`sql-dev-inspector`](../packages/sql-dev-inspector)): one small app per framework and data layer, all serving the **same six scenarios**, so you can see what the inspector shows for each stack, try a change to the packages, or copy a setup into your own project.
+Runnable example apps for [`backend-dev-inspector`](../packages/backend-dev-inspector) (and the core, [`sql-dev-inspector`](../packages/sql-dev-inspector)): one app per framework and data layer. Each is a small shop admin, **Antimatter**, that calls its own API, so you use it like a real product and watch in the inspector what the server did for every click.
 
 No database server is needed: the data is a seeded SQLite database (in memory, or a file for Prisma) and the "outside service" is a tiny fake HTTP server started by the apps.
 
+<p align="center">
+  <img alt="Antimatter, the demo shop admin, running on Nuxt 3 with the inspector's floating button" src="../docs/media/nuxt-orders.jpg" width="49%">
+  <img alt="The inspector showing an N+1 insight for the Customers screen" src="../docs/media/inspector-n-plus-one.jpg" width="49%">
+</p>
+<p align="center">
+  <img alt="The Reports screen after a slow query" src="../docs/media/nuxt-reports.jpg" width="32%">
+  <img alt="The inspector flagging the slow query" src="../docs/media/inspector-slow-query.jpg" width="32%">
+  <img alt="The inspector showing a transaction with a rolled-back savepoint" src="../docs/media/inspector-transaction.jpg" width="32%">
+</p>
+
+<p align="center"><sub>The Nuxt 3 app on the left of each pair; what the inspector recorded for the same click on the right.</sub></p>
+
+## What you see
+
+Open an app and you get a real-looking admin: orders, customers, reports, loyalty. Every screen is one of the scenarios below, and each has a **Behind this screen** card that says what you are doing, what the server runs, and what to look for in the inspector.
+
+| Screen | What it does | What the inspector shows |
+|---|---|---|
+| **Orders** | The latest orders, with totals and a status; open one for its details | One joined query, no warning |
+| Orders → **New order** | Places an order | A transaction that commits, with a savepoint that rolls back |
+| Orders → open an order → **Add gift item** | An insert the database rejects | An error insight (foreign key) |
+| **Customers** | Who ordered recently | An **N+1**: one query per customer |
+| **Reports** | A heavy revenue aggregate | A **slow query** warning |
+| **Loyalty** | Tiers read from another service | An **N+1 over HTTP** |
+
+The data is fake (a seeded SQLite database, and a small fake customer service on port 4010), but the requests are real: the page uses `fetch` against the API of the app that serves it.
+
 ## Apps
+
 
 | App | Framework | Data layer | Inspector hookup |
 |---|---|---|---|
+| [`nuxt3-drizzle`](apps/nuxt3-drizzle) | Nuxt 3 (Vue front end) | Drizzle ORM | module `backend-dev-inspector/nuxt` |
+| [`nuxt3-prisma`](apps/nuxt3-prisma) | Nuxt 3 (Vue front end) | Prisma 7 (libSQL adapter) | module `backend-dev-inspector/nuxt` + `prismaExtension()` |
 | [`express-sqlite`](apps/express-sqlite) | Express 5 | `better-sqlite3`, hand-written SQL | `createInspector().middleware` |
 | [`express-drizzle`](apps/express-drizzle) | Express 5 | Drizzle ORM | `createInspector().middleware` |
 | [`fastify-sqlite`](apps/fastify-sqlite) | Fastify 5 | `better-sqlite3` | `backend-dev-inspector/fastify` |
 | [`koa-sqlite`](apps/koa-sqlite) | Koa 3 | `better-sqlite3` | `backend-dev-inspector/koa` |
 | [`hono-sqlite`](apps/hono-sqlite) | Hono | `better-sqlite3` | `backend-dev-inspector/hono` |
-| [`nuxt3-drizzle`](apps/nuxt3-drizzle) | Nuxt 3 | Drizzle ORM | module `backend-dev-inspector/nuxt` |
-| [`nuxt3-prisma`](apps/nuxt3-prisma) | Nuxt 3 | Prisma 7 (libSQL adapter) | module `backend-dev-inspector/nuxt` + `prismaExtension()` |
+
+The Nuxt apps render the front end with Vue (a Nuxt layer in [`layers/antimatter-ui`](layers/antimatter-ui)); the others serve the same design as plain HTML and JavaScript from [`shared/web`](shared/web). Both use one stylesheet and one set of texts ([`shared/src/content.ts`](shared/src/content.ts)), so they look and read the same.
 
 Not here: Nuxt 2 (the packages support Nuxt 3 and 4), Next.js, SvelteKit, Astro and the databases that need a server (PostgreSQL, MySQL, MongoDB, Redis). Their adapters are covered by the packages' own tests; an app for one of them follows the pattern below.
 
@@ -27,7 +57,7 @@ npm run playground:install      # builds both packages, then installs the playgr
 npm run dev:express-sqlite --prefix playground
 ```
 
-Open the address it prints, click a scenario, then open `/__sql-inspector/` (Nuxt apps also get the floating **SQL** button). Replace `express-sqlite` by any app above; `npm run dev:nuxt3-prisma` needs `npm run generate --prefix playground` first (it generates the Prisma client).
+Open the address it prints, click through the screens, then open `/__sql-inspector/` or the **Open inspector** button (Nuxt apps also get the floating button). Replace `express-sqlite` by any app above; `npm run dev:nuxt3-prisma` needs `npm run generate --prefix playground` first (it generates the Prisma client).
 
 The apps use the packages **from this checkout** (linked, not downloaded from npm). After you change a package, run `npm run build` in the repository root; the apps pick up the new build on restart.
 
@@ -44,7 +74,7 @@ Every app serves the same routes; the table says what the inspector should show.
 | `/api/orders/transaction` | an order and its items in a transaction, with a savepoint that rolls back | a transaction node that commits, with a rolled-back savepoint (Prisma has no savepoints: the failing item is caught inside the transaction) |
 | `/api/orders/external` | three calls to the fake customer service | an **N+1 over HTTP** |
 
-The scenarios live in [`shared/src/scenarios.ts`](shared/src/scenarios.ts); each data layer implements the small `Repository` interface (`shared/src/sqlite.ts`, `shared/src/drizzle.ts`, `apps/nuxt3-prisma/server/utils/prisma-repository.ts`).
+The screens call these routes. The scenarios live in [`shared/src/scenarios.ts`](shared/src/scenarios.ts); each data layer implements the small `Repository` interface (`shared/src/sqlite.ts`, `shared/src/drizzle.ts`, `apps/nuxt3-prisma/server/utils/prisma-repository.ts`).
 
 ## Tests
 
@@ -52,7 +82,7 @@ The scenarios live in [`shared/src/scenarios.ts`](shared/src/scenarios.ts); each
 npm test --prefix playground          # or: npm run playground:test
 ```
 
-[`tests/scenarios.test.ts`](tests/scenarios.test.ts) boots each app **without opening a port** and checks that the inspector reports the expected insights for every scenario. The outbound-HTTP scenario is not part of it, because it needs the fake service on a port. The Prisma check is skipped until the client is generated.
+[`tests/scenarios.test.ts`](tests/scenarios.test.ts) boots each app **without opening a port** and checks that the inspector reports the expected insights for every scenario. [`tests/ui.test.ts`](tests/ui.test.ts) opens the front end in jsdom against the same apps and checks what a visitor sees (orders, a new order, the database error, N+1 customers, the report, the empty and error states, search). The outbound-HTTP scenario is not part of the first, because it needs the fake service on a port. The Prisma checks are skipped until the client is generated.
 
 CI runs this as its own job (`playground` in `.github/workflows/ci.yml`). The playground is a separate npm project with its own lockfile: its dependencies (Nuxt, Prisma…) never reach the packages, the root install or the publish workflow.
 

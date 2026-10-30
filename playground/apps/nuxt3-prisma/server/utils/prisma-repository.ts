@@ -17,14 +17,14 @@ export function createPrismaRepository(file = process.env.PLAYGROUND_DB ?? "play
     customerById: async id => (await prisma.customer.findUnique({ where: { id }, select: { id: true, name: true, country: true } })) ?? undefined,
     heavyReport: async () => {
       const rows = await prisma.$queryRawUnsafe<Array<{ rows: bigint | number }>>(
-        "with recursive n(x) as (select 1 union all select x + 1 from n where x < 3000000) select count(*) as rows from n"
+        "with recursive n(x) as (select 1 union all select x + 1 from n where x < 6000000) select count(*) as rows from n"
       )
       return Number(rows[0]?.rows ?? 0)
     },
     failingQuery: () => prisma.orderItem.create({ data: { orderId: 999_999, productId: 1, quantity: 1, unitPriceCents: 500 } }),
     placeOrder: () => prisma.$transaction(async (tx) => {
-      const order = await tx.order.create({ data: { customerId: 1, status: "pending", totalCents: 1000, createdAt: new Date().toISOString() } })
-      await tx.orderItem.create({ data: { orderId: order.id, productId: 1, quantity: 2, unitPriceCents: 500 } })
+      const order = await tx.order.create({ data: { customerId: 1, status: "pending", totalCents: 5600, createdAt: new Date().toISOString() } })
+      await tx.orderItem.create({ data: { orderId: order.id, productId: 1, quantity: 2, unitPriceCents: 2800 } })
       try {
         // Prisma has no savepoints: a failing statement inside the transaction is caught and the order stays.
         await tx.orderItem.create({ data: { orderId: order.id, productId: 999, quantity: 1, unitPriceCents: 0 } })

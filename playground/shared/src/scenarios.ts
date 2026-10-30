@@ -20,7 +20,7 @@ export interface Repository {
   /** Plain read of the latest orders, without their customers. */
   orderHeaders: (limit: number) => Promise<OrderRow[]>
   customerById: (id: number) => Promise<CustomerRow | undefined>
-  /** A statement that takes well over the default slow-query threshold (100 ms). */
+  /** A statement that takes well over the slow-query thresholds the inspector offers (100 and 200 ms). */
   heavyReport: () => Promise<number>
   /** A statement that fails when it runs: it adds an item to an order that does not exist (a foreign key violation). */
   failingQuery: () => Promise<unknown>

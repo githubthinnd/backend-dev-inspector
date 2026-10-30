@@ -1,6 +1,6 @@
 import Koa from "koa"
 import inspectorMiddleware from "backend-dev-inspector/koa"
-import { createSqliteRepository, DEFAULT_MOCK_API_URL, findScenario, openDatabase, renderIndex, runScenario } from "@playground/shared"
+import { createSqliteRepository, DEFAULT_MOCK_API_URL, findScenario, openDatabase, runScenario, serveWeb } from "@playground/shared"
 
 export function createApp() {
   const app = new Koa()
@@ -9,10 +9,13 @@ export function createApp() {
   const repo = createSqliteRepository(openDatabase())
   const context = { mockApiUrl: process.env.MOCK_API_URL ?? DEFAULT_MOCK_API_URL }
 
+  const info = { framework: "Koa 3", data: "better-sqlite3" }
   app.use(async (ctx) => {
-    if (ctx.path === "/") {
-      ctx.type = "html"
-      ctx.body = renderIndex("koa-sqlite")
+    const page = serveWeb(ctx.path, info)
+    if (page) {
+      ctx.status = page.status
+      ctx.type = page.type
+      ctx.body = page.body
       return
     }
     if (ctx.path === "/api/health") {

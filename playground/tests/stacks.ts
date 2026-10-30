@@ -15,8 +15,8 @@ export interface Response {
 
 export interface Stack {
   name: string
-  /** False when the data layer has no savepoints (Prisma): the transaction scenario is then only checked for its transaction. */
-  savepoints: boolean
+  /** False when the data layer shows its transactions as the operations inside (Prisma), not as BEGIN / COMMIT / SAVEPOINT. */
+  sqlTransactions: boolean
   /** The stack needs something the checkout does not have until it is generated (the Prisma client). */
   available?: () => boolean
   /** Starts the app (nothing listens on a port) and answers a GET. */
@@ -32,17 +32,17 @@ const viaInject = (handler: unknown) => async (path: string): Promise<Response> 
 export const stacks: Stack[] = [
   {
     name: "express-sqlite",
-    savepoints: true,
+    sqlTransactions: true,
     boot: async () => viaInject((await import("../apps/express-sqlite/src/app.ts")).createApp())
   },
   {
     name: "express-drizzle",
-    savepoints: true,
+    sqlTransactions: true,
     boot: async () => viaInject((await import("../apps/express-drizzle/src/app.ts")).createApp())
   },
   {
     name: "fastify-sqlite",
-    savepoints: true,
+    sqlTransactions: true,
     boot: async () => {
       const app = await (await import("../apps/fastify-sqlite/src/app.ts")).createApp()
       await app.ready()
@@ -54,12 +54,12 @@ export const stacks: Stack[] = [
   },
   {
     name: "koa-sqlite",
-    savepoints: true,
+    sqlTransactions: true,
     boot: async () => viaInject((await import("../apps/koa-sqlite/src/app.ts")).createApp().callback())
   },
   {
     name: "hono-sqlite",
-    savepoints: true,
+    sqlTransactions: true,
     boot: async () => {
       const app = (await import("../apps/hono-sqlite/src/app.ts")).createApp()
       return async (path) => {
@@ -71,11 +71,11 @@ export const stacks: Stack[] = [
   {
     // The Prisma app is a Nuxt app: its repository is served here by a plain Node `http` handler, which is all the inspector sees of a framework.
     name: "nuxt3-prisma (repository)",
-    savepoints: false,
+    sqlTransactions: false,
     available: () => existsSync(fileURLToPath(new URL("../apps/nuxt3-prisma/server/generated/prisma/client.ts", import.meta.url))),
     boot: async () => {
       const { createInspector } = await import("backend-dev-inspector")
-      const { DEFAULT_MOCK_API_URL, findScenario, runScenario } = await import("@playground/shared")
+      const { DEFAULT_MOCK_API_URL, findScenario, runScenario, serveWeb } = await import("@playground/shared")
       const { createPrismaRepository } = await import("../apps/nuxt3-prisma/server/utils/prisma-repository.ts")
       const inspector = createInspector()
       const repo = createPrismaRepository(join(tmpdir(), `playground-prisma-${process.pid}.sqlite`))
@@ -85,11 +85,19 @@ export const stacks: Stack[] = [
           return
         }
         void inspector.track(request, response, async () => {
-          const scenario = findScenario(new URL(request.url ?? "/", "http://localhost").pathname)
-          const { status, body } = scenario ? await runScenario(scenario, repo, context) : { status: 404, body: { error: "not found" } }
+          const { pathname } = new URL(request.url ?? "/", "http://localhost")
+          const page = serveWeb(pathname, { framework: "Node http", data: "Prisma" })
+          const scenario = findScenario(pathname)
+          const { status, type, body } = page
+            ? { status: page.status, type: page.type, body: page.body }
+            : scenario
+              ? await runScenario(scenario, repo, context).then(({ status, body }) => ({ status, type: "application/json", body: JSON.stringify(body) }))
+              : pathname === "/api/health"
+                ? { status: 200, type: "application/json", body: JSON.stringify({ ok: true }) }
+                : { status: 404, type: "application/json", body: JSON.stringify({ error: "not found" }) }
           response.statusCode = status
-          response.setHeader("content-type", "application/json")
-          response.end(JSON.stringify(body))
+          response.setHeader("content-type", type)
+          response.end(body)
         })
       })
     }

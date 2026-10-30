@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http"
 import { DEFAULT_MOCK_API_URL } from "./scenarios.ts"
+import { CUSTOMERS } from "./schema.ts"
 
 /**
  * A small fake "customer service" for the outbound-HTTP scenario: `GET /customers/:id`.
@@ -13,7 +14,8 @@ export function ensureMockApi(url: string = process.env.MOCK_API_URL ?? DEFAULT_
       setTimeout(() => {
         response.setHeader("content-type", "application/json")
         if (match) {
-          response.end(JSON.stringify({ id: Number(match[1]), name: `Customer ${match[1]}`, tier: Number(match[1]) % 2 ? "gold" : "silver" }))
+          const id = Number(match[1])
+          response.end(JSON.stringify({ id, name: CUSTOMERS[id - 1]?.name ?? `Customer ${id}`, tier: id % 2 ? "gold" : "silver", points: 120 * id }))
         } else {
           response.statusCode = 404
           response.end(JSON.stringify({ error: "not found" }))
