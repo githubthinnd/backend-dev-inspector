@@ -2,7 +2,7 @@
 
 <p align="center">
   <b>See what your backend does for every request, in development only.</b><br>
-  Every SQL query, MongoDB command, Redis call and outbound HTTP request, in order, with N+1 and slow-call warnings.
+  Every SQL query, MongoDB command, Redis call, cloud API call and outbound HTTP request, in order, with the line of code that made it and a warning when something is wrong.
 </p>
 
 <p align="center">
@@ -15,23 +15,26 @@
 </p>
 
 <p align="center">
-  <img alt="The inspector's terminal output for a request with an N+1: the statements in order, then the warning" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/terminal-n-plus-one.svg" width="760">
+  <img alt="A short recording: a Nuxt page, the inspector panel opening at the bottom of it, an N+1 warning with its advice, and one of the repeated calls opened to show the line of code that made it" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/demo-find-n-plus-one.gif" width="760">
 </p>
+<p align="center"><sub>The inspector as a panel inside your own app (a debug bar). Open it with the floating button or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>. Recorded on the <a href="https://github.com/githubthinnd/backend-dev-inspector/tree/main/playground">playground</a>, which runs without a database.</sub></p>
 
-When a client calls your API, `backend-dev-inspector` shows **what the server did to answer it**: which queries ran and in what order, inside which transaction, how long each took, how many rows came back, and which calls were repeated, slow or failed. It works the same for PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis and outbound HTTP, so one request that touches several of them reads as one tree.
+When a client calls your API, `backend-dev-inspector` shows **what the server did to answer it**: which queries ran and in what order, inside which transaction, how long each took, how many rows came back, which line of your code made each call, and which calls were repeated, slow or failed. It works the same for PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis, cloud SDKs and outbound HTTP, so one request that touches several of them reads as one tree.
 
-You see it in three places: **a tree in your terminal**, **a live page** at `/__sql-inspector/`, and **a floating panel inside your app**. In production it does nothing.
+You see it in three places: **a tree in your terminal**, **a page** at `/__sql-inspector/`, and **a panel inside your app**. In production it does nothing.
 
 <p align="center">
-  <img alt="Antimatter, the demo shop admin, running on Nuxt 3 with the inspector's floating button" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/nuxt-orders.jpg" width="49%">
-  <img alt="The inspector showing an N+1 insight for the Customers screen" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-n-plus-one.jpg" width="49%">
+  <img alt="The Customers screen of the demo app, with the inspector's floating button showing 11 calls and a warning" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/nuxt-customers.jpg" width="49%">
+  <img alt="The inspector panel docked at the bottom of the app: the N+1 warning first, with the line of code and how to fix it, then the totals and where the time went" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-n-plus-one.jpg" width="49%">
 </p>
 <p align="center">
-  <img alt="The Reports screen after a slow query" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/nuxt-reports.jpg" width="32%">
-  <img alt="The inspector flagging the slow query" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-slow-query.jpg" width="32%">
-  <img alt="The inspector showing a transaction with a rolled-back savepoint" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-transaction.jpg" width="32%">
+  <img alt="The panel on a slow query: the warning, the threshold and the advice" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-slow-query.jpg" width="32%">
+  <img alt="The panel on a transaction with a rolled-back savepoint, nested as it ran" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-transaction.jpg" width="32%">
+  <img alt="The panel on an outbound HTTP call: status, size and content type" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-http.jpg" width="32%">
 </p>
-<p align="center"><sub>The <a href="https://github.com/githubthinnd/backend-dev-inspector/tree/main/playground">playground</a>: a demo shop admin (Nuxt 3) and what the inspector recorded for the same clicks. It runs without a database.</sub></p>
+<p align="center">
+  <img alt="The inspector's terminal output for a request with an N+1: the statements in order, the line of code of each, then the warning and how to fix it" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/terminal-n-plus-one.svg" width="860">
+</p>
 
 ## Contents
 
@@ -52,12 +55,13 @@ You see it in three places: **a tree in your terminal**, **a live page** at `/__
 
 ## Features
 
-- **One tree per request** across SQL, MongoDB, Redis and HTTP, with transactions and savepoints nested the way they ran.
-- **Warnings that point at the cause**: N+1 loops, repeated calls, slow calls, errors, too many statements.
+- **One tree per request** across SQL, MongoDB, Redis, cloud SDKs and HTTP, with transactions and savepoints nested the way they ran.
+- **Warnings that point at the cause**: N+1 loops, repeated calls, slow calls, errors, too many statements, routes over a budget. Each says how to fix it.
 - **Per-request attribution** that survives concurrency and connection pools (`AsyncLocalStorage`).
-- **Three views**: terminal tree, live web page (search, filters, timeline waterfall, formatted SQL), floating in-app panel with keyboard shortcuts.
+- **Three views**: terminal tree, live web page (search, filters, timeline waterfall, formatted SQL), and a panel inside your app with keyboard shortcuts.
 - **Works with what you already use**: it observes your existing libraries (`pg`, `postgres.js`, `mysql2`, `better-sqlite3`, `libSQL` / Turso, `mongodb`, `ioredis`, `fetch`…), so your code does not change.
-- **Adapters** for Express, Fastify, Koa, Hono, Nuxt / Nitro, Next.js, SvelteKit, Astro, Vite and plain Node `http`.
+- **Adapters** for Express, NestJS, Fastify, Koa, Hono, tRPC, Nuxt / Nitro, Next.js (including server components and actions), SvelteKit, Astro, Remix / React Router, Vite and plain Node `http`.
+- **More than the tree**: where the time went, a comparison of two requests, an overview by route, export as Markdown / JSON / OpenTelemetry, a history file you save and load, performance budgets, W3C trace context between services, source-map-aware code locations, and a token for containers. [Details](#beyond-the-tree).
 - **Finds the line of code** that made each call and opens it in your editor, and **advises how to fix** each warning. [Details](#beyond-the-tree).
 - **Built for the tools around you**: a read-only **MCP server** for coding agents, **query budgets for tests** that fail a pull request adding an N+1, and a `doctor` command. [Details](#beyond-the-tree).
 - **Values hidden by default**: bind parameters are shown as their type and size (`<string:12>`), and a stricter mode masks the whole statement. N+1 detection still works. [Details](#hiding-values).
@@ -399,7 +403,7 @@ Every `SQL_INSPECTOR_*` variable below is read from the environment through an a
 You can also change it while the app runs: the **gear** in the page's top bar opens the settings (hide values, routes to include or exclude, the page's address), the pill next to it always says whether values are hidden, and the floating panel's settings menu has the same "Hide values" switch. Changes apply to calls recorded from then on and are lost when the server restarts, which then starts from the environment again.
 
 <p align="center">
-  <img alt="The inspector page with its settings open: hide values, the routes to follow, the page address" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-settings.jpg" width="640">
+  <img alt="The settings of the inspector panel: hide values, the routes to follow, the history, budgets per route, and the page address" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-settings.jpg" width="640">
 </p>
 
 The calls often carry personal data. By default the inspector keeps **the shape of a call, not its values**:
@@ -539,7 +543,7 @@ SQL_INSPECTOR_BUDGETS="/api/**=calls:20,ms:300; GET /api/orders=calls:5,callMs:8
 
 - **Trace context.** Every request has a `traceId` and a `spanId` (shown in the request detail, searchable in the list). A request that arrives with a W3C `traceparent` joins its caller's trace. With `SQL_INSPECTOR_PROPAGATE=1`, calls made with `fetch` / undici carry a `traceparent` that names the call as a span, so the other service's inspector shows which call of which request it answers; search each service's list by the trace id to follow one operation across them. It is off by default because it adds a header to your calls, and `node:http` clients (axios, got on `http`) cannot carry it.
 - **History.** Requests live in memory and are gone when the server restarts. **Save requests** in the settings (or `GET /__sql-inspector/api/history`) writes them to a file you keep; **Load a file** brings them back, to read a profile again or compare it with a new one. The inspector never writes to disk by itself (a rule of this package), so saving is your action, and values are as hidden as they were when recorded.
-- **Editor and DevTools.** In Nuxt the module adds a **Requests** tab to Nuxt DevTools. For VS Code there is a small extension in [`extensions/vscode`](extensions/vscode) (a command and a status bar button that open the page in Simple Browser, with the token kept in secret storage); it is not published, and its logic is tested against a stand-in `vscode` module, not inside VS Code.
+- **Editor and DevTools.** In Nuxt the module adds a **Requests** tab to Nuxt DevTools. For VS Code there is a small extension in [`extensions/vscode`](https://github.com/githubthinnd/backend-dev-inspector/tree/main/extensions/vscode) (a command and a status bar button that open the page in Simple Browser, with the token kept in secret storage); it is not published, and its logic is tested against a stand-in `vscode` module, not inside VS Code.
 - **OpenTelemetry export.** `GET /__sql-inspector/api/requests/<id>/otlp` (and `/api/otlp` for all) give OTLP/JSON traces to load into Jaeger, Tempo, Grafana or a collector (`curl -X POST -H 'content-type: application/json' --data-binary @file http://localhost:4318/v1/traces`). The inspector builds the document and never sends it: no network call of its own is a rule of this package. `SQL_INSPECTOR_SERVICE_NAME` names the service.
 - **Token.** `SQL_INSPECTOR_TOKEN=<8+ characters>` (or `auto`; a shorter value locks the inspector rather than leaving it open) makes the page, the API and MCP answer only to requests that carry it: open `/__sql-inspector/?token=<token>` once (it sets an `HttpOnly`, `SameSite=Strict` cookie and redirects), or send `Authorization: Bearer <token>`. With a token set, a non-local `Host` is accepted, so a container or a tunnel can be opened by name. Use it whenever the dev server is reachable by anyone but you.
 

@@ -1042,3 +1042,14 @@ describe("highlighting names that are also properties of every object", () => {
     expect(keywords).not.toContain("valueOf")
   })
 })
+
+describe("a top bar that does not fit", () => {
+  it("drops the words of its buttons below 1440px, so nothing is clipped, and keeps them on a wide window", async () => {
+    const compact = render({ width: 1280 })
+    await settle()
+    expect(compact.document.querySelector("#app")?.classList.contains("compact")).toBe(true)
+    const wide = render({ width: 1600 })
+    await settle()
+    expect(wide.document.querySelector("#app")?.classList.contains("compact")).toBe(false)
+  })
+})

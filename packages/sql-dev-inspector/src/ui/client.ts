@@ -846,7 +846,7 @@ export const CLIENT_SCRIPT = String.raw`
     Array.prototype.forEach.call(document.querySelectorAll("[data-mode]"), function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-mode") === mode ? "true" : "false"); });
     renderList();
   }
-  function fitLayout() { appEl.classList.toggle("narrow", window.innerWidth < 760); document.documentElement.style.setProperty("--wf", window.innerWidth < 1100 ? "140px" : "220px"); }
+  function fitLayout() { appEl.classList.toggle("narrow", window.innerWidth < 760); appEl.classList.toggle("compact", window.innerWidth < 1440); document.documentElement.style.setProperty("--wf", window.innerWidth < 1100 ? "140px" : "220px"); }
 
   // ── wiring ────────────────────────────────────────────────────────
   Array.prototype.forEach.call(document.querySelectorAll("[data-icon]"), function (el) { el.replaceWith(icon(el.getAttribute("data-icon"))); });

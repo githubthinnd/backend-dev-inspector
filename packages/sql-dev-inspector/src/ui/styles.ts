@@ -263,6 +263,8 @@ a.caller:hover { text-decoration: underline; }
 .slow .input::-webkit-inner-spin-button, .slow .input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .slow .input::placeholder { font-weight: 500; }
 .slow .unit { position: absolute; right: 9px; color: var(--text-3); font-size: 11px; pointer-events: none; }
+.compact .btn .label, .compact .live span { display: none; }
+.compact .input { width: 200px; }
 .narrow .topbar { gap: 8px; padding: 0 10px; }
 .narrow .slow .input { width: 88px; }
 .narrow .brand span.name, .narrow .footer, .narrow .live span, .narrow .btn .label { display: none; }

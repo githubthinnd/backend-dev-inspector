@@ -37,6 +37,12 @@ function spansFor(line: string): Span[] {
   if (line.startsWith("⚠")) {
     return [[line, COLORS.warn]]
   }
+  if (line.startsWith("✖")) {
+    return [[line, COLORS.error]]
+  }
+  if (/^ +How to fix:/.test(line)) {
+    return [[line, COLORS.dim]]
+  }
   const prefix = /^[│├└─ ]*/.exec(line)![0]
   const rest = line.slice(prefix.length)
   const spans: Span[] = prefix ? [[prefix, COLORS.dim]] : []
@@ -85,16 +91,29 @@ function render(title: string, lines: string[]): string {
 `
 }
 
-/** Keeps the head of a long tree and its closing warning; the cut is written out, not hidden. */
+/**
+ * Keeps the head of a long tree and what it ends with (the warnings, each with its advice); the cut is written out, not hidden.
+ * A statement is a block: its line, its SQL and, when it is known, the line of code that made it.
+ */
 function shorten(lines: string[], keep: number): string[] {
-  const tree = lines.filter(line => !line.startsWith("⚠") && !/^(GET|POST) /.test(line))
-  const head = lines.filter(line => /^(GET|POST) /.test(line))
-  const warnings = lines.filter(line => line.startsWith("⚠"))
-  if (tree.length <= keep * 2) {
+  const first = lines.findIndex(line => /^[├└]─ /.test(line))
+  const insights = lines.findIndex(line => /^[⚠✖ℹ]/.test(line))
+  const head = lines.slice(0, first)
+  const tail = insights === -1 ? [] : lines.slice(insights)
+  const tree = lines.slice(first, insights === -1 ? undefined : insights)
+  const blocks: string[][] = []
+  for (const line of tree) {
+    if (/^[├└]─ /.test(line) || blocks.length === 0) {
+      blocks.push([line])
+    } else {
+      blocks.at(-1)!.push(line)
+    }
+  }
+  if (blocks.length <= keep) {
     return lines
   }
-  const hidden = tree.length / 2 - keep // every statement is two lines: the call and its SQL
-  return [...head, ...tree.slice(0, keep * 2 - 2), `│  … ${hidden} more statements`, ...tree.slice(-2), ...warnings]
+  const hidden = blocks.length - keep
+  return [...head, ...blocks.slice(0, keep - 1).flat(), `│  … ${hidden} more statements`, ...blocks.at(-1)!, ...tail]
 }
 
 const shots: Array<[file: string, title: string, url: string, keep?: number]> = [

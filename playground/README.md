@@ -5,16 +5,19 @@ Runnable example apps for [`backend-dev-inspector`](../packages/backend-dev-insp
 No database server is needed: the data is a seeded SQLite database (in memory, or a file for Prisma) and the "outside service" is a tiny fake HTTP server started by the apps.
 
 <p align="center">
-  <img alt="Antimatter, the demo shop admin, running on Nuxt 3 with the inspector's floating button" src="../docs/media/nuxt-orders.jpg" width="49%">
-  <img alt="The inspector showing an N+1 insight for the Customers screen" src="../docs/media/inspector-n-plus-one.jpg" width="49%">
+  <img alt="A short recording: the Customers screen, the inspector panel opening at the bottom of the app, the N+1 warning with its advice, and one of the repeated calls opened to show the line of code that made it" src="../docs/media/demo-find-n-plus-one.gif" width="760">
+</p>
+<p align="center"><sub>The inspector as a panel inside the app (a debug bar). Open it with the floating button or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>.</sub></p>
+
+<p align="center">
+  <img alt="The Customers screen of the demo app on Nuxt 3, with the inspector's floating button showing 11 calls and a warning" src="../docs/media/nuxt-customers.jpg" width="49%">
+  <img alt="The inspector panel on the N+1 request: the warning first, then the totals and where the time went" src="../docs/media/inspector-n-plus-one.jpg" width="49%">
 </p>
 <p align="center">
-  <img alt="The Reports screen after a slow query" src="../docs/media/nuxt-reports.jpg" width="32%">
-  <img alt="The inspector flagging the slow query" src="../docs/media/inspector-slow-query.jpg" width="32%">
-  <img alt="The inspector showing a transaction with a rolled-back savepoint" src="../docs/media/inspector-transaction.jpg" width="32%">
+  <img alt="The panel on the slow query of the Reports screen" src="../docs/media/inspector-slow-query.jpg" width="32%">
+  <img alt="The panel on a transaction with a rolled-back savepoint" src="../docs/media/inspector-transaction.jpg" width="32%">
+  <img alt="The panel on the outbound HTTP calls of the Loyalty screen" src="../docs/media/inspector-http.jpg" width="32%">
 </p>
-
-<p align="center"><sub>The Nuxt 3 app on the left of each pair; what the inspector recorded for the same click on the right.</sub></p>
 
 ## Contents
 
@@ -106,6 +109,8 @@ npm test --prefix playground          # or: npm run playground:test
 ```
 
 [`tests/scenarios.test.ts`](tests/scenarios.test.ts) boots each app **without opening a port** and checks that the inspector reports the expected insights for every scenario. [`tests/ui.test.ts`](tests/ui.test.ts) opens the front end in jsdom against the same apps and checks what a visitor sees (orders, a new order, the database error, N+1 customers, the report, the empty and error states, search). The outbound-HTTP scenario is not part of the first, because it needs the fake service on a port. The Prisma checks are skipped until the client is generated.
+
+Two more files check the features that need more than one request or one service. [`tests/inspector-api.test.ts`](tests/inspector-api.test.ts) makes real requests to the Express app and then asks the inspector's own API about them, as a browser or a script would (the list, the overview, a comparison, Markdown / JSON / OpenTelemetry exports, a saved history loaded back, MCP). [`tests/multi-service.test.ts`](tests/multi-service.test.ts) runs the gateway and the orders service in one process, talking over real HTTP on in-memory sockets, and checks that the orders request belongs to the gateway's trace and answers its call.
 
 CI runs this as its own job (`playground` in `.github/workflows/ci.yml`). The playground is a separate npm project with its own lockfile: its dependencies (Nuxt, Prisma…) never reach the packages, the root install or the publish workflow.
 
