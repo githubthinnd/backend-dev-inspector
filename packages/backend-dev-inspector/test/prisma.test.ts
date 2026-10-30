@@ -4,12 +4,19 @@ import { prismaDriver, prismaExtension } from "../src/drivers/prisma"
 
 /**
  * No Prisma engine is available to a test, so these call the extension the way Prisma documents
- * it: `query.$allModels.$allOperations({ model, operation, args, query })` with `query` running
+ * it: `query.$allOperations({ model, operation, args, query })` with `query` running
  * the real operation. What Prisma does with the result is not exercised here.
  */
 const extension = prismaExtension()
+
+describe("registration", () => {
+  it("registers one handler: Prisma runs a $allModels handler as well, which recorded every model operation twice", () => {
+    expect(Object.keys(extension.query)).toEqual(["$allOperations"])
+  })
+})
+
 const model = (operation: string, args: unknown, result: unknown, name = "User") =>
-  extension.query.$allModels.$allOperations({ model: name, operation, args, query: async () => result })
+  extension.query.$allOperations({ model: name, operation, args, query: async () => result })
 
 let uninstall: (() => void) | null = null
 const request = (url: string): RequestTrace => getInspector().store.startRequest("GET", url)
@@ -60,7 +67,7 @@ describe("prisma extension", () => {
   it("records a failure and rethrows it unchanged", async () => {
     const trace = request("/fail")
     const failure = new Error("Unique constraint failed")
-    await expect(runInRequest(trace, () => extension.query.$allModels.$allOperations({ model: "User", operation: "create", args: {}, query: async () => {
+    await expect(runInRequest(trace, () => extension.query.$allOperations({ model: "User", operation: "create", args: {}, query: async () => {
       throw failure
     } }))).rejects.toBe(failure)
     expect(trace.queries[0]!.error).toBe("Unique constraint failed")
@@ -81,7 +88,7 @@ describe("prisma extension", () => {
     const b = request("/b")
     const slow = (ms: number) => new Promise(resolve => setTimeout(() => resolve([]), ms))
     await Promise.all([
-      runInRequest(a, () => extension.query.$allModels.$allOperations({ model: "A", operation: "findMany", args: {}, query: () => slow(25) })),
+      runInRequest(a, () => extension.query.$allOperations({ model: "A", operation: "findMany", args: {}, query: () => slow(25) })),
       runInRequest(b, () => model("findMany", {}, [], "B"))
     ])
     expect(a.queries.map(q => q.sql)).toEqual(["A.findMany {}"])

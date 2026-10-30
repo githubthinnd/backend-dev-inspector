@@ -39,6 +39,20 @@ Real output, from the [playground](https://github.com/githubthinnd/backend-dev-i
   <img alt="Terminal output: a transaction that commits, with a savepoint that rolled back" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/terminal-transaction.svg" width="760">
 </p>
 
+### On a real-looking app
+
+The [playground](https://github.com/githubthinnd/backend-dev-inspector/tree/main/playground) has a shop admin, **Antimatter**, for each framework. Here it runs on Nuxt 3; each click on it shows up in the inspector:
+
+<p align="center">
+  <img alt="Antimatter, the demo shop admin, running on Nuxt 3 with the inspector's floating button" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/nuxt-orders.jpg" width="49%">
+  <img alt="The inspector showing an N+1 insight for the Customers screen" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-n-plus-one.jpg" width="49%">
+</p>
+<p align="center">
+  <img alt="The Reports screen after a slow query" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/nuxt-reports.jpg" width="32%">
+  <img alt="The inspector flagging the slow query" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-slow-query.jpg" width="32%">
+  <img alt="The inspector showing a transaction with a rolled-back savepoint" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-transaction.jpg" width="32%">
+</p>
+
 ## What it sees
 
 | Technology | Library | How | Checked against |

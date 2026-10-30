@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- `prismaExtension()` recorded every model operation twice, because it registered a handler under both `$allModels` and the top-level `$allOperations` and Prisma runs both. It now registers the top-level handler only, which also receives raw queries. Found by running the real Prisma client in the playground; the unit tests called each handler on its own and could not see it.
+
 ## [1.0.1] - 2026-10-28
 
 ### Fixed

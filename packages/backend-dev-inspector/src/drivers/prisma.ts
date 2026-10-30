@@ -106,9 +106,8 @@ export function prismaExtension() {
   return {
     name: "backend-dev-inspector",
     query: {
-      $allModels: {
-        $allOperations: (params: OperationParams) => record(params)
-      },
+      // The top-level handler gets model operations (with `model`) and raw queries alike. Prisma runs a handler
+      // registered under `$allModels` as well, so registering both recorded every model operation twice.
       $allOperations: (params: OperationParams) => record(params)
     }
   }
