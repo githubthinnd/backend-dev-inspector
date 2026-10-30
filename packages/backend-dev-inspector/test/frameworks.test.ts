@@ -8,7 +8,7 @@ import { inspectorMiddleware as astro } from "../src/frameworks/astro"
 import { inspectorPlugin as fastifyPlugin } from "../src/frameworks/fastify"
 import { inspectorMiddleware as honoMiddleware } from "../src/frameworks/hono"
 import { inspectorMiddleware as koaMiddleware } from "../src/frameworks/koa"
-import { inspectorRoute, withInspector } from "../src/frameworks/next"
+import { inspectorRoute, withInspector, withInspectorAction, withInspectorPage } from "../src/frameworks/next"
 import { inspectorHandle } from "../src/frameworks/sveltekit"
 import { inspector as vitePlugin } from "../src/frameworks/vite"
 import { BRAND, withDefaults } from "../src/options"
@@ -295,6 +295,44 @@ describe("web-standard adapters", () => {
     const res = await handler(new Request(`${URL_BASE}/api/users/3`), { params: { id: "3" } })
     expect(await res.json()).toEqual({ url: "/api/users/3", id: "3" })
     expect(traceOf("/api/users/3")!.queries).toHaveLength(1)
+  })
+
+  it("Next.js: server components and server actions are requests of their own, and redirect() is not a failure", async () => {
+    const page = withInspectorPage("/orders", async (id: string) => {
+      await callDatabase(`select page ${id}`)
+      return `page ${id}`
+    })
+    expect(await page("7")).toBe("page 7")
+    expect(traceOf("/orders")).toMatchObject({ method: "GET", status: 200 })
+    expect(traceOf("/orders")!.queries).toHaveLength(1)
+
+    const action = withInspectorAction("createOrder", async () => {
+      await callDatabase("insert action")
+      throw Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;replace;/orders/1;307;" })
+    })
+    await expect(action()).rejects.toThrow("NEXT_REDIRECT")
+    expect(traceOf("createOrder")).toMatchObject({ method: "ACTION", status: 307 })
+
+    const broken = withInspectorAction("explode", async () => {
+      await callDatabase("select boom")
+      throw new Error("boom")
+    })
+    await expect(broken()).rejects.toThrow("boom")
+    expect(traceOf("explode")!.status).toBe(500)
+  })
+
+  it("Next.js: a component called inside a wrapped route handler joins that request", async () => {
+    const part = withInspectorPage("/part", async () => {
+      await callDatabase("select part")
+    })
+    const handler = withInspector(async () => {
+      await callDatabase("select handler")
+      await part()
+      return new Response("ok")
+    })
+    await handler(new Request(`${URL_BASE}/api/joined`), undefined)
+    expect(traceOf("/api/joined")!.queries).toHaveLength(2)
+    expect(traceOf("/part")).toBeUndefined()
   })
 
   it("wrapFetch: any (request) => Response handler, as Bun.serve / Deno.serve / workers take", async () => {

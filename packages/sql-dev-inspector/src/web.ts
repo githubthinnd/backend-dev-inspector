@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import type { StartOptions } from "./setup.js"
 import { EventEmitter } from "node:events"
-import { runIgnored, runInRequest } from "./context.js"
+import { currentTrace, runIgnored, runInRequest } from "./context.js"
 import { handleInspectorRequest, inspectorSubPath } from "./inspector-server.js"
 import { isTracked } from "./route-filter.js"
 import { startInspector } from "./setup.js"
@@ -18,6 +18,12 @@ export interface WebInspector {
   handle: (request: Request) => Promise<Response | null>
   /** Runs `handler` as one traced request; the request ends with the status of the Response it returns. */
   track: (request: Request, handler: () => Response | Promise<Response>) => Promise<Response>
+  /**
+   * Runs `fn` as one traced unit that has no `Request` of its own: a server component, a server action, a job.
+   * It is listed as `method` + `label` (`GET /orders`, `ACTION createOrder`), ends with `status(result)` or 500 when it throws,
+   * and is left alone when it runs inside a request that is already traced.
+   */
+  run: <T>(method: string, label: string, fn: () => T | Promise<T>, status?: (outcome: { result?: T, error?: unknown }) => number) => Promise<T>
 }
 
 function pathOf(url: string): string {
@@ -37,7 +43,7 @@ function headersOf(request: Request, url: URL): Record<string, string> {
 export function createWebInspector(options: StartOptions = {}): WebInspector {
   const inspector = startInspector(undefined, options)
   if (!inspector) {
-    return { enabled: false, handle: async () => null, track: async (_request, handler) => await handler() }
+    return { enabled: false, handle: async () => null, track: async (_request, handler) => await handler(), run: async (_method, _label, fn) => await fn() }
   }
   const { store } = inspector
 
@@ -124,5 +130,24 @@ export function createWebInspector(options: StartOptions = {}): WebInspector {
     }
   }
 
-  return { enabled: true, handle, track }
+  const run: WebInspector["run"] = async (method, label, fn, status) => {
+    const current = currentTrace()
+    if (current) {
+      return await fn()
+    }
+    if (!isTracked(inspector.filters, label.startsWith("/") ? label.split("?")[0]! : `/${label}`)) {
+      return await runIgnored(fn)
+    }
+    const trace = store.startRequest(method, label)
+    try {
+      const result = await runInRequest(trace, fn)
+      store.finishRequest(trace, status?.({ result }) ?? 200)
+      return result
+    } catch (error) {
+      store.finishRequest(trace, status?.({ error }) ?? 500)
+      throw error
+    }
+  }
+
+  return { enabled: true, handle, track, run }
 }

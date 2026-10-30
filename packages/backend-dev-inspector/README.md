@@ -152,7 +152,16 @@ import { withInspector } from "backend-dev-inspector/next"
 export const GET = withInspector(async (request) => Response.json(await loadOrders()))
 ```
 
-Server components and server actions have no hook, so their calls are listed under "outside any request".
+Server components and server actions get no `Request` Next.js lets you hook, so wrap them and name them; each is then a request of its own in the inspector:
+
+```tsx
+import { withInspectorAction, withInspectorPage } from "backend-dev-inspector/next"
+
+export default withInspectorPage("/orders", async function OrdersPage() { /* … */ })          // GET /orders
+export const createOrder = withInspectorAction("createOrder", async (data: FormData) => { /* … */ })  // ACTION createOrder
+```
+
+`redirect()` and `notFound()` are not failures (they end as 307 and 404), and a component called inside a wrapped route handler joins that request. Without the wrapper, those calls are listed under "outside any request".
 
 ### SvelteKit
 
@@ -564,7 +573,7 @@ For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "
 - **libSQL**: a transaction is listed as BEGIN … COMMIT with its statements; the client's internal statements are not.
 - **db0**: connectors whose driver is not watched (PGlite, Neon, D1…) are only seen when you wrap the database with `withTracing()`.
 - **A lazy query awaited outside its request** (a postgres.js query or Drizzle builder created in a handler but awaited elsewhere) is attributed to where it is awaited.
-- **Next.js**: only route handlers you wrap are attributed to their request.
+- **Next.js**: only route handlers, server components and server actions you wrap are attributed to a request. A layout and a page are separate wrapped functions, so a navigation is more than one entry.
 - Statements outside any request or task are grouped under one "(outside request)" entry. Requests that make no recorded call (assets, HMR) are not kept.
 - Not a profiler: durations are wall-clock, measured around each call.
 
