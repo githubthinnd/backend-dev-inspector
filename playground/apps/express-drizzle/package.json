@@ -1,0 +1,19 @@
+{
+  "name": "express-drizzle",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@playground/shared": "*",
+    "backend-dev-inspector": "file:../../../packages/backend-dev-inspector",
+    "drizzle-orm": "^0.45.4",
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6"
+  }
+}

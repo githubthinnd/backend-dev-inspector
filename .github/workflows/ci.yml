@@ -45,3 +45,24 @@ jobs:
         run: npm audit --audit-level=high
       - name: Registry signatures and provenance of installed packages
         run: npm audit signatures
+  # The playground apps run the real packages against the same scenarios. Its dependencies (Nuxt, Prisma…) are
+  # installed in a project of their own, so the root install, the audit above and the publish job never see them.
+  playground:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm ci --ignore-scripts --prefix playground
+      # The explicit steps replace dependency install scripts: the native SQLite build (one copy, in the root install,
+      # shared by the packages and the apps) and the Prisma client.
+      - run: npm rebuild better-sqlite3
+      - run: npm run generate --prefix playground
+      - run: npm run typecheck --prefix playground
+      - run: npm test --prefix playground

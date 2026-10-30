@@ -1,0 +1,18 @@
+{
+  "name": "@playground/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The database, the scenarios and the fake service every playground app serves.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./drizzle": "./src/drizzle.ts",
+    "./dev-env": "./src/dev-env.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "hono-sqlite",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@playground/shared": "*",
+    "backend-dev-inspector": "file:../../../packages/backend-dev-inspector",
+    "hono": "^4.13.14"
+  }
+}

@@ -9,3 +9,8 @@ coverage
 README.VI.md
 docs/PUBLISH-AND-INSTALL.md
 CLAUDE.md
+.nuxt
+.output
+*.sqlite
+*.sqlite-journal
+playground/apps/*/server/generated

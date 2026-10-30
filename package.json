@@ -11,9 +11,15 @@
   "scripts": {
     "typecheck": "npm run typecheck -w sql-dev-inspector && npm run typecheck -w backend-dev-inspector",
     "build": "npm run build -w sql-dev-inspector && npm run build -w backend-dev-inspector",
-    "test": "npm run test -w sql-dev-inspector && npm run test -w backend-dev-inspector"
+    "test": "npm run test -w sql-dev-inspector && npm run test -w backend-dev-inspector",
+    "playground:install": "npm run build && npm install --prefix playground",
+    "playground:test": "npm test --prefix playground"
   },
   "engines": {
     "node": ">=22"
+  },
+  "overrides": {
+    "deep-equal": "npm:@socketregistry/deep-equal@^1",
+    "safer-buffer": "npm:@socketregistry/safer-buffer@^1"
   }
 }

@@ -1,0 +1,42 @@
+// The tables are created and seeded by @playground/shared (openDatabase); Prisma only reads and writes them.
+generator client {
+  provider = "prisma-client"
+  output   = "../server/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Customer {
+  id      Int     @id
+  name    String
+  email   String
+  country String
+  orders  Order[]
+
+  @@map("customers")
+}
+
+model Order {
+  id         Int         @id @default(autoincrement())
+  customerId Int         @map("customer_id")
+  status     String
+  totalCents Int         @map("total_cents")
+  createdAt  String      @map("created_at")
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  items      OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id             Int   @id @default(autoincrement())
+  orderId        Int   @map("order_id")
+  productId      Int   @map("product_id")
+  quantity       Int
+  unitPriceCents Int   @map("unit_price_cents")
+  order          Order @relation(fields: [orderId], references: [id])
+
+  @@map("order_items")
+}
