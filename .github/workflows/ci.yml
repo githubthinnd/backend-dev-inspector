@@ -10,10 +10,12 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         node: [22, 24]
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +32,49 @@ jobs:
       - run: npm run build
       - run: npm run typecheck
       - run: npm test
+  # The libraries the drivers watch, at the oldest version the peer ranges allow and at the newest published one. A driver
+  # that depends on a library's internals breaks first here. Both jobs are advisory (continue-on-error) until they have
+  # run green once: a failure on the newest is news about a release, not about the change under test. Make `oldest`
+  # blocking by removing the condition once it passes.
+  libraries:
+    name: libraries (${{ matrix.set }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        set: [oldest, newest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - run: npm rebuild better-sqlite3
+      - name: Install the libraries at ${{ matrix.set }}
+        run: |
+          if [ "${{ matrix.set }}" = "oldest" ]; then
+            npm install --no-save --ignore-scripts -w backend-dev-inspector pg@8.11.0 mysql2@3.9.0 mongodb@5.9.0 ioredis@5.3.0 postgres@3.4.0 @libsql/client@0.14.0
+          else
+            npm install --no-save --ignore-scripts -w backend-dev-inspector pg@latest mysql2@latest mongodb@latest ioredis@latest postgres@latest @libsql/client@latest
+          fi
+      - run: npm run build
+      - run: npm test -w backend-dev-inspector
+  extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm test
+        working-directory: extensions/vscode
   audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10

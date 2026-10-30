@@ -31,3 +31,7 @@ Commits follow [Conventional Commits](https://www.conventionalcommits.org) (`fea
 ## Reporting a vulnerability
 
 Do not open a public issue: see [SECURITY.md](SECURITY.md).
+
+## CI
+
+`ci.yml` runs the tests on Node 22 and 24 on Linux and macOS, the audit, the playground, the VS Code extension's tests, and a `libraries` job that runs the backend tests with the watched libraries at the oldest version their peer range allows and at the newest published one (advisory until it has passed once). None of this has been run by the author on a runner yet: read the first run before trusting it.
