@@ -154,6 +154,26 @@ describe("Neon over HTTP", () => {
     expect(trace.queries[0]).toMatchObject({ driver: "neon", sql: "select * from users where id = $1", params: [7], rowCount: 2 })
   })
 
+  it("records a query that is used with .catch() or .finally() instead of await", async () => {
+    uninstalls.push(neonDriver.install(rec())!)
+    const ok = instrumentNeon(sql([{ n: 1 }]))
+    const trace = request("/neon-catch")
+    const seen: string[] = []
+    await runInRequest(trace, async () => {
+      await ok`select 1`.catch(() => seen.push("caught"))
+      await ok`select 2`.finally(() => seen.push("finally"))
+    })
+    expect(seen).toEqual(["finally"])
+    expect(trace.queries.map(q => q.sql)).toEqual(["select 1", "select 2"])
+    const bad = instrumentNeon(sql([], true))
+    const failing = request("/neon-catch-fail")
+    await runInRequest(failing, async () => {
+      await bad`select * from nope`.catch(() => seen.push("caught"))
+    })
+    expect(seen).toEqual(["finally", "caught"])
+    expect(failing.queries[0]!.error).toMatch(/does not exist/)
+  })
+
   it("records sql.query(), a failure, and nothing for a query that is never awaited", async () => {
     uninstalls.push(neonDriver.install(rec())!)
     const ok = instrumentNeon(sql([{ n: 1 }]))

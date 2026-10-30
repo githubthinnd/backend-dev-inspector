@@ -49,6 +49,22 @@ function follow(recorder: Recorder, id: number, text: string, params: unknown[] 
   }
   return new Proxy(query as object, {
     get(target, property, receiver) {
+      // catch and finally are built on then; left alone they would call the query's own then and run it unrecorded
+      if (property === "catch") {
+        return (onRejected?: (error: unknown) => unknown) => (receiver as Thenable).then(undefined, onRejected)
+      }
+      if (property === "finally") {
+        return (onFinally?: () => void) => (receiver as Thenable).then(
+          (value) => {
+            onFinally?.()
+            return value
+          },
+          (error) => {
+            onFinally?.()
+            throw error
+          }
+        )
+      }
       if (property === "then") {
         return (onFulfilled?: (value: unknown) => unknown, onRejected?: (error: unknown) => unknown) => {
           start()
