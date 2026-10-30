@@ -19,6 +19,20 @@
 
 <p align="center"><sub>Real output of the <a href="playground/apps/express-sqlite">express-sqlite playground app</a>, which you can run without a database.</sub></p>
 
+### See it on a real-looking app
+
+The [playground](playground) is a small shop admin, **Antimatter**, built with Nuxt 3. Click around, and the inspector shows what the server did for each click.
+
+<p align="center">
+  <img alt="Antimatter, the demo shop admin, running on Nuxt 3 with the inspector's floating button" src="docs/media/nuxt-orders.jpg" width="49%">
+  <img alt="The inspector showing an N+1 insight for the Customers screen" src="docs/media/inspector-n-plus-one.jpg" width="49%">
+</p>
+<p align="center">
+  <img alt="The Reports screen after a slow query" src="docs/media/nuxt-reports.jpg" width="32%">
+  <img alt="The inspector flagging the slow query" src="docs/media/inspector-slow-query.jpg" width="32%">
+  <img alt="The inspector showing a transaction with a rolled-back savepoint" src="docs/media/inspector-transaction.jpg" width="32%">
+</p>
+
 ## Why
 
 A slow endpoint is usually not one slow query: it is the same query run forty times, a cache that misses on every call, or a payment API called inside a loop. Logs do not show that, and an APM is overkill on your laptop. This tool puts it in front of you while you build:
