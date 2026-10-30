@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { applyToEnv } from "./env.js"
+import { normalizeMount } from "./runtime.js"
 import type { RedactMode } from "./redact.js"
 
 /** What the Nuxt module accepts, as `modules: [["sql-dev-inspector/nuxt", { ... }]]` or under a `sqlInspector` key. */
@@ -17,7 +18,16 @@ export interface NuxtModuleOptions {
   path?: string
 }
 
+export interface DevtoolsTab {
+  name: string
+  title: string
+  icon: string
+  view: { type: "iframe", src: string }
+}
+
 export interface NuxtLike {
+  /** Nuxt's hook registry; the module only uses it to add a Nuxt DevTools tab, and does nothing when it is absent. */
+  hook?: (name: "devtools:customTabs", listener: (tabs: DevtoolsTab[]) => void) => unknown
   options: {
     dev: boolean
     nitro: { plugins?: string[] }
@@ -58,6 +68,10 @@ export function createNuxtModule(options: { nitroPlugin?: string } = {}) {
       nuxt.options.runtimeConfig.public ??= {}
       nuxt.options.runtimeConfig.public.sqlInspector = { path: settings.path }
     }
+    // A tab in Nuxt DevTools that shows the inspector's own page.
+    nuxt.hook?.("devtools:customTabs", (tabs) => {
+      tabs.push({ name: "sql-inspector", title: "Requests", icon: "carbon:data-base", view: { type: "iframe", src: `/${normalizeMount(settings.path)}/` } })
+    })
     nuxt.options.nitro.plugins ||= []
     nuxt.options.nitro.plugins.push(options.nitroPlugin ?? resolveSibling("./nitro-plugin"))
     nuxt.options.plugins.push({ src: resolveSibling("./client/nuxt-plugin.client"), mode: "client" })

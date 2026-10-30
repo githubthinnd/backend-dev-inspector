@@ -1,0 +1,32 @@
+{
+  "name": "dev-inspector-vscode",
+  "displayName": "Dev Inspector",
+  "description": "Open the running app's request inspector (sql-dev-inspector / backend-dev-inspector) inside VS Code.",
+  "version": "0.1.0",
+  "publisher": "githubthinnd",
+  "license": "MIT",
+  "private": true,
+  "repository": { "type": "git", "url": "git+https://github.com/githubthinnd/backend-dev-inspector.git", "directory": "extensions/vscode" },
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Debuggers", "Other"],
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "devInspector.open", "title": "Dev Inspector: Open" },
+      { "command": "devInspector.openInBrowser", "title": "Dev Inspector: Open in Browser" },
+      { "command": "devInspector.setToken", "title": "Dev Inspector: Set Token" }
+    ],
+    "configuration": {
+      "title": "Dev Inspector",
+      "properties": {
+        "devInspector.url": {
+          "type": "string",
+          "default": "http://localhost:3000/__sql-inspector/",
+          "description": "Address of the inspector page of the running dev server. Only local addresses are opened unless a token is set."
+        }
+      }
+    }
+  },
+  "scripts": { "test": "node --test test/extension.test.js" }
+}
