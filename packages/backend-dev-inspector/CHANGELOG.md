@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Documentation
+
+- README rewritten: contents, a support matrix that says how each technology is observed and how far it was verified, the full configuration table, API reference, limitations and troubleshooting.
+
 ## [1.0.2] - 2026-10-30
 
 ### Fixed

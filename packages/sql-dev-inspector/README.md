@@ -1,18 +1,24 @@
-# sql-dev-inspector
+<h1 align="center">sql-dev-inspector</h1>
 
-<p>
+<p align="center">
+  <b>See exactly which SQL your backend ran for each request, in development only.</b><br>
+  For Node apps that talk to MySQL or MariaDB through <code>mysql2</code>: plain, Drizzle, Knex, Sequelize, TypeORM.
+</p>
+
+<p align="center">
   <a href="https://www.npmjs.com/package/sql-dev-inspector"><img alt="npm version" src="https://img.shields.io/npm/v/sql-dev-inspector"></a>
   <a href="https://www.npmjs.com/package/sql-dev-inspector"><img alt="npm downloads" src="https://img.shields.io/npm/dm/sql-dev-inspector"></a>
   <a href="https://github.com/githubthinnd/backend-dev-inspector/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/githubthinnd/backend-dev-inspector/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="TypeScript types included" src="https://img.shields.io/npm/types/sql-dev-inspector">
   <img alt="Node 22+" src="https://img.shields.io/badge/node-%E2%89%A522-339933">
-  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue">
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
-> **Need more than MySQL?** [`backend-dev-inspector`](https://www.npmjs.com/package/backend-dev-inspector) builds on this package and adds PostgreSQL, SQLite, MongoDB, Redis, outbound HTTP, Prisma, and adapters for Fastify, Koa, Hono, Next.js, SvelteKit, Astro and Vite. Same UI, same warnings. `npm i backend-dev-inspector`. This package keeps working and stays focused on MySQL / `mysql2`; it also prints a one-line tip about the new one in development (hide it with `SQL_INSPECTOR_NOTICE=0`).
+> **Need more than MySQL?** [`backend-dev-inspector`](https://www.npmjs.com/package/backend-dev-inspector) builds on this package and adds PostgreSQL, SQLite, MongoDB, Redis, outbound HTTP, Prisma, and adapters for Fastify, Koa, Hono, Next.js, SvelteKit, Astro and Vite, with the same UI and warnings. This package keeps working and stays focused on MySQL / `mysql2`. In development it prints a one-line tip about the other package (hide it with `SQL_INSPECTOR_NOTICE=0`).
 
-**See exactly which SQL your backend ran for each request — in development only.**
+When a client calls your API, `sql-dev-inspector` shows **every statement your server sent to MySQL**: in what order, inside which transaction or savepoint, how deeply subqueries nest, how long each took and how many rows it returned. It also flags N+1 loops, repeated queries, slow queries and SQL errors.
 
-When a client calls your API, `sql-dev-inspector` shows every statement your server sent to MySQL: in what order, inside which transaction or savepoint, how deeply subqueries nest, how long each one took and how many rows it returned. It also flags N+1 loops, repeated queries, slow queries and SQL errors.
+You see it in three places: **a tree in your terminal**, **a live page** at `/__sql-inspector/`, and **a floating panel inside your app**. In production it does nothing.
 
 ```
 GET /api/orders/42 → 200  163ms total · 12 queries · 148ms in SQL
@@ -27,32 +33,81 @@ GET /api/orders/42 → 200  163ms total · 12 queries · 148ms in SQL
 ⚠ N+1 suspected: 4×, 8.4ms total — select `id`, `sku` from `order_items` where `order_id` = ?
 ```
 
+<p align="center"><sub>Example output. The <a href="https://github.com/githubthinnd/backend-dev-inspector/tree/main/playground">playground</a> has runnable demo apps (they use SQLite, so they need no database).</sub></p>
+
+## Contents
+
+- [Features](#features)
+- [Install](#install)
+- [Supported technologies](#supported-technologies)
+- [Quick start](#quick-start)
+- [Viewing the results](#viewing-the-results)
+- [Insights](#insights)
+- [Configuration](#configuration)
+- [API](#api)
+- [How it works](#how-it-works)
+- [Languages](#languages)
+- [Styling and isolation](#styling--isolation)
+- [Security and privacy](#security--privacy)
+- [Limitations](#limitations)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+
 ## Features
 
-- **Per-request attribution** — every statement is tied to the request that caused it (concurrent requests and a saturated connection pool included), using `AsyncLocalStorage`.
-- **Nesting tree** — transactions and savepoints, with committed / rolled-back / open status. Two transactions running in parallel inside one request are kept apart.
-- **Subquery depth** and pretty-printed SQL.
-- **Multilingual**: English, Vietnamese and Japanese — terminal, web page and floating button — and adding a language is one block of text (see [Languages](#languages)).
-- **Professional UI**: light / dark / system theme, responsive down to a narrow docked panel, keyboard navigation, syntax-highlighted SQL, timeline waterfall per statement.
-- **Three ways to look**: a tree in the terminal, a live web page (`/__sql-inspector/`), and a floating in-app launcher button with keyboard shortcuts.
-- **No changes to your queries** — it works at the `mysql2` driver level, so it covers plain `mysql2` and Drizzle ORM (both tested), and in principle anything else built on `mysql2`.
-- **Zero runtime dependencies** besides the `mysql2` peer. The web UI is a single self-contained page; nothing is loaded from a CDN.
-- **Safe by default** — never active when `NODE_ENV=production`; there it is a complete no-op.
-
-## Requirements
-
-- Node.js **22+** (Node 20 is end of life)
-- `mysql2` **3+** (optional peer dependency; tested with 3.20). It is optional so that packages built on this one, which may not use MySQL at all, do not pull it in; this package itself needs it to see anything.
-- Your app must send SQL through `mysql2` (pool, connection, or an ORM that uses it)
+- **Per-request attribution**: every statement is tied to the request that caused it, including concurrent requests and a saturated connection pool (`AsyncLocalStorage`).
+- **A nesting tree**: transactions and savepoints with committed / rolled-back / open status; two transactions running in parallel inside one request are kept apart.
+- **Warnings that point at the cause**: N+1, duplicates, slow statements, errors, too many statements, `SELECT *`, deep subqueries.
+- **Subquery depth** and formatted, syntax-highlighted SQL, with a timeline waterfall per statement.
+- **Three views**: terminal tree, live web page, floating in-app panel with keyboard shortcuts. Light, dark and system themes; responsive down to a narrow docked panel.
+- **English, Vietnamese and Japanese** in the terminal, the page and the panel; adding a language is one block of text (see [Languages](#languages)).
+- **Nothing changes in your code**: it works at the `mysql2` driver level, so every library built on `mysql2` is covered.
+- **Safe by default**: never active when `NODE_ENV=production`; local only; in memory only.
+- **No runtime dependencies** (the `mysql2` you already have is an optional peer). No CDN, no fonts, no analytics.
 
 ## Install
 
 ```bash
 npm install --save-dev sql-dev-inspector
-# or
-pnpm add -D sql-dev-inspector
-yarn add -D sql-dev-inspector
+# or: pnpm add -D sql-dev-inspector
+# or: yarn add -D sql-dev-inspector
 ```
+
+Requires **Node.js 22 or newer** and an application that sends SQL through **`mysql2` 3 or newer** (the optional peer dependency; tested with 3.20). It is optional only so that packages built on this one, which may not use MySQL at all, do not pull it in; this package itself needs it to see anything.
+
+## Supported technologies
+
+**How to read the "Verified" column**
+
+| Mark | Meaning |
+|---|---|
+| ✅ Real client | tested with the real library, against an in-memory server that speaks the real protocol, or in-process |
+| 🧪 Faithful fake | tested against a faithful fake of the framework's request and response, not the real framework |
+| 🟡 Expected | built on a supported library, not tested on its own |
+
+### Database access
+
+| Library | How it is observed | Verified |
+|---|---|---|
+| **`mysql2`** (pool, connection, promise API, manual transactions) | patches `Connection#query` / `execute` and `Pool#getConnection` | ✅ real `mysql2` 3 + MySQL protocol mock |
+| **Drizzle ORM** (MySQL) | through `mysql2` | ✅ |
+| Knex, Sequelize, TypeORM (MySQL) | through `mysql2` | 🟡 |
+| MariaDB servers | through `mysql2` | 🟡 |
+
+Not covered here: other MySQL drivers (`mariadb`, `mysql`) and ORMs with their own engine (Prisma). PostgreSQL, SQLite, MongoDB, Redis and HTTP are covered by [`backend-dev-inspector`](https://www.npmjs.com/package/backend-dev-inspector).
+
+### Frameworks
+
+| Framework | Hookup | Verified |
+|---|---|---|
+| **Nuxt 3** | module `sql-dev-inspector/nuxt` (also the floating button) | ✅ Nuxt 3 dev server (in the playground, with `backend-dev-inspector`) |
+| Nuxt 4 | the same module | 🟡 |
+| **Nitro** (without Nuxt) | plugin `sql-dev-inspector/nitro` | ✅ plugin tests |
+| **Express 5 / Connect** | `createSqlInspector().middleware` | ✅ real Express app in the playground; 🧪 unit tests with a fake `req` / `res` |
+| Any Node `http` server, jobs, scripts | `handle` / `track` / `task` | ✅ |
+| Hono, SvelteKit, Next.js route handlers, Bun, Deno | `createWebInspector()` (web-standard `Request` / `Response`) | ✅ web adapter tests; for ready-made adapters use `backend-dev-inspector` |
+
+Not supported: Nuxt 2 (end of life) and runtimes without `AsyncLocalStorage`.
 
 ## Quick start
 
@@ -273,7 +328,7 @@ The tool must never make your app look worse, so:
 
 - **MySQL via `mysql2` only.** Not PostgreSQL, SQLite, or other MySQL drivers (e.g. `mariadb`). ORMs that don't use `mysql2` underneath (e.g. Prisma's own engine) bypass the patched point.
 - **Tested with**: plain `mysql2` (pool, connection, manual transactions) and Drizzle ORM. Knex / Sequelize / TypeORM use `mysql2` and should work, but have no dedicated tests — please open an issue if they don't.
-- The Express/Connect adapter is tested with a faithful fake `req`/`res`, not with `express` itself; the floating button outside Nuxt is tested in happy-dom only.
+- The Express/Connect adapter is tested with a faithful fake `req` / `res` and with a real Express 5 app in the playground; the floating button outside Nuxt is tested in happy-dom only, and in a real browser only on Nuxt.
 - **No "caller" line**: ORMs like Drizzle return lazy thenables, so by the time the query runs the call stack no longer contains your code.
 - A lazy builder created inside a request scope but awaited outside it is not attributed to that request.
 - Statements outside any request or task are grouped under one "(outside request)" entry.

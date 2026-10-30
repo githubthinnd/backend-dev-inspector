@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Documentation
+
+- README rewritten: contents, a support matrix for libraries and frameworks with how far each was verified, and a clearer introduction.
+
 ## [1.2.1] - 2026-10-28
 
 ### Fixed

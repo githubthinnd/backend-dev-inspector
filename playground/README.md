@@ -1,4 +1,4 @@
-# Playground
+<h1 align="center">Playground</h1>
 
 Runnable example apps for [`backend-dev-inspector`](../packages/backend-dev-inspector) (and the core, [`sql-dev-inspector`](../packages/sql-dev-inspector)): one app per framework and data layer. Each is a small shop admin, **Antimatter**, that calls its own API, so you use it like a real product and watch in the inspector what the server did for every click.
 
@@ -15,6 +15,16 @@ No database server is needed: the data is a seeded SQLite database (in memory, o
 </p>
 
 <p align="center"><sub>The Nuxt 3 app on the left of each pair; what the inspector recorded for the same click on the right.</sub></p>
+
+## Contents
+
+- [What you see](#what-you-see)
+- [Apps](#apps)
+- [Run one](#run-one)
+- [The scenarios](#the-scenarios)
+- [Tests](#tests)
+- [Add an app](#add-an-app)
+- [Troubleshooting](#troubleshooting)
 
 ## What you see
 
@@ -33,7 +43,6 @@ The data is fake (a seeded SQLite database, and a small fake customer service on
 
 ## Apps
 
-
 | App | Framework | Data layer | Inspector hookup |
 |---|---|---|---|
 | [`nuxt3-drizzle`](apps/nuxt3-drizzle) | Nuxt 3 (Vue front end) | Drizzle ORM | module `backend-dev-inspector/nuxt` |
@@ -50,14 +59,26 @@ Not here: Nuxt 2 (the packages support Nuxt 3 and 4), Next.js, SvelteKit, Astro 
 
 ## Run one
 
-From the repository root:
+**You need** Node.js 22 or newer. Run everything from the **repository root** (the folder with the root `package.json`, not from `playground/`).
 
 ```bash
+npm install                     # the repository itself (once)
 npm run playground:install      # builds both packages, then installs the playground
-npm run dev:express-sqlite --prefix playground
 ```
 
-Open the address it prints, click through the screens, then open `/__sql-inspector/` or the **Open inspector** button (Nuxt apps also get the floating button). Replace `express-sqlite` by any app above; `npm run dev:nuxt3-prisma` needs `npm run generate --prefix playground` first (it generates the Prisma client).
+Then start the app you want:
+
+| App | Command | Needs first |
+|---|---|---|
+| `nuxt3-drizzle` | `npm run dev:nuxt3-drizzle --prefix playground` | |
+| `nuxt3-prisma` | `npm run dev:nuxt3-prisma --prefix playground` | `npm run generate --prefix playground` (generates the Prisma client; downloads Prisma's engine files) |
+| `express-sqlite` | `npm run dev:express-sqlite --prefix playground` | |
+| `express-drizzle` | `npm run dev:express-drizzle --prefix playground` | |
+| `fastify-sqlite` | `npm run dev:fastify-sqlite --prefix playground` | |
+| `koa-sqlite` | `npm run dev:koa-sqlite --prefix playground` | |
+| `hono-sqlite` | `npm run dev:hono-sqlite --prefix playground` | |
+
+Open the address it prints (port 3000, or the next free one), click through the screens, then open `/__sql-inspector/` or the **Open inspector** button. Nuxt apps also get the floating button. The terminal that runs the app prints the same tree for each request.
 
 The apps use the packages **from this checkout** (linked, not downloaded from npm). After you change a package, run `npm run build` in the repository root; the apps pick up the new build on restart.
 

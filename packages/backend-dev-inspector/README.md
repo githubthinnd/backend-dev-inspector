@@ -1,47 +1,26 @@
-# backend-dev-inspector
+<h1 align="center">backend-dev-inspector</h1>
 
-<p>
+<p align="center">
+  <b>See what your backend does for every request, in development only.</b><br>
+  Every SQL query, MongoDB command, Redis call and outbound HTTP request, in order, with N+1 and slow-call warnings.
+</p>
+
+<p align="center">
   <a href="https://www.npmjs.com/package/backend-dev-inspector"><img alt="npm version" src="https://img.shields.io/npm/v/backend-dev-inspector"></a>
   <a href="https://www.npmjs.com/package/backend-dev-inspector"><img alt="npm downloads" src="https://img.shields.io/npm/dm/backend-dev-inspector"></a>
   <a href="https://github.com/githubthinnd/backend-dev-inspector/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/githubthinnd/backend-dev-inspector/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="TypeScript types included" src="https://img.shields.io/npm/types/backend-dev-inspector">
   <img alt="Node 22+" src="https://img.shields.io/badge/node-%E2%89%A522-339933">
-  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue">
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
-**See what your backend talks to, for each request — in development only.**
-
-When a client calls your API, `backend-dev-inspector` shows every call your server made to **PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis and other services over HTTP**: in what order, inside which transaction, how long each took, how many rows came back. It flags N+1 loops, repeated calls, slow calls and errors, in the terminal, on a live web page and in a floating panel inside your app.
-
-It builds on [`sql-dev-inspector`](https://www.npmjs.com/package/sql-dev-inspector) (which stays the MySQL-focused package) and replaces its import: everything it exports is exported here too, with every driver turned on.
-
-```
-GET /api/orders/42 → 200  210ms total · 9 queries · 188ms in SQL
-├─ SELECT [pg] orders 3.2ms · 1 row
-│  select "id", "customer_id" from "orders" where "id" = $1
-├─ GET [redis] 0.4ms
-│  GET customer:17
-├─ FIND [mongodb] reviews 5.1ms · 12 rows
-│  reviews.find {"filter":{"orderId":42}}
-├─ TRANSACTION [conn 4011] committed 9.8ms
-│  ├─ INSERT [pg] audit_log 1.1ms · 1 affected
-│  └─ UPDATE [pg] orders 1.6ms · 1 affected
-├─ GET 200 [http] 142ms
-│  GET https://payments.example.com/v1/charges/ch_9
-⚠ N+1 suspected: 4×, 7.1ms total — GET customer:?
-```
-
-Real output, from the [playground](https://github.com/githubthinnd/backend-dev-inspector/tree/main/playground) apps (they run without a database):
-
-<p>
-  <img alt="Terminal output: an N+1 loop of more identical lookups, then the warning" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/terminal-n-plus-one.svg" width="760">
-</p>
-<p>
-  <img alt="Terminal output: a transaction that commits, with a savepoint that rolled back" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/terminal-transaction.svg" width="760">
+<p align="center">
+  <img alt="The inspector's terminal output for a request with an N+1: the statements in order, then the warning" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/terminal-n-plus-one.svg" width="760">
 </p>
 
-### On a real-looking app
+When a client calls your API, `backend-dev-inspector` shows **what the server did to answer it**: which queries ran and in what order, inside which transaction, how long each took, how many rows came back, and which calls were repeated, slow or failed. It works the same for PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis and outbound HTTP, so one request that touches several of them reads as one tree.
 
-The [playground](https://github.com/githubthinnd/backend-dev-inspector/tree/main/playground) has a shop admin, **Antimatter**, for each framework. Here it runs on Nuxt 3; each click on it shows up in the inspector:
+You see it in three places: **a tree in your terminal**, **a live page** at `/__sql-inspector/`, and **a floating panel inside your app**. In production it does nothing.
 
 <p align="center">
   <img alt="Antimatter, the demo shop admin, running on Nuxt 3 with the inspector's floating button" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/nuxt-orders.jpg" width="49%">
@@ -52,25 +31,35 @@ The [playground](https://github.com/githubthinnd/backend-dev-inspector/tree/main
   <img alt="The inspector flagging the slow query" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-slow-query.jpg" width="32%">
   <img alt="The inspector showing a transaction with a rolled-back savepoint" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-transaction.jpg" width="32%">
 </p>
+<p align="center"><sub>The <a href="https://github.com/githubthinnd/backend-dev-inspector/tree/main/playground">playground</a>: a demo shop admin (Nuxt 3) and what the inspector recorded for the same clicks. It runs without a database.</sub></p>
 
-## What it sees
+## Contents
 
-| Technology | Library | How | Checked against |
-|---|---|---|---|
-| MySQL, MariaDB (server) | `mysql2` (Drizzle, Knex, Sequelize, TypeORM…) | via `sql-dev-inspector` | real `mysql2`, wire-protocol mock |
-| **PostgreSQL** | `pg` (Drizzle, Kysely, Knex, TypeORM, Sequelize…) | patches `Client#query`, pool-aware | real `pg` 8, wire-protocol mock |
-| **SQLite** | `better-sqlite3` | patches statements and `exec`; `db.transaction()` shows as a transaction | real `better-sqlite3` |
-| | `node:sqlite` | same; **opt-in** (see below) | real `node:sqlite` |
-| **MongoDB** | `mongodb` (and Mongoose) | switches on the driver's command monitoring | real `mongodb` 7, wire-protocol mock |
-| **Redis** | `ioredis` 6, `redis` (node-redis) 6 | subscribes to the clients' own tracing channels | real `ioredis` 6, real node-redis 6 |
-| | `ioredis` 5 | small patch on `sendCommand` | real `ioredis` 6 with the patch path forced |
-| **HTTP out** | `node:http` / `node:https`, `fetch`, `undici` | subscribes to Node's `diagnostics_channel` | real client code over in-memory sockets |
-| MariaDB connector | `mariadb` | `instrumentMariadb(module)` helper | the connector's documented API (not the real connector) |
-| Prisma | `@prisma/client` | `$extends(prismaExtension())` | Prisma's documented extension contract (no engine) |
+- [Features](#features)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Supported technologies](#supported-technologies)
+- [What it tells you](#what-it-tells-you)
+- [Configuration](#configuration)
+- [API](#api)
+- [What it records and what it hides](#what-it-records-and-what-it-hides)
+- [Limitations](#limitations)
+- [Troubleshooting](#troubleshooting)
+- [Moving from `sql-dev-inspector`](#moving-from-sql-dev-inspector)
+- [Dependencies and supply chain](#dependencies-and-supply-chain)
+- [Playground, development and license](#playground-development-and-license)
 
-Everything is a *driver*: the call is described as the SQL statement it resembles (a read is a `select`, a `find` is a `select`, a `GET` is a `select`), so the same N+1, repeat and slow-call detection applies to all of them. A Redis `GET user:1`, `GET user:2`, `GET user:3` is an N+1 just like three SQL point reads.
+## Features
 
-Each driver does nothing when its library is not installed in your app. `NODE_ENV=production` switches everything off.
+- **One tree per request** across SQL, MongoDB, Redis and HTTP, with transactions and savepoints nested the way they ran.
+- **Warnings that point at the cause**: N+1 loops, repeated calls, slow calls, errors, too many statements.
+- **Per-request attribution** that survives concurrency and connection pools (`AsyncLocalStorage`).
+- **Three views**: terminal tree, live web page (search, filters, timeline waterfall, formatted SQL), floating in-app panel with keyboard shortcuts.
+- **Works with what you already use**: it observes your existing libraries (`pg`, `mysql2`, `mongodb`, `ioredis`, `fetch`…), so your code does not change.
+- **Adapters** for Express, Fastify, Koa, Hono, Nuxt / Nitro, Next.js, SvelteKit, Astro, Vite and plain Node `http`.
+- **Safe by default**: off in production, local only, in memory only, secrets kept out of what it records. [Details](#what-it-records-and-what-it-hides).
+- **English, Vietnamese and Japanese** in the terminal, the page and the panel.
+- **No network access and no telemetry**: no CDN, no fonts, no analytics.
 
 ## Install
 
@@ -78,15 +67,17 @@ Each driver does nothing when its library is not installed in your app. `NODE_EN
 npm install --save-dev backend-dev-inspector
 ```
 
-It brings `sql-dev-inspector` with it. The libraries it watches (`pg`, `better-sqlite3`, `mongodb`, `ioredis`, `mysql2`) are optional peer dependencies: it uses the ones your app already has and installs none.
-
-Requires **Node.js 22+**.
+Requires **Node.js 22 or newer**. It depends on [`sql-dev-inspector`](https://www.npmjs.com/package/sql-dev-inspector) (installed with it). The libraries it watches (`pg`, `mysql2`, `better-sqlite3`, `mongodb`, `ioredis`…) are **optional peer dependencies**: it uses the copy your app already has and installs none.
 
 ## Quick start
 
-The inspector turns on when `NODE_ENV=development` (or `SQL_INSPECTOR=1`). Open `http://localhost:3000/__sql-inspector/` (under your base path, if any).
+1. Install the package (above).
+2. Add the adapter for your framework (below), before any route that touches a database.
+3. Run your app in development and open `http://localhost:3000/__sql-inspector/` (under your base path, if you have one).
 
-### Express / Connect / NestJS (Express)
+The inspector turns on when `NODE_ENV=development`, or when `SQL_INSPECTOR=1`. Most dev servers set `NODE_ENV` for you; for a plain script, run `NODE_ENV=development node server.js`. `NODE_ENV=production` always switches it off.
+
+### Express, Connect, NestJS (Express)
 
 ```ts
 import { createInspector } from "backend-dev-inspector"
@@ -111,7 +102,7 @@ import inspectorMiddleware from "backend-dev-inspector/koa"
 app.use(inspectorMiddleware()) // first
 ```
 
-### Hono (Node, Bun, Deno, Workers)
+### Hono
 
 ```ts
 import inspectorMiddleware from "backend-dev-inspector/hono"
@@ -129,7 +120,34 @@ export default defineNuxtConfig({ modules: ["backend-dev-inspector/nuxt"] })
 export default defineNitroConfig({ plugins: ["backend-dev-inspector/nitro"] })
 ```
 
-Nuxt also gets the floating button, in `nuxt dev` only.
+The Nuxt module is active in `nuxt dev` only and also adds the floating button. Nothing is added to `nuxt build`.
+
+### Next.js (App Router)
+
+```ts
+// instrumentation.ts
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await (await import("backend-dev-inspector/next")).register()
+  }
+}
+```
+
+```ts
+// app/%5F%5Fsql-inspector/[[...path]]/route.ts   (%5F is "_": a folder starting with "_" is private in Next.js)
+import { inspectorRoute } from "backend-dev-inspector/next"
+
+export const { GET, POST } = inspectorRoute()
+```
+
+```ts
+// any route handler you want attributed to its request
+import { withInspector } from "backend-dev-inspector/next"
+
+export const GET = withInspector(async (request) => Response.json(await loadOrders()))
+```
+
+Server components and server actions have no hook, so their calls are listed under "outside any request".
 
 ### SvelteKit
 
@@ -159,33 +177,6 @@ import inspector from "backend-dev-inspector/vite"
 export default { plugins: [inspector()] }
 ```
 
-### Next.js (App Router)
-
-```ts
-// instrumentation.ts
-export async function register() {
-  if (process.env.NEXT_RUNTIME === "nodejs") {
-    await (await import("backend-dev-inspector/next")).register()
-  }
-}
-```
-
-```ts
-// app/%5F%5Fsql-inspector/[[...path]]/route.ts   (%5F is "_": a folder starting with "_" is private in Next.js)
-import { inspectorRoute } from "backend-dev-inspector/next"
-
-export const { GET, POST } = inspectorRoute()
-```
-
-```ts
-// any route handler you want attributed
-import { withInspector } from "backend-dev-inspector/next"
-
-export const GET = withInspector(async (request) => Response.json(await loadOrders()))
-```
-
-Server components and server actions have no hook, so their calls are listed under "outside any request".
-
 ### Bun, Deno, Workers, any `(request) => Response`
 
 ```ts
@@ -194,52 +185,215 @@ import { wrapFetch } from "backend-dev-inspector"
 Bun.serve({ fetch: wrapFetch(handler) }) // or Deno.serve(wrapFetch(handler))
 ```
 
-### Plain Node `http`, jobs, scripts
+### Plain Node `http`, jobs and scripts
 
-Same API as `sql-dev-inspector`: `inspector.handle(req, res)`, `inspector.track(req, res, fn)`, `inspector.task("nightly-sync", fn)`.
+```ts
+import http from "node:http"
+import { createInspector } from "backend-dev-inspector"
+
+const inspector = createInspector()
+
+http.createServer((req, res) => {
+  if (inspector.handle(req, res)) return           // serves the inspector's own pages
+  inspector.track(req, res, () => myApp(req, res)) // everything awaited inside belongs to this request
+}).listen(3000)
+
+// Work that is not an HTTP request: shows up as a TASK in the list
+await inspector.task("nightly-sync", async () => { await syncCustomers() })
+```
 
 ### Floating button in any frontend
 
 ```ts
 if (import.meta.env.DEV) {
   const { mountSqlInspectorWidget } = await import("backend-dev-inspector/client")
-  mountSqlInspectorWidget({ baseURL: "/" })
+  mountSqlInspectorWidget({ baseURL: "/" }) // baseURL = path prefix of your server
 }
 ```
 
-### Per library
+If your frontend runs on another origin than the API (Vite on `:5173`, API on `:3000`), open `http://localhost:3000/__sql-inspector/` directly, or proxy `/__sql-inspector` through the dev server.
+
+### Libraries that need one more line
 
 ```ts
-// MariaDB connector: wrap the module where you import it
+// MariaDB connector (it cannot be patched from outside): wrap the module where you import it
 import * as mariadbModule from "mariadb"
 import { instrumentMariadb } from "backend-dev-inspector"
 const mariadb = instrumentMariadb(mariadbModule) // unchanged outside development
 
-// Prisma: add the extension
+// Prisma: add the client extension
 import { prismaExtension } from "backend-dev-inspector/prisma"
 const prisma = new PrismaClient().$extends(prismaExtension())
 ```
 
-`node:sqlite` is opt-in, because merely loading it prints Node's experimental-feature warning, which an app that does not use SQLite must never see: `SQL_INSPECTOR_DRIVERS=node:sqlite` (or pass `nodeSqliteDriver` to `createInspector({ drivers })`).
+## Supported technologies
+
+Every technology is a *driver*: its calls are described as the SQL statement they resemble (a read is a `select`, a Redis `GET` is a `select`, an HTTP `POST` is an `insert`), so the same N+1, repeat and slow-call detection applies to all of them. A driver does nothing when its library is not in your app.
+
+**How to read the "Verified" column**
+
+| Mark | Meaning |
+|---|---|
+| ✅ Real client | tested with the real client library, against an in-memory server that speaks the real protocol, or in-process |
+| 🧪 Documented contract | tested against the library's documented extension point, not the real library |
+| 🟡 Expected | built on a supported driver, not tested on its own |
+
+### Databases, caches and HTTP
+
+| Technology | Library (peer range) | How it is observed | Verified |
+|---|---|---|---|
+| **PostgreSQL** | `pg` ≥ 8 | patches `Client#query`; pool-aware | ✅ Real client, `pg` 8 + protocol mock |
+| **MySQL, MariaDB server** | `mysql2` ≥ 3 | patches `Connection#query` / `execute` (via `sql-dev-inspector`) | ✅ Real client, `mysql2` 3 + protocol mock |
+| **SQLite** | `better-sqlite3` ≥ 9 | patches statements and `exec`; `db.transaction()` shows as a transaction | ✅ Real client, v13 |
+| | `node:sqlite` (built in) | the same; **opt-in** | ✅ Real, Node 22+ |
+| **MongoDB** | `mongodb` ≥ 5 (and Mongoose) | switches on the driver's command monitoring | ✅ Real client, `mongodb` 7 + protocol mock |
+| **Redis** | `ioredis` 6, `redis` 6 (node-redis) | subscribes to the clients' own tracing channels | ✅ Real clients |
+| | `ioredis` 5 | small patch on `sendCommand` | ✅ Real client, patch path forced |
+| **HTTP out** | `node:http`, `node:https`, global `fetch`, `undici` | subscribes to Node's `diagnostics_channel` | ✅ Real client code over in-memory sockets |
+| **MariaDB connector** | `mariadb` 3 | `instrumentMariadb(module)` helper | 🧪 Documented API |
+| **Prisma** | `@prisma/client` 7 | `$extends(prismaExtension())` | ✅ Real Prisma 7 client (libSQL adapter), in the playground |
+
+### ORMs and query builders
+
+These sit on a driver above, so they are watched through it. Statements are the SQL the ORM sends.
+
+| ORM / builder | Runs on | Verified |
+|---|---|---|
+| Drizzle ORM | `pg`, `mysql2`, `better-sqlite3` | ✅ with `better-sqlite3` and `mysql2` |
+| Prisma | its own engine | ✅ through `prismaExtension()` (calls shown by model and operation) |
+| Mongoose | `mongodb` | 🟡 |
+| Kysely, Knex, Sequelize, TypeORM | `pg`, `mysql2`, `better-sqlite3` | 🟡 |
+
+### Frameworks
+
+| Framework | Import | Verified |
+|---|---|---|
+| Express 5 / Connect | `createInspector().middleware` | ✅ real app in the playground; unit tests with a faithful `req` / `res` |
+| NestJS | the Express or Fastify entry above | 🟡 |
+| Fastify 5 | `backend-dev-inspector/fastify` | ✅ real Fastify |
+| Koa 3 | `backend-dev-inspector/koa` | ✅ real Koa |
+| Hono 4 | `backend-dev-inspector/hono` | ✅ real Hono (Node) |
+| Nuxt 3 / Nitro | `backend-dev-inspector/nuxt`, `/nitro` | ✅ Nuxt 3 dev server in the playground |
+| Nuxt 4 | the same module | 🟡 |
+| Vite dev server | `backend-dev-inspector/vite` | ✅ real Vite |
+| Next.js (App Router) | `backend-dev-inspector/next` | 🧪 adapters tested without a running Next.js |
+| SvelteKit, Astro | `/sveltekit`, `/astro` | 🧪 adapters tested without a running app |
+| Bun, Deno, Workers | `wrapFetch` | 🟡 uses web APIs and `AsyncLocalStorage` only; tested on Node.js |
+| Plain Node `http`, scripts, cron | `handle` / `track` / `task` | ✅ |
+
+Not supported: Nuxt 2 (EOL), runtimes without `AsyncLocalStorage`, and databases without a driver listed above (for example Oracle, SQL Server, DynamoDB).
+
+## What it tells you
+
+| Insight | Raised when | Level |
+|---|---|---|
+| **N+1** | 3 or more statements of the same shape (different values) in one request | warn |
+| **Duplicate** | the exact same statement twice or more | warn |
+| **Slow** | a call takes at least the threshold (default 100 ms) | warn |
+| **Error** | the call was rejected | error |
+| **Many queries** | 30 or more statements in one request | warn |
+| `SELECT *`, deep subquery (3+ levels) | | info |
+| Transaction convention (opt-in, `SQL_INSPECTOR_TX_CONVENTION=1`) | reads inside a transaction; several writes outside one | info |
+
+The slow-call threshold can also be set from the page's top bar or the panel's settings menu; the server remembers it. Calls that are not SQL count the same way: three `GET customer:<id>` calls to Redis, or three `GET /customers/<id>` calls to another service, are an N+1.
 
 ## Configuration
 
-Every `SQL_INSPECTOR_*` variable of [`sql-dev-inspector`](https://www.npmjs.com/package/sql-dev-inspector) applies (slow-query threshold, history size and age, language, allowed hosts…). Two matter most here:
+Every `SQL_INSPECTOR_*` variable below is read from the environment through an allow-list; nothing else in `process.env` is touched.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SQL_INSPECTOR` | — | `1` turns it on outside `NODE_ENV=development`; `0` turns it off. `NODE_ENV=production` always wins |
-| `SQL_INSPECTOR_DRIVERS` | all | comma separated drivers to keep: `mysql2`, `pg`, `better-sqlite3`, `mongodb`, `ioredis`, `redis`, `http`, `fetch`, `mariadb`, `prisma`, and `node:sqlite` (opt-in). `all` or empty keeps everything |
+| `NODE_ENV` | — | `production` is **always off**, even with `SQL_INSPECTOR=1`; `development` is on |
+| `SQL_INSPECTOR` | — | `1` turns it on outside development (for example `test`); `0` turns it off |
+| `SQL_INSPECTOR_DRIVERS` | all | Comma-separated drivers to keep: `mysql2`, `pg`, `better-sqlite3`, `mongodb`, `ioredis`, `redis`, `http`, `fetch`, `mariadb`, `prisma`, and `node:sqlite` (opt-in). `all` or empty keeps everything |
+| `SQL_INSPECTOR_SLOW_MS` | `100` | Slow-call threshold in milliseconds |
+| `SQL_INSPECTOR_LANG` | `en` | Terminal language and the page's starting language: `en`, `vi`, `ja`. Your machine's `LANG` is deliberately ignored |
+| `SQL_INSPECTOR_LOG` | on | `0` turns the terminal output off |
+| `SQL_INSPECTOR_MAX_REQUESTS` | `200` | Requests kept in memory |
+| `SQL_INSPECTOR_MAX_QUERIES` | `1000` | Calls kept per request |
+| `SQL_INSPECTOR_TTL_MINUTES` | `60` | Drop a request with no new call for this long; `0` keeps it until the cap pushes it out |
+| `SQL_INSPECTOR_ALLOWED_HOSTS` | — | Extra host names allowed to open the inspector, comma-separated (`myapp.test,*.dev.example.com`; `*` allows any). `localhost`, `*.localhost` and IP addresses are always allowed |
+| `SQL_INSPECTOR_TX_CONVENTION` | off | `1` turns on the transaction-convention insights |
+| `SQL_INSPECTOR_NOTICE` | on | `0` hides the one-line tip that `sql-dev-inspector` prints about this package |
+| `NO_COLOR` | — | turns terminal colors off |
 
-The slow-query threshold can also be changed from the settings menu of the floating panel and from the top bar of the page.
+`node:sqlite` is opt-in because merely loading it prints Node's experimental-feature warning, which an app that does not use SQLite must never see: set `SQL_INSPECTOR_DRIVERS=node:sqlite`, or pass `nodeSqliteDriver` to `createInspector({ drivers })`.
 
-## What it records, and what it hides
+### Floating panel
 
-- SQL and Mongo filters are shown **with their real values**, like in `sql-dev-inspector`: do not share your screen while connected to real data.
-- **Redis**: the clients' own sanitising applies: `SET key ?`, values of writes are never recorded; reads show their key.
-- **HTTP**: user names and passwords in a URL are dropped, and the values of query parameters that look like credentials (`token`, `key`, `secret`, `password`, `auth`, `signature`, `session`…) are replaced by `?`. Headers and bodies are never recorded.
-- Nothing is written to disk or sent anywhere; everything lives in the memory of the dev process and expires (see `SQL_INSPECTOR_TTL_MINUTES`).
-- The page refuses requests whose `Host` is not `localhost` or an IP address (DNS rebinding) and cross-site `POST`s; list your own host names in `SQL_INSPECTOR_ALLOWED_HOSTS`.
+The number on the button is the call count of the latest request (amber with warnings, red with errors).
+
+| Action | How |
+|---|---|
+| Open / close the panel | Click the button, or `Alt+Shift+S` (`Esc` closes it) |
+| Hide / show the button | `Alt+Shift+D` |
+| Move the button · resize the panel | Drag the button · drag the panel's edge |
+| Dock bottom / right | The two dock icons in the panel header |
+| Auto-open on warnings or errors | Settings menu (off by default) |
+| Open in a new tab · clear history | The ↗ icon · "Clear history" in the settings menu |
+
+Page shortcuts: `/` search, `↑` `↓` (or `j` `k`) previous / next request, `e` expand / collapse all. Language and theme (system / light / dark) are in the top bar and the settings menu, and are stored in `localStorage`.
+
+## API
+
+```ts
+createInspector(options?: StartOptions): SqlInspector   // Node req / res frameworks
+createWebInspector(options?: StartOptions): WebInspector // web-standard Request / Response
+wrapFetch(handler): handler                              // wraps any (request) => Response
+
+interface SqlInspector {
+  enabled: boolean                       // false in production or when switched off: everything below is a no-op
+  middleware(req, res, next): void       // Connect / Express
+  handle(req, res): boolean              // true if the URL belongs to the inspector (already served)
+  track<T>(req, res, fn: () => T): T     // run fn as one tracked request
+  task<T>(name: string, fn: () => T | Promise<T>): Promise<T> // a unit of work that is not HTTP
+}
+
+// StartOptions: { drivers?: DriverAdapter[], brand?: { title: string, short: string } }
+```
+
+| Import | For |
+|---|---|
+| `backend-dev-inspector` | the API above, `instrumentMariadb`, every export of `sql-dev-inspector` |
+| `/fastify` `/koa` `/hono` `/next` `/sveltekit` `/astro` `/vite` | framework adapters |
+| `/nuxt` `/nitro` | Nuxt module, Nitro plugin |
+| `/prisma` | `prismaExtension()` |
+| `/client` | `mountSqlInspectorWidget({ baseURL })`, the floating button |
+
+Lower level, for custom integrations: `startInspector`, `getInspector`, `buildReport`, `TraceStore`, `analyzeSql`, `describeOperation`, the `DriverAdapter` and `Recorder` types, and the rest of what [`sql-dev-inspector`](https://www.npmjs.com/package/sql-dev-inspector#api) exports.
+
+The page's HTTP routes, all under `/__sql-inspector/`: `GET /` (page), `GET /api/requests`, `GET /api/requests/:id`, `GET /api/stream` (server-sent events), `GET` / `POST /api/settings`, `POST /api/clear`.
+
+## What it records and what it hides
+
+- SQL and MongoDB filters are shown **with their real values**: do not share your screen while connected to real data.
+- **Redis**: the clients' own sanitising applies (`SET key ?`); values of writes are never recorded, reads show their key.
+- **HTTP**: user names and passwords in a URL are dropped; values of query parameters that look like credentials (`token`, `key`, `secret`, `password`, `auth`, `signature`, `session`…) are replaced by `?`. Headers and bodies are never recorded.
+- Everything lives in the memory of the dev process and expires (see `SQL_INSPECTOR_TTL_MINUTES`). Nothing is written to disk or sent anywhere.
+- The page has no login, so it is meant for `localhost`. It refuses requests whose `Host` is not `localhost` or an IP address (this stops DNS-rebinding pages from reading your data) and cross-site `POST`s. Do not expose your dev server to a shared network while it is on; list your own host names in `SQL_INSPECTOR_ALLOWED_HOSTS`.
+
+## Limitations
+
+- **Connection pools**: PostgreSQL and MongoDB statements are attributed to the request that issued them even when the pool is saturated (tested). Other libraries are attributed to the async context in which their event fires, which is the caller's for everything listed above.
+- **`mariadb` connector** cannot be patched from outside, hence `instrumentMariadb()`. Knex, Sequelize and TypeORM load the connector themselves; for them use `mysql2`, which also talks to MariaDB servers.
+- **Redis** needs a client that publishes its commands (`ioredis` 6 or `redis` 6); `ioredis` 5 is patched instead. A `MULTI` in node-redis is one call, because the client does not publish its commands individually; in ioredis `MULTI … EXEC` shows as a transaction.
+- **Prisma** shows calls by model and operation (the SQL Prisma generates is not available at that point), and has no savepoints.
+- **SQLite** errors raised while *preparing* a statement (a missing table, a syntax error) are not recorded; errors raised when it runs are.
+- **Next.js**: only route handlers you wrap are attributed to their request.
+- Statements outside any request or task are grouped under one "(outside request)" entry. Requests that make no recorded call (assets, HMR) are not kept.
+- Not a profiler: durations are wall-clock, measured around each call.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| Nothing shows up | `NODE_ENV` is not `development`. Run with `NODE_ENV=development` or `SQL_INSPECTOR=1` (never `production`) |
+| Terminal output, but `/__sql-inspector/` is 404 | Express: mount the middleware before your router. Nuxt / Nitro: check `app.baseURL` |
+| Everything is under "(outside request)" | The adapter is mounted after the route, or the work runs outside an awaited handler (timers, queues): wrap it in `inspector.task()` |
+| A library's calls are missing | See the support tables; for MariaDB and Prisma you must add the helper line |
+| Two copies of a library in `node_modules` | The inspector patches the copy it can import; make sure the app and the inspector share one (a hoisted peer) |
+| The floating button is missing | Outside Nuxt you must call `mountSqlInspectorWidget`. Try `Alt+Shift+D`, or clear the `sqlDevInspector.widget` key in `localStorage` |
+| `403` on the inspector page | The `Host` is not local: add it to `SQL_INSPECTOR_ALLOWED_HOSTS` |
 
 ## Moving from `sql-dev-inspector`
 
@@ -250,34 +404,18 @@ Change the import path; nothing else:
 + import { createSqlInspector } from "backend-dev-inspector"
 ```
 
-`sql-dev-inspector/nuxt` → `backend-dev-inspector/nuxt`, `/nitro` and `/client` likewise. The old package keeps working and keeps printing a one-line tip (hide it with `SQL_INSPECTOR_NOTICE=0`).
+`sql-dev-inspector/nuxt` becomes `backend-dev-inspector/nuxt`, and `/nitro` and `/client` likewise. The old package keeps working and prints a one-line tip about this one (hide it with `SQL_INSPECTOR_NOTICE=0`).
 
 ## Dependencies and supply chain
 
-- **One runtime dependency:** `sql-dev-inspector`. The libraries it watches (`pg`, `better-sqlite3`, `mongodb`, `ioredis`, `mysql2`) are optional peer dependencies, never installed by this package. Scanners that resolve peers (Socket) attribute the alerts of those libraries and of their own dependencies (`eval` in `mysql2` / `generate-function`, native install scripts in `better-sqlite3`, network access in the database clients, minified or unmaintained transitive packages, URL strings in comments) to this package. None of that is code shipped here.
-- **What this package's own code does:** no install scripts, no network calls of its own, no child processes, no `eval` / `new Function` / `new RegExp(string)`, and it reads no environment variable (the only reader is the allow-list in `sql-dev-inspector`). `test/supply-chain.test.ts` fails if any of that appears in `src/`.
-- **Reflection:** drivers are observed by patching a prototype, subscribing to a `diagnostics_channel`, or wrapping an object you pass in; the originals are restored on uninstall.
-- **Provenance:** releases are built by GitHub Actions with npm provenance and trusted publishing. Check an install with `npm audit signatures`.
+- **One runtime dependency:** `sql-dev-inspector`. The watched libraries are optional peer dependencies, never installed by this package. Scanners that resolve peers (Socket) attribute the alerts of those libraries and of their own dependencies (`eval` in `mysql2` and `generate-function`, native install scripts in `better-sqlite3`, network access in the database clients, minified or unmaintained transitive packages, URL strings in comments) to this package. None of that is code shipped here.
+- **Its own code**: no install scripts, no network calls, no child processes, no `eval` / `new Function` / `new RegExp(string)`, and it reads no environment variable itself (the only reader is the allow-list in `sql-dev-inspector`). A test fails if any of that appears in `src/`.
+- **Reflection**: drivers are observed by patching a prototype, subscribing to a `diagnostics_channel`, or wrapping an object you pass in. The originals are restored on uninstall.
+- **Provenance**: releases are built by GitHub Actions with npm provenance and trusted publishing. Verify an install with `npm audit signatures`.
 
-## Limitations
+## Playground, development and license
 
-- **Connection pools of other drivers**: PostgreSQL and MongoDB statements are attributed to the request that issued them even when the pool is saturated (tested). Other libraries are attributed to the async context in which their event fires, which is the caller's for everything listed above.
-- **`mariadb` connector**: cannot be patched from outside, hence the `instrumentMariadb()` helper. Knex, Sequelize and TypeORM load the connector themselves; for them use `mysql2`, which also talks to MariaDB servers.
-- **Redis**: needs a client that publishes its commands (`ioredis` 6 or `redis` 6); `ioredis` 5 is patched instead. A `redis` release that publishes no tracing channel is not seen. A `MULTI` in node-redis is one call, because the client does not publish its commands individually; in ioredis `MULTI … EXEC` shows as a transaction.
-- **Prisma**: the SQL Prisma generates is not available at that point; calls are shown by model and operation.
-- **Next.js**: only route handlers you wrap are attributed to their request. **Bun, Deno, Workers**: `wrapFetch` uses only web APIs and `AsyncLocalStorage`, but this package is tested on Node.js only.
-- Not a profiler: durations are wall-clock, measured around each call.
-
-## Development
-
-```bash
-npm install
-npm run build
-npm test
-```
-
-The monorepo root runs both packages. Tests drive the real libraries against in-memory servers (PostgreSQL, MongoDB, Redis, HTTP wire protocols) wired in through in-memory sockets, so no database or open port is needed. `better-sqlite3` is a native module; run `npm rebuild better-sqlite3` after installing with `--ignore-scripts` or its tests are skipped.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+- **Playground**: [`playground/`](https://github.com/githubthinnd/backend-dev-inspector/tree/main/playground) has a demo app for Nuxt 3 (Drizzle, Prisma), Express (SQL, Drizzle), Fastify, Koa and Hono, all runnable without a database.
+- **Develop**: from the repository root, `npm install`, `npm run build`, `npm test`. Tests drive the real libraries against in-memory servers (PostgreSQL, MongoDB, Redis and HTTP protocols), so no database or open port is needed. `better-sqlite3` is a native module: run `npm rebuild better-sqlite3` after installing with `--ignore-scripts`, or its tests are skipped.
+- **Report a vulnerability**: see [SECURITY.md](https://github.com/githubthinnd/backend-dev-inspector/blob/main/SECURITY.md). **Changes**: [CHANGELOG.md](CHANGELOG.md).
+- **License**: MIT, see [LICENSE](LICENSE).
