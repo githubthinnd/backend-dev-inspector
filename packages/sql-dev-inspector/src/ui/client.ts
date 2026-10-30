@@ -423,6 +423,7 @@ export const CLIENT_SCRIPT = String.raw`
         h("button", { class: "btn sm", onclick: function () { copy(q.sql); } }, [icon("copy"), h("span", { text: t("sql.copy") })])
       ]));
       body.appendChild(pre);
+      if (q.details) { body.appendChild(detailsEl(q.details)); }
       if (q.params && q.params.length) { body.appendChild(h("div", { class: "params", text: t("sql.params") + ": " + JSON.stringify(q.params) })); }
       if (q.statements && q.statements.length) {
         body.appendChild(h("div", { class: "sent-title", text: t("sql.sent", { count: q.statements.length }) }));
@@ -443,6 +444,17 @@ export const CLIENT_SCRIPT = String.raw`
     if (isOpen) { fillBody(); }
     box.appendChild(body);
     return box;
+  }
+  function fmtBytes(n) { return n < 1024 ? n + " B" : n < 1048576 ? num(n / 1024, 1) + " KB" : num(n / 1048576, 1) + " MB"; }
+  function detailsEl(d) {
+    var parts = [];
+    if (d.status !== undefined) { parts.push(t("http.status") + " " + d.status); }
+    if (d.requestBytes !== undefined) { parts.push(t("http.sent") + " " + fmtBytes(d.requestBytes)); }
+    if (d.responseBytes !== undefined) { parts.push(t("http.received") + " " + fmtBytes(d.responseBytes)); }
+    if (d.contentType) { parts.push(d.contentType); }
+    if (d.retryAfter) { parts.push(t("http.retryAfter") + " " + d.retryAfter); }
+    if (d.requestId) { parts.push("x-request-id " + d.requestId); }
+    return h("div", { class: "params http-details", text: parts.join(" · ") });
   }
   function setExpandAll(open) {
     state.expandAll = open; state.open = {};

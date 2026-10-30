@@ -62,6 +62,11 @@ export interface QueryEvent {
    * to the database for `User.findMany {...}`. They are not counted as calls of their own.
    */
   statements?: QueryEvent[]
+  /**
+   * Facts about the call that are not its text: for an outbound HTTP call the status, the sizes and the content type.
+   * Only plain, non-secret values (numbers and short strings).
+   */
+  details?: Record<string, string | number>
 }
 
 export interface RequestTrace {

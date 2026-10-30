@@ -27,6 +27,8 @@ export interface OperationEnd {
   error?: unknown
   rowCount?: number | null
   affectedRows?: number | null
+  /** Facts about the call (see `QueryEvent.details`); merged into what the call already has. */
+  details?: Record<string, string | number>
 }
 
 export interface OperationHandle {
@@ -121,6 +123,9 @@ export function createRecorder(store: TraceStore): Recorder {
             event.error = outcome.error === undefined || outcome.error === null ? null : messageOf(outcome.error)
             event.rowCount = outcome.rowCount ?? null
             event.affectedRows = outcome.affectedRows ?? null
+            if (outcome.details) {
+              event.details = { ...event.details, ...outcome.details }
+            }
             store.touch(trace)
           }
         }

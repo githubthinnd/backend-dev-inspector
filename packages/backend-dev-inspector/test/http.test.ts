@@ -72,6 +72,17 @@ describe("node:http client", () => {
     expect(trace.queries[0]!.durationMs).toBeGreaterThanOrEqual(0)
   })
 
+  it("keeps the status, the sizes and the harmless headers, and never a secret one", async () => {
+    const trace = request("/details")
+    await runInRequest(trace, async () => {
+      await get("/echo", { method: "POST", body: "{\"a\":1}", headers: { authorization: "Bearer SECRET", cookie: "sid=SECRET", "content-length": "7", "x-api-key": "SECRET" } })
+    })
+    const details = trace.queries[0]!.details!
+    expect(details).toMatchObject({ status: 200, requestBytes: 7 })
+    expect(typeof details.responseBytes === "number" || details.contentType !== undefined).toBe(true)
+    expect(JSON.stringify(trace.queries[0])).not.toContain("SECRET")
+  })
+
   it("treats a 5xx as an error and a transport failure as an error", async () => {
     const trace = request("/errors")
     await runInRequest(trace, async () => {
@@ -151,6 +162,15 @@ describe("fetch and undici", () => {
       ["fetch", "GET 200", "GET http://api.test/ok"],
       ["fetch", "POST 200", "POST http://api.test/echo"]
     ])
+  })
+
+  it("keeps the status and the size of what fetch got", async () => {
+    const trace = request("/fetch-details")
+    await runInRequest(trace, async () => {
+      await (await fetch("http://api.test/echo", { method: "POST", body: "hello", headers: { authorization: "Bearer SECRET" } })).text()
+    })
+    expect(trace.queries[0]!.details).toMatchObject({ status: 200, requestBytes: 5 })
+    expect(JSON.stringify(trace.queries[0])).not.toContain("SECRET")
   })
 
   it("records undici's own request() and its failures", async () => {

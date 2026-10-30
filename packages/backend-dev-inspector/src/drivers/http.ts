@@ -74,13 +74,63 @@ function begin(recorder: Recorder, driver: string, method: string, url: string, 
   })
 }
 
+const MAX_VALUE = 120
+
+/**
+ * What is worth knowing about an exchange without recording headers: the status, how much was sent and received, and a
+ * few headers that carry no secret. Everything else (cookies, authorization, bodies) is never looked at.
+ */
+const SAFE_HEADERS = { "content-type": "contentType", "retry-after": "retryAfter", "x-request-id": "requestId", "cache-control": "cacheControl" } as const
+
+type HeaderBag = Record<string, unknown> | unknown[] | undefined
+
+/** Headers arrive as an object (node:http) or as a flat `[name, value, …]` list of buffers (undici). */
+function headerValue(headers: HeaderBag, name: string): string | undefined {
+  const text = (value: unknown) => Array.isArray(value) ? value.map(String).join(", ") : value === undefined || value === null ? undefined : String(value)
+  if (Array.isArray(headers)) {
+    for (let i = 0; i + 1 < headers.length; i += 2) {
+      if (String(headers[i]).toLowerCase() === name) {
+        return text(headers[i + 1])
+      }
+    }
+    return undefined
+  }
+  if (!headers) {
+    return undefined
+  }
+  const key = Object.keys(headers).find(candidate => candidate.toLowerCase() === name)
+  return key ? text(headers[key]) : undefined
+}
+
+function detailsOf(status: number | undefined, requestHeaders: HeaderBag, responseHeaders: HeaderBag, requestBytes?: number): Record<string, string | number> {
+  const details: Record<string, string | number> = {}
+  if (status !== undefined) {
+    details.status = status
+  }
+  const sent = requestBytes ?? Number(headerValue(requestHeaders, "content-length"))
+  if (Number.isFinite(sent) && sent > 0) {
+    details.requestBytes = sent
+  }
+  const received = Number(headerValue(responseHeaders, "content-length"))
+  if (Number.isFinite(received) && received >= 0 && headerValue(responseHeaders, "content-length") !== undefined) {
+    details.responseBytes = received
+  }
+  for (const [header, key] of Object.entries(SAFE_HEADERS)) {
+    const value = headerValue(responseHeaders, header)
+    if (value) {
+      details[key] = value.slice(0, MAX_VALUE)
+    }
+  }
+  return details
+}
+
 /** Closes a call with the status the server answered; a 5xx counts as an error, a 4xx is a normal answer. */
-function finish(handle: OperationHandle, status: number | undefined) {
+function finish(handle: OperationHandle, status: number | undefined, details: Record<string, string | number> = {}) {
   const { event } = handle
   if (status !== undefined) {
     event.analysis = { ...event.analysis, label: `${event.api} ${status}` }
   }
-  handle.end({ error: status !== undefined && status >= 500 ? `HTTP ${status}` : null })
+  handle.end({ error: status !== undefined && status >= 500 ? `HTTP ${status}` : null, details })
 }
 
 type Handler = (message: unknown) => void
@@ -104,6 +154,7 @@ interface ClientRequestLike {
   host?: string
   path?: string
   getHeader?: (name: string) => unknown
+  getHeaders?: () => Record<string, unknown>
 }
 
 export const httpDriver: DriverAdapter = {
@@ -125,11 +176,11 @@ export const httpDriver: DriverAdapter = {
       }],
       ["http.client.response.finish", (message) => {
         try {
-          const { request, response } = message as { request: object, response: { statusCode?: number } }
+          const { request, response } = message as { request: ClientRequestLike, response: { statusCode?: number, headers?: Record<string, unknown> } }
           const handle = open.get(request)
           open.delete(request)
           if (handle) {
-            finish(handle, response?.statusCode)
+            finish(handle, response?.statusCode, detailsOf(response?.statusCode, request.getHeaders?.(), response?.headers))
           }
         } catch {
           // best effort: a diagnostics_channel subscriber that throws would crash the application
@@ -155,6 +206,8 @@ interface UndiciRequestLike {
   origin?: string | URL
   method?: string
   path?: string
+  headers?: string | unknown[]
+  contentLength?: number | null
 }
 
 /** The global fetch function of Node (which bundles undici) and the `undici` package, which publish the same channels. */
@@ -177,11 +230,13 @@ export const fetchDriver: DriverAdapter = {
       }],
       ["undici:request:headers", (message) => {
         try {
-          const { request, response } = message as { request: object, response: { statusCode?: number } }
+          const { request, response } = message as { request: UndiciRequestLike, response: { statusCode?: number, headers?: unknown[] } }
           const handle = open.get(request)
           open.delete(request)
           if (handle) {
-            finish(handle, response?.statusCode)
+            // undici's request headers are a `name: value\r\n` string in some versions and a flat list in others
+            const sent = typeof request.headers === "string" ? request.headers.split("\r\n").flatMap(line => line.split(/:\s*(.*)/s).slice(0, 2)) : request.headers
+            finish(handle, response?.statusCode, detailsOf(response?.statusCode, sent, response?.headers, typeof request.contentLength === "number" ? request.contentLength : undefined))
           }
         } catch {
           // best effort
