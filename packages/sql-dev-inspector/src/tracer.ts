@@ -70,8 +70,38 @@ function describeResult(result: unknown): Pick<QueryEvent, "rowCount" | "affecte
   return { rowCount: null, affectedRows: null }
 }
 
+interface Template {
+  sql: string
+  values: unknown[]
+}
+
+/**
+ * `query(sql, values)` puts the values into the statement before it is sent, so the command only
+ * holds the finished text. The arguments still have the statement with its `?` and the values apart,
+ * which is what a redacting inspector shows.
+ */
+function templateOf(args: unknown[]): Template | null {
+  const first = args[0]
+  const sql = typeof first === "string" ? first : first && typeof first === "object" && typeof (first as { sql?: unknown }).sql === "string" ? (first as { sql: string }).sql : null
+  const values = first && typeof first === "object" && "values" in first ? (first as { values?: unknown }).values : args[1]
+  if (sql === null || values === undefined || values === null || typeof values === "function") {
+    return null
+  }
+  return { sql, values: Array.isArray(values) ? values : typeof values === "object" ? Object.values(values) : [values] }
+}
+
+function safeTemplateOf(args: unknown[]): Template | null {
+  try {
+    return templateOf(args)
+  } catch {
+    return null
+  }
+}
+
 function wrap(recorder: Recorder, method: Method, original: PatchableMethod): PatchableMethod {
   return function patched(this: ConnectionLike, ...args: unknown[]) {
+    // Before the call: a command object passed in is formatted in place, so its `sql` changes under us.
+    const template = method === "query" ? safeTemplateOf(args) : null
     const command = original.apply(this, args)
 
     try {
@@ -80,7 +110,8 @@ function wrap(recorder: Recorder, method: Method, original: PatchableMethod): Pa
         driver: "mysql2",
         api: method,
         text: sql,
-        params: (command.parameters ?? null) as unknown[] | null,
+        template: template?.sql,
+        params: (command.parameters ?? template?.values ?? null) as unknown[] | null,
         connectionId: connectionIdOf(this),
         analysis: analyzeSql(sql, "mysql")
       })

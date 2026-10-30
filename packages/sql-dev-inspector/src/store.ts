@@ -1,4 +1,5 @@
 import type { QueryEvent, RequestTrace } from "./types.js"
+import type { RedactMode } from "./redact.js"
 import { randomUUID } from "node:crypto"
 
 export interface StoreOptions {
@@ -30,6 +31,11 @@ export class TraceStore {
   private readonly traces: RequestTrace[] = []
   private readonly listeners = new Set<(change: StoreChange) => void>()
   private background: RequestTrace | null = null
+  /**
+   * What the recorder keeps of values. A bare store keeps everything; the inspector sets this from
+   * `SQL_INSPECTOR_REDACT` (default `params`).
+   */
+  redact: RedactMode = "off"
   /** Bumped whenever a trace changes, so a cached report can tell it is stale without comparing the trace. */
   private readonly versions = new WeakMap<RequestTrace, number>()
 

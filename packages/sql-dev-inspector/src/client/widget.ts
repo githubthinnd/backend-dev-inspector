@@ -10,6 +10,8 @@ import { type Locale, LOCALES, type MessageKey, pickLocale, translate } from "..
 export interface WidgetOptions {
   /** Path prefix under which the server serves the inspector, e.g. `/` or `/app` (Nuxt `app.baseURL`). */
   baseURL: string
+  /** Where the server serves the inspector, when `SQL_INSPECTOR_PATH` moved it from `__sql-inspector`. */
+  path?: string
   win?: Window & typeof globalThis
 }
 
@@ -184,7 +186,8 @@ const keyChips = (combo: string) => combo.split("+").map(key => `<kbd>${key}</kb
 export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
   const win = options.win ?? (globalThis as unknown as Window & typeof globalThis)
   const doc = win.document
-  const inspectorUrl = `${options.baseURL.replace(TRAILING_SLASHES, "")}/__sql-inspector/`
+  const mount = (options.path ?? "").split("/").filter(Boolean).join("/") || "__sql-inspector"
+  const inspectorUrl = `${options.baseURL.replace(TRAILING_SLASHES, "")}/${mount}/`
   const settings = loadSettings(win)
 
   const save = () => {

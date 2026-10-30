@@ -8,5 +8,5 @@ export default defineNuxtPlugin(() => {
   if (!import.meta.dev) {
     return
   }
-  mountSqlInspectorWidget({ baseURL: config.app.baseURL })
+  mountSqlInspectorWidget({ baseURL: config.app.baseURL, path: config.public.sqlInspector?.path })
 })

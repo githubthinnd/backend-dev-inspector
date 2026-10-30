@@ -22,7 +22,7 @@ let handle: WidgetHandle | null = null
 let list: Summary[] = []
 const fetchCalls: string[] = []
 
-function mount(stored?: object, baseURL = "/") {
+function mount(stored?: object, baseURL = "/", path?: string) {
   FakeEventSource.instances = []
   fetchCalls.length = 0
   const win = createWindow({ url: "http://localhost:3000/" })
@@ -36,7 +36,7 @@ function mount(stored?: object, baseURL = "/") {
       return Promise.resolve({ json: () => Promise.resolve(list) })
     }
   })
-  handle = mountSqlInspectorWidget({ baseURL, win: win as never })
+  handle = mountSqlInspectorWidget({ baseURL, path, win: win as never })
   const root = win.document.querySelector("[data-sql-inspector]")!.shadowRoot!
   const q = <T extends Element>(selector: string) => root.querySelector(selector) as unknown as T
   const press = (code: string, extra: object = {}) =>
@@ -101,6 +101,12 @@ describe("floating launcher", () => {
     expect(q<HTMLElement>(".panel").classList.contains("open")).toBe(false)
     expect(stored().offset).toEqual({ right: 60, bottom: 50 })
     expect(button.style.right).toBe("60px")
+  })
+
+  it("loads the page from a custom path, under the base path", () => {
+    const { q, press } = mount(undefined, "/app", "/_dev/sql/")
+    press("KeyS")
+    expect(q<HTMLIFrameElement>("iframe").getAttribute("src")).toBe("/app/_dev/sql/#latest")
   })
 
   it("toggles the panel with the hotkey and loads the page under the base path", () => {

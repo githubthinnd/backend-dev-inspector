@@ -17,6 +17,16 @@ export function runInRequest<T>(trace: RequestTrace, fn: () => T): T {
   return scope().run(trace, fn)
 }
 
+/** Id of the stand-in trace for work the route filters leave out; nothing run under it is recorded. */
+export const IGNORED_ID = "ignored"
+
+const IGNORED: RequestTrace = { id: IGNORED_ID, method: "-", url: "(ignored)", status: null, startedAt: 0, durationMs: null, queries: [], droppedQueries: 0 }
+
+/** Runs `fn` for a request that is not followed: its statements are dropped, not gathered under "outside any request". */
+export function runIgnored<T>(fn: () => T): T {
+  return scope().run(IGNORED, fn)
+}
+
 /** The request the current code is running for, if any. */
 export function currentTrace(): RequestTrace | undefined {
   return scope().getStore()

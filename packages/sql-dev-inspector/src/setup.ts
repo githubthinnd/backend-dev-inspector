@@ -1,9 +1,11 @@
 import type { DriverAdapter } from "./driver.js"
 import { type InspectorEnv, pickEnv } from "./env.js"
+import type { RedactMode } from "./redact.js"
+import { parsePatterns } from "./route-filter.js"
 import { translate } from "./i18n/index.js"
 import { createRecorder } from "./recorder.js"
 import { buildReport } from "./report.js"
-import { type Brand, getInspector, type Inspector, isInspectorEnabled } from "./runtime.js"
+import { type Brand, getInspector, type Inspector, isInspectorEnabled, normalizeMount } from "./runtime.js"
 import { hasVisibleStatements, renderReport } from "./terminal.js"
 import { mysql2Driver } from "./tracer.js"
 
@@ -17,6 +19,14 @@ export interface StartOptions {
   drivers?: DriverAdapter[]
   /** What the UI calls itself. */
   brand?: Brand
+  /** What is kept of values: `params` (default), `all` or `off`. Overrides `SQL_INSPECTOR_REDACT`. */
+  redact?: RedactMode
+  /** Only requests matching these paths are traced (`/api/**`). Overrides `SQL_INSPECTOR_INCLUDE`. */
+  include?: string[]
+  /** Requests matching these paths are never traced. Overrides `SQL_INSPECTOR_EXCLUDE`. */
+  exclude?: string[]
+  /** Where the inspector is served, instead of `/__sql-inspector/`: `/_dev/sql`. Overrides `SQL_INSPECTOR_PATH`. */
+  path?: string
 }
 
 type Holder = Record<symbol, unknown>
@@ -40,6 +50,19 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
   const inspector = getInspector(env)
   if (options.brand) {
     inspector.brand = options.brand
+  }
+  if (options.redact) {
+    inspector.redact = options.redact
+    inspector.store.redact = options.redact
+  }
+  if (options.include) {
+    inspector.filters.include = parsePatterns(options.include)
+  }
+  if (options.exclude) {
+    inspector.filters.exclude = parsePatterns(options.exclude)
+  }
+  if (options.path) {
+    inspector.mount = normalizeMount(options.path)
   }
   const holder = globalThis as unknown as Holder
   const first = !holder[STARTED]

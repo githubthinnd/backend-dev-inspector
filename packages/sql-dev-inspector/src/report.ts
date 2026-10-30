@@ -1,3 +1,4 @@
+import { rememberedCallKey } from "./call-key.js"
 import type { Insight, QueryEvent, RequestReport, RequestTrace, TraceNode, TransactionNode } from "./types.js"
 import { DEFAULT_LOCALE, type Locale, translate } from "./i18n/index.js"
 import { isControlStatement, isWriteStatement } from "./sql-analyzer.js"
@@ -138,6 +139,10 @@ function groupBy<T>(items: T[], keyOf: (item: T) => string): Map<string, T[]> {
  * inlined in its text already.
  */
 function callKey(query: QueryEvent): string {
+  const remembered = rememberedCallKey(query)
+  if (remembered) {
+    return remembered
+  }
   if (!query.params || query.params.length === 0) {
     return query.sql
   }

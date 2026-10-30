@@ -1,8 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import type { StartOptions } from "./setup.js"
 import { EventEmitter } from "node:events"
-import { runInRequest } from "./context.js"
+import { runIgnored, runInRequest } from "./context.js"
 import { handleInspectorRequest, inspectorSubPath } from "./inspector-server.js"
+import { isTracked } from "./route-filter.js"
 import { startInspector } from "./setup.js"
 
 /**
@@ -42,7 +43,7 @@ export function createWebInspector(options: StartOptions = {}): WebInspector {
 
   const handle: WebInspector["handle"] = async (request) => {
     const url = new URL(request.url)
-    const subPath = inspectorSubPath(url.pathname + url.search)
+    const subPath = inspectorSubPath(url.pathname + url.search, inspector.mount)
     if (subPath === null) {
       return null
     }
@@ -109,6 +110,9 @@ export function createWebInspector(options: StartOptions = {}): WebInspector {
   }
 
   const track: WebInspector["track"] = async (request, handler) => {
+    if (!isTracked(inspector.filters, new URL(request.url).pathname)) {
+      return await runIgnored(handler)
+    }
     const trace = store.startRequest(request.method, pathOf(request.url))
     try {
       const response = await runInRequest(trace, handler)

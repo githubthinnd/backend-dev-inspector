@@ -1,8 +1,21 @@
 import { type InspectorEnv, pickEnv } from "./env.js"
 import { parseAllowedHosts } from "./guard.js"
 import { chosenLocale, DEFAULT_LOCALE, type Locale } from "./i18n/index.js"
+import { parseRedactMode, type RedactMode } from "./redact.js"
 import { DEFAULT_REPORT_OPTIONS, type ReportOptions } from "./report.js"
+import { parsePatterns, type RouteFilters } from "./route-filter.js"
 import { TraceStore } from "./store.js"
+
+/** The route the inspector is served under when `SQL_INSPECTOR_PATH` says nothing. */
+export const DEFAULT_MOUNT = "__sql-inspector"
+
+const MOUNT_SEGMENT = /^[\w.~-]+$/
+
+/** `/_dev/sql/`, `_dev/sql` or `sql` to `_dev/sql` / `sql`; anything with unusual characters keeps the default. */
+export function normalizeMount(raw: string | undefined): string {
+  const segments = (raw ?? "").split("/").filter(Boolean)
+  return segments.length > 0 && segments.every(segment => MOUNT_SEGMENT.test(segment)) ? segments.join("/") : DEFAULT_MOUNT
+}
 
 export interface Brand {
   /** Name in the page header, the browser tab and the panel. */
@@ -21,6 +34,12 @@ export interface Inspector {
   /** What the UI calls itself; a package built on this one sets it (`Backend Inspector`). Null keeps the default. */
   brand: Brand | null
   logToTerminal: boolean
+  /** What is kept of values in the calls (`SQL_INSPECTOR_REDACT`); the store applies it as calls are recorded. */
+  redact: RedactMode
+  /** Which requests are traced (`SQL_INSPECTOR_INCLUDE` / `SQL_INSPECTOR_EXCLUDE`). */
+  filters: RouteFilters
+  /** Where the inspector is served, without slashes: `__sql-inspector`, or what `SQL_INSPECTOR_PATH` chose. */
+  mount: string
   /** Language of server-side text (terminal output, `Insight.message`). */
   locale: Locale
   /** Set only when `SQL_INSPECTOR_LANG` was given: tells the web UI which language to start in. */
@@ -59,24 +78,32 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
   const holder = globalThis as unknown as Record<symbol, Inspector | undefined>
   const hint = chosenLocale(env)
   const slowMs = positiveNumber(env.SQL_INSPECTOR_SLOW_MS, DEFAULT_REPORT_OPTIONS.slowMs)
-  holder[KEY] ??= {
-    locale: hint ?? DEFAULT_LOCALE,
-    localeHint: hint,
-    defaultSlowMs: slowMs,
-    allowedHosts: parseAllowedHosts(env.SQL_INSPECTOR_ALLOWED_HOSTS),
-    brand: null,
-    store: new TraceStore({
+  if (!holder[KEY]) {
+    const redact = parseRedactMode(env.SQL_INSPECTOR_REDACT)
+    const store = new TraceStore({
       maxRequests: positiveNumber(env.SQL_INSPECTOR_MAX_REQUESTS, 200),
       maxQueriesPerRequest: positiveNumber(env.SQL_INSPECTOR_MAX_QUERIES, 1000),
       maxAgeMs: minutesToMs(env.SQL_INSPECTOR_TTL_MINUTES, 60)
-    }),
-    report: {
-      ...DEFAULT_REPORT_OPTIONS,
-      slowMs,
-      transactionConvention: env.SQL_INSPECTOR_TX_CONVENTION === "1",
-      locale: hint ?? DEFAULT_LOCALE
-    },
-    logToTerminal: env.SQL_INSPECTOR_LOG !== "0"
+    })
+    store.redact = redact
+    holder[KEY] = {
+      locale: hint ?? DEFAULT_LOCALE,
+      localeHint: hint,
+      defaultSlowMs: slowMs,
+      allowedHosts: parseAllowedHosts(env.SQL_INSPECTOR_ALLOWED_HOSTS),
+      brand: null,
+      store,
+      report: {
+        ...DEFAULT_REPORT_OPTIONS,
+        slowMs,
+        transactionConvention: env.SQL_INSPECTOR_TX_CONVENTION === "1",
+        locale: hint ?? DEFAULT_LOCALE
+      },
+      logToTerminal: env.SQL_INSPECTOR_LOG !== "0",
+      redact,
+      filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) },
+      mount: normalizeMount(env.SQL_INSPECTOR_PATH)
+    }
   }
   return holder[KEY]
 }

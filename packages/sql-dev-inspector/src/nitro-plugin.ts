@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { translate } from "./i18n/index.js"
-import { runInRequest } from "./context.js"
+import { runIgnored, runInRequest } from "./context.js"
 import { handleInspectorRequest, inspectorSubPath } from "./inspector-server.js"
+import { isTracked } from "./route-filter.js"
 import { type StartOptions, startInspector } from "./setup.js"
 
 export interface NitroEventLike {
@@ -28,19 +29,22 @@ export function createNitroPlugin(options: StartOptions = {}) {
     const next = nitroApp.h3App.handler
     nitroApp.h3App.handler = (event) => {
       const { req, res } = event.node
-      const subPath = inspectorSubPath(req.url)
+      const subPath = inspectorSubPath(req.url, inspector.mount)
       if (subPath !== null) {
         handleInspectorRequest(req, res, subPath, inspector)
         return undefined
       }
 
+      if (!isTracked(inspector.filters, req.url ?? "/")) {
+        return runIgnored(() => next(event))
+      }
       const trace = store.startRequest(req.method ?? "GET", req.url ?? "/")
       // `close` fires on a finished response and on an aborted one alike.
       res.once("close", () => store.finishRequest(trace, res.statusCode))
       return runInRequest(trace, () => next(event))
     }
 
-    console.log(translate(inspector.locale, "term.ready", { path: "/__sql-inspector/" }))
+    console.log(translate(inspector.locale, "term.ready", { path: `/${inspector.mount}/` }))
   }
 }
 

@@ -1,20 +1,38 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
-import type { Inspector } from "./runtime.js"
+import { DEFAULT_MOUNT, type Inspector } from "./runtime.js"
 import { rejectReason } from "./guard.js"
 import { cachedReport, formattedSql } from "./report-cache.js"
 import { renderPage } from "./ui/page.js"
 
 const TRAILING_SLASHES = /\/+$/
+const QUERY_OR_HASH = /[?#]/
 const REQUEST_DETAIL = /^\/api\/requests\/([\w-]+)$/
 
-export const INSPECTOR_PATH = "__sql-inspector"
-// A literal, not built from INSPECTOR_PATH at runtime: nothing in this package compiles code from strings.
-const MATCH = /^((?:\/[^/?#]+)*?)\/__sql-inspector(\/[^?#]*)?(?:[?#].*)?$/
+export { DEFAULT_MOUNT as INSPECTOR_PATH } from "./runtime.js"
 
-/** Matches `/__sql-inspector/...` under any base path; returns the part after it, or null. */
-export function inspectorSubPath(url: string | undefined): string | null {
-  const match = url ? MATCH.exec(url) : null
-  return match ? (match[2] ?? "") : null
+/**
+ * Matches `/<mount>/...` under any base path (`/__sql-inspector/...`, `/app/__sql-inspector/...`, or
+ * wherever `SQL_INSPECTOR_PATH` put it); returns the part after it, or null. Done with segments,
+ * not a pattern built from the setting: nothing in this package compiles code from strings.
+ */
+export function inspectorSubPath(url: string | undefined, mount: string = DEFAULT_MOUNT): string | null {
+  if (!url) {
+    return null
+  }
+  const end = url.search(QUERY_OR_HASH)
+  const segments = (end === -1 ? url : url.slice(0, end)).split("/")
+  const wanted = mount.split("/")
+  // segments[0] is what precedes the first slash; the base path may not contain empty segments.
+  for (let at = 1; at + wanted.length <= segments.length; at++) {
+    if (segments[at - 1] === "" && at > 1) {
+      return null // an empty segment before the match: not a base path
+    }
+    if (wanted.every((part, offset) => segments[at + offset] === part)) {
+      const rest = segments.slice(at + wanted.length)
+      return rest.length > 0 ? `/${rest.join("/")}` : ""
+    }
+  }
+  return null
 }
 
 /** Range the UI may set the slow-query threshold to, in milliseconds. */

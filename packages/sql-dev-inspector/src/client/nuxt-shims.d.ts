@@ -2,7 +2,7 @@
 // depending on Nuxt. The real ones are supplied by the consumer's Nuxt app.
 declare module "#app" {
   export function defineNuxtPlugin(setup: () => void): unknown
-  export function useRuntimeConfig(): { app: { baseURL: string } }
+  export function useRuntimeConfig(): { app: { baseURL: string }, public: { sqlInspector?: { path?: string } } }
 }
 
 interface ImportMeta {

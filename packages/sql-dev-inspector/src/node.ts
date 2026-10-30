@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
-import { runInRequest } from "./context.js"
+import { runIgnored, runInRequest } from "./context.js"
 import { handleInspectorRequest, inspectorSubPath } from "./inspector-server.js"
+import { isTracked } from "./route-filter.js"
 import { type StartOptions, startInspector } from "./setup.js"
 
 export interface SqlInspector {
@@ -37,7 +38,7 @@ export function createSqlInspector(options: StartOptions = {}): SqlInspector {
   const { store } = inspector
 
   const handle: SqlInspector["handle"] = (req, res) => {
-    const subPath = inspectorSubPath(req.url)
+    const subPath = inspectorSubPath(req.url, inspector.mount)
     if (subPath === null) {
       return false
     }
@@ -46,7 +47,11 @@ export function createSqlInspector(options: StartOptions = {}): SqlInspector {
   }
 
   const track: SqlInspector["track"] = (req, res, fn) => {
-    const trace = store.startRequest(req.method ?? "GET", req.originalUrl ?? req.url ?? "/")
+    const url = req.originalUrl ?? req.url ?? "/"
+    if (!isTracked(inspector.filters, url)) {
+      return runIgnored(fn)
+    }
+    const trace = store.startRequest(req.method ?? "GET", url)
     res.once("close", () => store.finishRequest(trace, res.statusCode))
     return runInRequest(trace, fn)
   }

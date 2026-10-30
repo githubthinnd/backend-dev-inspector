@@ -1,6 +1,8 @@
 import type { TraceStore } from "./store.js"
 import type { QueryEvent, SqlAnalysis } from "./types.js"
-import { currentTrace } from "./context.js"
+import { currentTrace, IGNORED_ID } from "./context.js"
+import { rememberCallKey } from "./call-key.js"
+import { redactParams } from "./redact.js"
 
 export interface OperationStart {
   /** Driver name, shown next to the call (`pg`, `redis`...). */
@@ -10,6 +12,11 @@ export interface OperationStart {
   /** The SQL, or the call rendered as one line. */
   text: string
   params?: unknown[] | null
+  /**
+   * The statement before its values were put into it (`where id = ?`), for drivers that build the final
+   * text themselves. Shown instead of `text` when values are redacted.
+   */
+  template?: string
   /** Id of the connection that carries the call; transactions are grouped by it. */
   connectionId: number
   analysis: SqlAnalysis
@@ -57,21 +64,30 @@ export function createRecorder(store: TraceStore): Recorder {
       try {
         const startedAt = Date.now()
         const t0 = performance.now()
-        const trace = currentTrace() ?? store.backgroundTrace()
+        const current = currentTrace()
+        if (current?.id === IGNORED_ID) {
+          return null // a request the route filters leave out
+        }
+        const trace = current ?? store.backgroundTrace()
+        const { redact } = store
+        const text = redact === "all" ? operation.analysis.fingerprint || operation.text : redact === "off" ? operation.text : operation.template ?? operation.text
         const event: QueryEvent = {
           seq: nextSeq(),
           requestId: trace.id,
           connectionId: operation.connectionId,
           api: operation.api,
-          sql: operation.text,
+          sql: text,
           driver: operation.driver,
-          params: operation.params ?? null,
+          params: redact === "off" ? operation.params ?? null : redactParams(operation.params),
           startedAt,
           durationMs: null,
           rowCount: null,
           affectedRows: null,
           error: null,
           analysis: operation.analysis
+        }
+        if (redact !== "off") {
+          rememberCallKey(event, operation.text, operation.params)
         }
         store.record(trace, event)
 
