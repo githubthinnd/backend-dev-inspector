@@ -77,6 +77,8 @@ export interface RequestTrace {
   startedAt: number
   durationMs: number | null
   /** W3C trace context: the trace this request belongs to (the caller's when it sent a `traceparent`), and this request's own span. */
+  /** The most hidden mode values were kept under while this request was recorded: a request recorded under `params` stays hidden when the setting is changed to `off` later. */
+  redact?: "params" | "all" | "off"
   traceId?: string
   spanId?: string
   /** The span of the call in another service that this request answers. */

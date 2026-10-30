@@ -95,7 +95,7 @@ export const CLIENT_SCRIPT = String.raw`
   var state = {
     requests: [], selectedId: null, report: null, term: "", mode: "all",
     follow: location.hash === "#latest" || storage.get(KEY_FOLLOW) === "1",
-    open: {}, collapsed: {}, highlight: [], expandAll: false, rawSql: {}, compare: null, view: "request",
+    open: {}, collapsed: {}, highlight: [], expandAll: false, rawSql: {}, compare: null, view: "request", redactMode: null,
     theme: storage.get(KEY_THEME) || "auto", live: false, loadToken: 0
   };
   var appEl = $("app"), listBody = $("list-body"), detailEl = $("detail");
@@ -338,6 +338,10 @@ export const CLIENT_SCRIPT = String.raw`
         }).catch(function () { toast(t("toast.copyFailed")); });
       } }, [icon("copy"), h("span", { text: t("detail.downloadJson") })])
     ]));
+    var RANK = { off: 0, params: 1, all: 2 };
+    if (state.redactMode && tr.redact && RANK[tr.redact] > RANK[state.redactMode]) {
+      inner.appendChild(h("div", { class: "stale-note", role: "note", text: t("redact.stale", { was: t("settings.redact." + tr.redact), now: t("settings.redact." + state.redactMode) }) }));
+    }
     // warnings come first: they are what to act on
     var slowSeqs = {};
     rep.insights.forEach(function (i) { if (i.type === "slow") { i.seqs.forEach(function (s) { slowSeqs[s] = true; }); } });
@@ -464,16 +468,20 @@ export const CLIENT_SCRIPT = String.raw`
     var body = h("div", { class: "q-body" });
     function fillBody() {
       body.textContent = "";
-      var raw = !!state.rawSql[q.seq];
+      var withValues = inlineValues(q.sql, q.params);
+      var view = state.rawSql[q.seq] === "values" && withValues ? "values" : state.rawSql[q.seq] === true ? "raw" : "formatted";
+      var raw = view === "raw";
       var pre = h("pre", { class: "sql" });
-      pre.appendChild(highlight(raw ? q.sql : (ctx.rep.formattedSql[q.seq] || q.sql)));
-      var fmtBtn = h("button", { class: "seg-btn", "aria-pressed": raw ? "false" : "true", text: t("sql.formatted") });
+      pre.appendChild(highlight(view === "values" ? withValues : raw ? q.sql : (ctx.rep.formattedSql[q.seq] || q.sql)));
+      var fmtBtn = h("button", { class: "seg-btn", "aria-pressed": view === "formatted" ? "true" : "false", text: t("sql.formatted") });
       var rawBtn = h("button", { class: "seg-btn", "aria-pressed": raw ? "true" : "false", text: t("sql.raw") });
+      var valBtn = withValues ? h("button", { class: "seg-btn", "aria-pressed": view === "values" ? "true" : "false", title: t("sql.withValues.title"), text: t("sql.withValues") }) : null;
       function setRaw(v) { state.rawSql[q.seq] = v; fillBody(); }
       fmtBtn.addEventListener("click", function () { setRaw(false); });
       rawBtn.addEventListener("click", function () { setRaw(true); });
+      if (valBtn) { valBtn.addEventListener("click", function () { setRaw("values"); }); }
       body.appendChild(h("div", { class: "q-tools" }, [
-        h("span", { class: "seg" }, [fmtBtn, rawBtn]),
+        h("span", { class: "seg" }, [fmtBtn, rawBtn, valBtn]),
         h("span", { text: t("sql.connection", { id: q.connectionId }) + " · " + q.api + " · " + t("sql.startedAt", { ms: fmtMs(Math.max(0, q.startedAt - ctx.t0)) }) }),
         q.caller ? h("span", { class: "from" }, [h("span", { text: t("sql.caller") + " " }), callerEl(q.caller)]) : null,
         h("span", { class: "spacer" }),
@@ -501,6 +509,35 @@ export const CLIENT_SCRIPT = String.raw`
     if (isOpen) { fillBody(); }
     box.appendChild(body);
     return box;
+  }
+  // The statement with its bound values in place of ? and $1, for reading only. Null when there is nothing to put in (no
+  // placeholders) or the values were hidden when the call was recorded.
+  var BACKTICK = String.fromCharCode(96); // a literal backtick cannot be written here: this file is a template string
+  var HIDDEN = /^<[a-z]+(?::\d+)?>$/;
+  function literal(v) {
+    if (v === null || v === undefined) { return "NULL"; }
+    if (typeof v === "number" || typeof v === "boolean") { return String(v); }
+    if (typeof v === "string") { return "'" + v.replace(/'/g, "''") + "'"; }
+    try { return "'" + JSON.stringify(v).replace(/'/g, "''") + "'"; } catch (e) { return "?"; }
+  }
+  function inlineValues(sql, params) {
+    if (!params || !params.length) { return null; }
+    if (params.some(function (p) { return typeof p === "string" && HIDDEN.test(p); })) { return null; }
+    var out = "", i = 0, used = 0, quote = "";
+    while (i < sql.length) {
+      var c = sql.charAt(i);
+      if (quote) {
+        out += c;
+        if (c === quote) { if (sql.charAt(i + 1) === quote) { out += quote; i++; } else { quote = ""; } }
+      } else if (c === "'" || c === '"' || c === BACKTICK) { quote = c; out += c; }
+      else if (c === "?") { out += used < params.length ? literal(params[used]) : "?"; used++; }
+      else if (c === "$" && /\d/.test(sql.charAt(i + 1))) {
+        var j = i + 1; while (/\d/.test(sql.charAt(j))) { j++; }
+        var n = Number(sql.slice(i + 1, j)); out += n >= 1 && n <= params.length ? literal(params[n - 1]) : sql.slice(i, j); used++; i = j - 1;
+      } else { out += c; }
+      i++;
+    }
+    return used ? out : null;
   }
   function fmtBytes(n) { return n < 1024 ? n + " B" : n < 1048576 ? num(n / 1024, 1) + " KB" : num(n / 1048576, 1) + " MB"; }
   function detailsEl(d) {
@@ -604,6 +641,8 @@ export const CLIENT_SCRIPT = String.raw`
   function showPrivacy(server) {
     if (!server || !server.redact) { return; }
     var mode = server.redact;
+    var changed = state.redactMode !== mode; state.redactMode = mode;
+    if (changed && state.report) { renderDetail(); }
     Array.prototype.forEach.call(document.querySelectorAll("[data-redact]"), function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-redact") === mode ? "true" : "false"); });
     $("redact-hint").textContent = t("settings.redact.hint." + mode);
     $("privacy").setAttribute("data-mode", mode);

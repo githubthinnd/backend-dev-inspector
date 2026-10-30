@@ -180,6 +180,7 @@ svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; s
 .ov-table tr.clickable { cursor: pointer; } .ov-table tr.clickable:hover { background: var(--accent-weak); }
 .ov-issue { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
 #overview[aria-pressed="true"] { background: var(--accent-weak); color: var(--accent); }
+.stale-note { margin: 0 0 16px; padding: 10px 14px; border-radius: var(--radius); background: var(--warn-weak); color: var(--warn); font-size: 12.5px; line-height: 1.45; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .kpi { padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .kpi-label { color: var(--text-3); font-size: 11.5px; font-weight: 600; }

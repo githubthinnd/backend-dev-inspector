@@ -100,6 +100,10 @@ export function createRecorder(store: TraceStore): Recorder {
             event.caller = caller
           }
         }
+        const hidden = { off: 0, params: 1, all: 2 }
+        if (trace.redact === undefined || hidden[redact] > hidden[trace.redact]) {
+          trace.redact = redact
+        }
         const parent = currentOperation()
         if (parent && parent.requestId === trace.id) {
           // the work of a layered call (Prisma): kept with it, not counted again

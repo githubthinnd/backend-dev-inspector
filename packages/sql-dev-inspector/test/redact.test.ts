@@ -92,3 +92,23 @@ describe("redaction and the N+1 detector", () => {
     expect(types).not.toContain("n-plus-one")
   })
 })
+
+describe("what a request remembers of its redaction", () => {
+  it("keeps the most hidden mode it was recorded under, so a later change of setting is not mistaken for a change of what was recorded", async () => {
+    const { TraceStore } = await import("../src/store")
+    const { createRecorder } = await import("../src/recorder")
+    const { analyzeSql } = await import("../src/sql-analyzer")
+    const { runInRequest } = await import("../src/context")
+    const store = new TraceStore({ maxRequests: 5, maxQueriesPerRequest: 10 })
+    const trace = store.startRequest("GET", "/x")
+    const record = () => createRecorder(store).begin({ driver: "t", api: "q", text: "select ?", params: [1], connectionId: 1, analysis: analyzeSql("select ?") })?.end()
+    store.redact = "off"
+    runInRequest(trace, record)
+    expect(trace.redact).toBe("off")
+    store.redact = "params"
+    runInRequest(trace, record)
+    store.redact = "off"
+    runInRequest(trace, record)
+    expect(trace.redact).toBe("params")
+  })
+})

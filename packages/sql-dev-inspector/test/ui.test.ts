@@ -44,7 +44,7 @@ function trace(id: string, url: string, queries: QueryEvent[], method = "GET", l
 }
 
 const nPlusOne = [1, 2, 3].map(i => query(`select \`id\` from \`order_items\` where \`order_id\` = ${i}`, { caller: WHERE }))
-function buildTraces(layered = false) {
+function buildTraces(layered = false, values: "real" | "hidden" | null = null) {
   return [
     trace("a", "/api/order-detail/1", [
       ...nPlusOne,
@@ -53,7 +53,7 @@ function buildTraces(layered = false) {
       query("insert into `<img src=x onerror=window.__pwned=1>` values (1)", { rowCount: null, affectedRows: 1 }),
       query("commit")
     ], "GET", [{ level: "warn", at: 1020, message: "cache miss for order 1\nsecond line", caller: WHERE }, { level: "log", at: 1030, message: "done" }]),
-    trace("b", "/api/customers", [query("select 1 from `customers`", layered ? { driver: "prisma", details: { status: 200, requestBytes: 7, responseBytes: 2048, contentType: "application/json" }, statements: [query("select `id` from `customers` limit 1", { driver: "libsql", rowCount: 1 })] } : {})], "POST"),
+    trace("b", "/api/customers", [query(values ? "select 1 from `customers` where `id` = ? and `note` = 'a?b' and `n` = ?" : "select 1 from `customers`", values ? { params: values === "real" ? [7, "O'Brien"] : ["<number>", "<string:7>"] } : layered ? { driver: "prisma", details: { status: 200, requestBytes: 7, responseBytes: 2048, contentType: "application/json" }, statements: [query("select `id` from `customers` limit 1", { driver: "libsql", rowCount: 1 })] } : {})], "POST"),
     trace("c", "/api/broken", [query("select boom", { error: "You have an error in your SQL syntax" })])
   ]
 }
@@ -67,12 +67,17 @@ interface Options {
   /** What the server says about the slow-query threshold. */
   slow?: { slowMs: number, defaultSlowMs: number }
   layered?: boolean
+  values?: "real" | "hidden"
+  recordedUnder?: "params" | "all" | "off"
 }
 
 interface Source { onopen: (() => void) | null, onmessage: ((event: { data: string }) => void) | null, onerror: (() => void) | null }
 
 function render(options: Options = {}) {
-  const traces = buildTraces(options.layered)
+  const traces = buildTraces(options.layered, options.values ?? null)
+  if (options.recordedUnder) {
+    traces.forEach((t) => { t.redact = options.recordedUnder })
+  }
   const reports = new Map(traces.map(t => [t.id, buildReport(t)]))
   const window = createWindow({ url: "http://localhost/__sql-inspector/", width: options.width ?? 1280, height: 800 })
   Object.defineProperty(window.navigator, "languages", { value: options.languages ?? ["en-US"], configurable: true })
@@ -709,6 +714,44 @@ describe("warnings come first", () => {
     const totals = sections.findIndex(el => el.classList.contains("kpis"))
     expect(warnings).toBe(1)
     expect(totals).toBeGreaterThan(warnings)
+  })
+})
+
+describe("values in place of placeholders", () => {
+  it("offers the statement with its values when they were kept, and puts them where the placeholders are, not inside quotes", async () => {
+    const { document } = render({ values: "real", slow: { slowMs: 100, defaultSlowMs: 100, redact: "off" } as never })
+    await settle()
+    await selectRequest(document, 1)
+    click(document.querySelector(".q-head"))
+    const button = Array.from(document.querySelectorAll(".seg-btn")).find(b => b.textContent === "With values") as HTMLElement
+    expect(button).toBeTruthy()
+    click(button)
+    expect(document.querySelector(".q-body pre.sql")?.textContent).toBe("select 1 from `customers` where `id` = 7 and `note` = 'a?b' and `n` = 'O''Brien'")
+  })
+
+  it("does not offer it when the values were hidden when the call was recorded", async () => {
+    const { document } = render({ values: "hidden" })
+    await settle()
+    await selectRequest(document, 1)
+    click(document.querySelector(".q-head"))
+    expect(Array.from(document.querySelectorAll(".seg-btn")).some(b => b.textContent === "With values")).toBe(false)
+  })
+})
+
+describe("a request recorded while values were hidden", () => {
+  it("says so once values are shown, and not when the setting still matches", async () => {
+    const shown = render({ recordedUnder: "params", slow: { slowMs: 100, defaultSlowMs: 100, redact: "off" } as never })
+    await settle()
+    shown.sources[0]!.onopen!() // the page asks the server for its settings when the live connection opens
+    await settle()
+    await selectRequest(shown.document)
+    expect(shown.document.querySelector(".stale-note")?.textContent).toContain("recorded while values were Parameters")
+    const same = render({ recordedUnder: "params" })
+    await settle()
+    same.sources[0]!.onopen!()
+    await settle()
+    await selectRequest(same.document)
+    expect(same.document.querySelector(".stale-note")).toBeNull()
   })
 })
 
