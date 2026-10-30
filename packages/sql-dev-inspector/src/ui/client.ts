@@ -245,9 +245,10 @@ export const CLIENT_SCRIPT = String.raw`
     }
     function fetchCompare(choice) {
       choice.sig = sigOf(choice.against) + "|" + sigOf(tr.id);
+      var ask = choice.asked = (choice.asked || 0) + 1; // answers can arrive out of order: only the latest question is shown
       fetch("./api/compare/" + encodeURIComponent(choice.against) + "/" + encodeURIComponent(tr.id)).then(function (r) { return r.json(); }).then(function (data) {
-        if (state.compare === choice) { choice.data = data; show(data); }
-      }).catch(function () { toast(t("toast.copyFailed")); });
+        if (state.compare === choice && choice.asked === ask) { choice.data = data; show(data); }
+      }).catch(function () { toast(t("toast.unreachable")); });
     }
     select.addEventListener("change", function () {
       var other = select.value;
@@ -348,7 +349,7 @@ export const CLIENT_SCRIPT = String.raw`
       statusEl(tr.status),
       tr.traceId ? h("button", { class: "chip trace", title: t("trace.title"), onclick: function () { copy(tr.traceId); } }, [document.createTextNode("trace " + tr.traceId.slice(0, 8) + (tr.parentSpanId ? " ← " + tr.parentSpanId.slice(0, 8) : ""))]) : null,
       h("button", { class: "btn sm export", title: t("detail.copyMarkdown.title"), onclick: function () {
-        fetch("./api/requests/" + encodeURIComponent(tr.id) + "/markdown").then(function (r) { return r.text(); }).then(copy).catch(function () { toast(t("toast.copyFailed")); });
+        fetch("./api/requests/" + encodeURIComponent(tr.id) + "/markdown").then(function (r) { return r.text(); }).then(copy).catch(function () { toast(t("toast.unreachable")); });
       } }, [icon("copy"), h("span", { text: t("detail.copyMarkdown") })]),
       h("button", { class: "btn sm export-json", title: t("detail.downloadJson.title"), onclick: function () {
         fetch("./api/requests/" + encodeURIComponent(tr.id) + "/export").then(function (r) { return r.text(); }).then(function (body) {
@@ -356,7 +357,7 @@ export const CLIENT_SCRIPT = String.raw`
           link.href = URL.createObjectURL(new Blob([body], { type: "application/json" }));
           link.download = "request-" + tr.id.slice(0, 8) + ".json";
           document.body.appendChild(link); link.click(); link.remove();
-        }).catch(function () { toast(t("toast.copyFailed")); });
+        }).catch(function () { toast(t("toast.unreachable")); });
       } }, [icon("copy"), h("span", { text: t("detail.downloadJson") })])
     ]));
     var RANK = { off: 0, params: 1, all: 2 };
@@ -719,7 +720,7 @@ export const CLIENT_SCRIPT = String.raw`
         link.href = URL.createObjectURL(new Blob([body], { type: "application/json" }));
         link.download = "inspector-history.json";
         document.body.appendChild(link); link.click(); link.remove();
-      }).catch(function () { toast(t("toast.copyFailed")); });
+      }).catch(function () { toast(t("toast.unreachable")); });
     });
     $("history-load").addEventListener("click", function () { $("history-file").click(); });
     $("history-file").addEventListener("change", function () {

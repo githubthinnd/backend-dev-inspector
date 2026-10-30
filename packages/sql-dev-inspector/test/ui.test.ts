@@ -989,3 +989,37 @@ describe("status: the drivers, and the setup check", () => {
     expect(items[1]!.className).toBe("warn")
   })
 })
+
+describe("answers that arrive out of order, and requests that fail", () => {
+  it("shows the answer to the latest comparison question, and says the inspector could not be reached when a fetch fails", async () => {
+    const r = render()
+    await settle()
+    await selectRequest(r.document)
+    const traces = buildTraces()
+    const fresh = compareReports(buildReport(traces[1]!), buildReport(traces[0]!))
+    const older = { ...fresh, verdict: "slower", totals: { ...fresh.totals, totalMs: { a: 10, b: 90, delta: 80 } } }
+    const waiting: Array<(value: unknown) => void> = []
+    const real = r.window.fetch.bind(r.window)
+    Object.assign(r.window, { fetch: (url: string, init?: RequestInit) => String(url).includes("compare")
+      ? new Promise((resolve) => { waiting.push(resolve) })
+      : real(url, init) })
+    const select = r.document.querySelector(".compare-select") as HTMLSelectElement
+    select.value = "b"
+    select.dispatchEvent(new r.window.Event("change"))
+    r.traces[1]!.durationMs = 999 // the compared request changes: the page asks again
+    r.sources[0]!.onmessage!({ data: "{}" })
+    await settle()
+    expect(waiting).toHaveLength(2)
+    waiting[1]!({ json: () => Promise.resolve(fresh) }) // the newer question is answered first
+    await settle()
+    waiting[0]!({ json: () => Promise.resolve(older) }) // then the older one arrives late
+    await settle()
+    expect(r.document.querySelector(".compare-result")?.textContent).toContain("About as fast")
+    expect(r.document.querySelector(".compare-result")?.textContent).not.toContain("slower than")
+
+    Object.assign(r.window, { fetch: () => Promise.reject(new Error("down")) })
+    click(r.document.querySelector(".detail-head .export-json"))
+    await settle()
+    expect(r.document.querySelector("#toast, .toast")?.textContent ?? "").toContain("Couldn't reach the inspector")
+  })
+})

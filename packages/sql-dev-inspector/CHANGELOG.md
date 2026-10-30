@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Only the answer to the latest comparison question is shown (answers can arrive out of order), and a failed fetch of a comparison, an export or the history says "Couldn't reach the inspector" instead of a clipboard error.
 - **Comparison of a running request.** A comparison is fetched again when either request has changed since, instead of staying as it was at the first answer.
 - **"With values"** skips a `?` in a comment, reads `??` as a quoted name, leaves `?` alone beside numbered placeholders, and is not offered when the placeholders and the values do not match one to one.
 - **Loading a history file** says how many requests the page kept (`{ loaded, total }`) when the file holds more than the ring.
