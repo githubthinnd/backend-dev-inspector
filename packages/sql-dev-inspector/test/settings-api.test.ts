@@ -54,6 +54,9 @@ afterEach(() => {
   inspector.store.redact = inspector.defaults.redact
   inspector.filters.include = [...inspector.defaults.filters.include]
   inspector.filters.exclude = [...inspector.defaults.filters.exclude]
+  inspector.stack = inspector.defaults.stack
+  inspector.store.captureCaller = inspector.defaults.stack
+  inspector.editor = { ...inspector.defaults.editor }
 })
 
 describe("settings API", () => {
@@ -66,7 +69,10 @@ describe("settings API", () => {
       redact: "params",
       include: [],
       exclude: [],
-      defaults: { redact: "params", include: [], exclude: [] },
+      stack: true,
+      editor: { name: "vscode", template: "vscode://file/{path}:{line}:{column}" },
+      root: expect.any(String),
+      defaults: { redact: "params", include: [], exclude: [], stack: true, editor: "vscode" },
       mount: "__sql-inspector"
     })
   })
@@ -176,6 +182,25 @@ describe("request list counts", () => {
       }
       expect(inspector.redact).toBe("params")
       expect(inspector.filters).toEqual({ include: [], exclude: [] })
+    })
+  })
+
+  describe("finding the calling line", () => {
+    it("switches the search for the calling line on and off, for the recorder too", async () => {
+      const off = await post(JSON.stringify({ stack: false }))
+      expect(off.json.stack).toBe(false)
+      expect(inspector.store.captureCaller).toBe(false)
+      expect((await post(JSON.stringify({ stack: null }))).json.stack).toBe(true)
+      expect(inspector.store.captureCaller).toBe(true)
+    })
+
+    it("chooses the editor by name or by a link template of a known editor, and refuses others", async () => {
+      expect((await post(JSON.stringify({ editor: "cursor" }))).json.editor).toEqual({ name: "cursor", template: "cursor://file/{path}:{line}:{column}" })
+      expect((await post(JSON.stringify({ editor: "idea://open?file={file}&line={line}" }))).json.editor.name).toBe("custom")
+      // a scheme that is not an editor's falls back to the default; it is never turned into a link
+      expect((await post(JSON.stringify({ editor: "javascript://{file}" }))).json.editor.name).toBe("vscode")
+      expect((await post(JSON.stringify({ editor: 5 }))).statusCode).toBe(400)
+      expect((await post(JSON.stringify({ editor: null }))).json.editor.name).toBe("vscode")
     })
   })
 })

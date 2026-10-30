@@ -1,6 +1,7 @@
 import { type InspectorEnv, pickEnv } from "./env.js"
 import { parseAllowedHosts } from "./guard.js"
 import { chosenLocale, DEFAULT_LOCALE, type Locale } from "./i18n/index.js"
+import { resolveEditor } from "./caller.js"
 import { parseRedactMode, type RedactMode } from "./redact.js"
 import { DEFAULT_REPORT_OPTIONS, type ReportOptions } from "./report.js"
 import { parsePatterns, type RouteFilters } from "./route-filter.js"
@@ -39,7 +40,13 @@ export interface Inspector {
   /** Which requests are traced (`SQL_INSPECTOR_INCLUDE` / `SQL_INSPECTOR_EXCLUDE`). */
   filters: RouteFilters
   /** What the UI resets the settings to: what the environment and the options of the process said. */
-  defaults: { redact: RedactMode, filters: RouteFilters }
+  defaults: { redact: RedactMode, filters: RouteFilters, stack: boolean, editor: { name: string, template: string } }
+  /** Whether calls record where in the application they were made (`SQL_INSPECTOR_STACK`, default on). */
+  stack: boolean
+  /** How a file location becomes a link: a name (`vscode`, `cursor`, `idea`, `none`…) and its template. */
+  editor: { name: string, template: string }
+  /** The folder the process runs in: locations are shown relative to it. */
+  root: string
   /** Where the inspector is served, without slashes: `__sql-inspector`, or what `SQL_INSPECTOR_PATH` chose. */
   mount: string
   /** Language of server-side text (terminal output, `Insight.message`). */
@@ -88,6 +95,8 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
       maxAgeMs: minutesToMs(env.SQL_INSPECTOR_TTL_MINUTES, 60)
     })
     store.redact = redact
+    const stack = !["0", "off", "false", "no"].includes((env.SQL_INSPECTOR_STACK ?? "").trim().toLowerCase())
+    store.captureCaller = stack
     holder[KEY] = {
       locale: hint ?? DEFAULT_LOCALE,
       localeHint: hint,
@@ -104,7 +113,10 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
       logToTerminal: env.SQL_INSPECTOR_LOG !== "0",
       redact,
       filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) },
-      defaults: { redact, filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) } },
+      defaults: { redact, filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) }, stack, editor: resolveEditor(env.SQL_INSPECTOR_EDITOR) },
+      stack,
+      editor: resolveEditor(env.SQL_INSPECTOR_EDITOR),
+      root: process.cwd(),
       mount: normalizeMount(env.SQL_INSPECTOR_PATH)
     }
   }

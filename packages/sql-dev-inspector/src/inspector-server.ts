@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
+import { resolveEditor } from "./caller.js"
 import { parsePatterns } from "./route-filter.js"
 import type { RedactMode } from "./redact.js"
 import { DEFAULT_MOUNT, type Inspector } from "./runtime.js"
@@ -51,7 +52,10 @@ function settingsOf(inspector: Inspector) {
     redact: inspector.redact,
     include: inspector.filters.include,
     exclude: inspector.filters.exclude,
-    defaults: { redact: inspector.defaults.redact, include: inspector.defaults.filters.include, exclude: inspector.defaults.filters.exclude },
+    stack: inspector.stack,
+    editor: inspector.editor,
+    root: inspector.root,
+    defaults: { redact: inspector.defaults.redact, include: inspector.defaults.filters.include, exclude: inspector.defaults.filters.exclude, stack: inspector.defaults.stack, editor: inspector.defaults.editor.name },
     mount: inspector.mount
   }
 }
@@ -123,6 +127,8 @@ interface SettingsChange {
   redact?: RedactMode | null
   include?: string[] | null
   exclude?: string[] | null
+  stack?: boolean | null
+  editor?: string | null
 }
 
 /** What a POST to `/api/settings` may change: any of these, each validated on its own; anything else is refused. */
@@ -144,6 +150,18 @@ function parseSettingsBody(body: unknown): SettingsChange | string {
       return "redact must be \"params\", \"all\", \"off\" or null"
     }
     change.redact = input.redact as RedactMode | null
+  }
+  if ("stack" in input) {
+    if (input.stack !== null && typeof input.stack !== "boolean") {
+      return "stack must be true, false or null"
+    }
+    change.stack = input.stack as boolean | null
+  }
+  if ("editor" in input) {
+    if (input.editor !== null && (typeof input.editor !== "string" || input.editor.length > 300 || CONTROL_CHARACTERS.test(input.editor))) {
+      return "editor must be the name of an editor, a link template, or null"
+    }
+    change.editor = input.editor as string | null
   }
   for (const key of ["include", "exclude"] as const) {
     if (key in input) {
@@ -264,6 +282,13 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
       if ("redact" in change) {
         inspector.redact = change.redact ?? inspector.defaults.redact
         store.redact = inspector.redact
+      }
+      if ("stack" in change) {
+        inspector.stack = change.stack ?? inspector.defaults.stack
+        store.captureCaller = inspector.stack
+      }
+      if ("editor" in change) {
+        inspector.editor = change.editor === null || change.editor === undefined ? { ...inspector.defaults.editor } : resolveEditor(change.editor)
       }
       if ("include" in change) {
         inspector.filters.include = change.include ?? [...inspector.defaults.filters.include]

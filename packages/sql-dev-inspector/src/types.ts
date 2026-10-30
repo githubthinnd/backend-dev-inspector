@@ -55,6 +55,8 @@ export interface QueryEvent {
   affectedRows: number | null
   error: string | null
   analysis: SqlAnalysis
+  /** Where in the application the call was made; absent when it is not looked for or the call came from a library alone. */
+  caller?: { file: string, line: number, column: number, fn?: string }
 }
 
 export interface RequestTrace {

@@ -159,6 +159,12 @@ const formatMs = (value: number) => value < 1000 ? `${value.toFixed(value < 10 ?
 
 type InsightDraft = Omit<Insight, "message">
 
+/** `file:line` of the first call in `queries` that knows where it was made. */
+function callerOf(queries: QueryEvent[]): { caller: string } | Record<string, never> {
+  const found = queries.find(query => query.caller)?.caller
+  return found ? { caller: `${found.file}:${found.line}` } : {}
+}
+
 /** Findings as data (type + params), so any front end can phrase them in its own language. */
 function findInsights(tree: TraceNode[], queries: QueryEvent[], options: ReportOptions): InsightDraft[] {
   const insights: InsightDraft[] = []
@@ -176,8 +182,8 @@ function findInsights(tree: TraceNode[], queries: QueryEvent[], options: ReportO
       type: isNPlusOne ? "n-plus-one" : "duplicate",
       severity: "warn",
       params: isNPlusOne
-        ? { count: group.length, total: formatMs(sumMs(group)), sql: shorten(group[0]!.analysis.fingerprint) }
-        : { count: group.length, sql: shorten(group[0]!.sql) },
+        ? { count: group.length, total: formatMs(sumMs(group)), sql: shorten(group[0]!.analysis.fingerprint), ...callerOf(group) }
+        : { count: group.length, sql: shorten(group[0]!.sql), ...callerOf(group) },
       seqs: group.map(q => q.seq)
     })
     group.forEach(q => flagged.add(q.seq))
@@ -185,19 +191,19 @@ function findInsights(tree: TraceNode[], queries: QueryEvent[], options: ReportO
 
   for (const group of groupBy(statements.filter(q => !flagged.has(q.seq)), callKey).values()) {
     if (group.length >= 2) {
-      insights.push({ type: "duplicate", severity: "warn", params: { count: group.length, sql: shorten(group[0]!.sql) }, seqs: group.map(q => q.seq) })
+      insights.push({ type: "duplicate", severity: "warn", params: { count: group.length, sql: shorten(group[0]!.sql), ...callerOf(group) }, seqs: group.map(q => q.seq) })
     }
   }
 
   for (const query of statements) {
     if (query.error) {
-      insights.push({ type: "error", severity: "error", params: { error: query.error }, seqs: [query.seq] })
+      insights.push({ type: "error", severity: "error", params: { error: query.error, ...callerOf([query]) }, seqs: [query.seq] })
     }
     if (query.durationMs !== null && query.durationMs >= options.slowMs) {
       insights.push({
         type: "slow",
         severity: "warn",
-        params: { ms: formatMs(query.durationMs), threshold: formatMs(options.slowMs), sql: shorten(query.sql) },
+        params: { ms: formatMs(query.durationMs), threshold: formatMs(options.slowMs), sql: shorten(query.sql), ...callerOf([query]) },
         seqs: [query.seq]
       })
     }

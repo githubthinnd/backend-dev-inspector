@@ -2,6 +2,7 @@ import type { TraceStore } from "./store.js"
 import type { QueryEvent, SqlAnalysis } from "./types.js"
 import { currentTrace, IGNORED_ID } from "./context.js"
 import { rememberCallKey } from "./call-key.js"
+import { findCaller } from "./caller.js"
 import { redactParams } from "./redact.js"
 
 export interface OperationStart {
@@ -88,6 +89,12 @@ export function createRecorder(store: TraceStore): Recorder {
         }
         if (redact !== "off") {
           rememberCallKey(event, operation.text, operation.params)
+        }
+        if (store.captureCaller) {
+          const caller = findCaller()
+          if (caller) {
+            event.caller = caller
+          }
         }
         store.record(trace, event)
 

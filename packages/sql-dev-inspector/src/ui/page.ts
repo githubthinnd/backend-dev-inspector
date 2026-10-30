@@ -67,6 +67,19 @@ export function renderPage(localeHint: Locale | null = null, title: string | nul
           <p class="pop-hint" data-i18n="settings.filters.hint"></p>
         </section>
         <section class="pop-sec">
+          <h3 data-i18n="settings.source"></h3>
+          <button type="button" class="switch row" id="stack-switch" role="switch" aria-checked="true"><span class="track"></span><span data-i18n="settings.stack"></span></button>
+          <p class="pop-hint" data-i18n="settings.stack.hint"></p>
+          <p class="pop-hint dim" data-i18n="settings.editor"></p>
+          <span class="seg wide" role="group" id="editor-seg">
+            <button type="button" data-editor="vscode" aria-pressed="true">VS Code</button>
+            <button type="button" data-editor="cursor" aria-pressed="false">Cursor</button>
+            <button type="button" data-editor="idea" aria-pressed="false">IntelliJ</button>
+            <button type="button" data-editor="zed" aria-pressed="false">Zed</button>
+            <button type="button" data-editor="none" aria-pressed="false" data-i18n="settings.editor.none"></button>
+          </span>
+        </section>
+        <section class="pop-sec">
           <h3 data-i18n="settings.path"></h3>
           <code class="pop-code" id="path-value"></code>
           <p class="pop-hint" data-i18n="settings.path.hint"></p>

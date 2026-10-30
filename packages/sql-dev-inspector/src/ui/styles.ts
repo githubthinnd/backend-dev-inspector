@@ -160,6 +160,10 @@ svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; s
 .insight.warn .ico { color: var(--warn); } .insight.error .ico { color: var(--err); } .insight.info .ico { color: var(--text-3); }
 .insight-title { font-weight: 650; }
 .insight-msg { color: var(--text-2); font-size: 12.5px; word-break: break-word; }
+.insight-where { margin-top: 3px; color: var(--text-3); font: 12px var(--mono); }
+.from { color: var(--text-3); }
+.caller { color: var(--accent); font: 12px var(--mono); text-decoration: none; }
+a.caller:hover { text-decoration: underline; }
 .insight-msg code { font: 12px var(--mono); }
 .empty-ok { padding: 14px; color: var(--text-2); display: flex; gap: 8px; align-items: center; }
 .empty-ok svg { color: var(--ok); }

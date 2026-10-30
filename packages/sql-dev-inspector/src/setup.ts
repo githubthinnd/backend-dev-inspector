@@ -1,5 +1,6 @@
 import type { DriverAdapter } from "./driver.js"
 import { type InspectorEnv, pickEnv } from "./env.js"
+import { resolveEditor } from "./caller.js"
 import type { RedactMode } from "./redact.js"
 import { parsePatterns } from "./route-filter.js"
 import { translate } from "./i18n/index.js"
@@ -25,6 +26,10 @@ export interface StartOptions {
   include?: string[]
   /** Requests matching these paths are never traced. Overrides `SQL_INSPECTOR_EXCLUDE`. */
   exclude?: string[]
+  /** Record where in the application each call was made (default true). */
+  stack?: boolean
+  /** The editor that location links open: `vscode`, `cursor`, `idea`, `webstorm`, `zed`, `none`, or a link template. */
+  editor?: string
   /** Where the inspector is served, instead of `/__sql-inspector/`: `/_dev/sql`. Overrides `SQL_INSPECTOR_PATH`. */
   path?: string
 }
@@ -63,6 +68,15 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
   if (options.exclude) {
     inspector.filters.exclude = parsePatterns(options.exclude)
     inspector.defaults.filters.exclude = [...inspector.filters.exclude]
+  }
+  if (options.stack !== undefined) {
+    inspector.stack = options.stack
+    inspector.store.captureCaller = options.stack
+    inspector.defaults.stack = options.stack
+  }
+  if (options.editor) {
+    inspector.editor = resolveEditor(options.editor)
+    inspector.defaults.editor = { ...inspector.editor }
   }
   if (options.path) {
     inspector.mount = normalizeMount(options.path)
@@ -104,7 +118,7 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
         }
         const report = buildReport(trace, inspector.report)
         if (hasVisibleStatements(report)) {
-          console.log(`\n${renderReport(report, inspector.locale)}`)
+          console.log(`\n${renderReport(report, inspector.locale, inspector.root)}`)
         }
       })
     }

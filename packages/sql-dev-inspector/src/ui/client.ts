@@ -231,7 +231,8 @@ export const CLIENT_SCRIPT = String.raw`
       var ico = i.severity === "error" ? "error" : i.severity === "warn" ? "warn" : "info";
       insightsCard.appendChild(h("button", { class: "insight " + i.severity, onclick: function () { focusSeqs(i.seqs); } }, [
         h("span", { class: "ico" }, [icon(ico)]),
-        h("div", {}, [h("div", { class: "insight-title", text: t("insight.title." + i.type) }), h("div", { class: "insight-msg", text: t("insight.msg." + i.type, i.params) })])
+        h("div", {}, [h("div", { class: "insight-title", text: t("insight.title." + i.type) }), h("div", { class: "insight-msg", text: t("insight.msg." + i.type, i.params) }),
+          i.params && i.params.caller ? h("div", { class: "insight-where", text: t("sql.caller") + " " + relPath(String(i.params.caller)) }) : null])
       ]));
     });
     inner.appendChild(h("section", { class: "section" }, [
@@ -320,6 +321,7 @@ export const CLIENT_SCRIPT = String.raw`
       body.appendChild(h("div", { class: "q-tools" }, [
         h("span", { class: "seg" }, [fmtBtn, rawBtn]),
         h("span", { text: t("sql.connection", { id: q.connectionId }) + " · " + q.api + " · " + t("sql.startedAt", { ms: fmtMs(Math.max(0, q.startedAt - ctx.t0)) }) }),
+        q.caller ? h("span", { class: "from" }, [h("span", { text: t("sql.caller") + " " }), callerEl(q.caller)]) : null,
         h("span", { class: "spacer" }),
         h("button", { class: "btn sm", onclick: function () { copy(q.sql); } }, [icon("copy"), h("span", { text: t("sql.copy") })])
       ]));
@@ -394,6 +396,22 @@ export const CLIENT_SCRIPT = String.raw`
     $("slow-field").setAttribute("title", t("widget.slowMs") + " — " + t("widget.slowMs.hint", { ms: serverSlow ? serverSlow.defaultSlowMs : "…" }));
     showPrivacy(serverSlow);
   }
+  // ── where a call was made: a location, and a link that opens it in the editor ──
+  var EDITOR_SCHEME = /^(?:vscode|vscode-insiders|cursor|windsurf|zed|idea|webstorm|phpstorm|pycharm|sublime|subl|txmt|atom):\/\//;
+  function relPath(file) {
+    var root = serverSlow && serverSlow.root ? serverSlow.root : "";
+    return root && file.indexOf(root + "/") === 0 ? file.slice(root.length + 1) : file;
+  }
+  function editorHref(c) {
+    var tpl = serverSlow && serverSlow.editor ? serverSlow.editor.template : "";
+    if (!tpl || !EDITOR_SCHEME.test(tpl)) { return null; }
+    var file = c.file.replace(/\\/g, "/");
+    return tpl.replace("{file}", encodeURI(file)).replace("{path}", encodeURI(file.replace(/^\//, ""))).replace("{line}", String(c.line)).replace("{column}", String(c.column));
+  }
+  function callerEl(c) {
+    var label = relPath(c.file) + ":" + c.line, href = editorHref(c);
+    return href ? h("a", { class: "caller", href: href, title: t("sql.openInEditor"), text: label }) : h("span", { class: "caller", text: label });
+  }
   // ── privacy and the requests to follow: server settings, shown in a popover ──
   function listOf(text) { return text.split(",").map(function (x) { return x.trim(); }).filter(Boolean); }
   function showPrivacy(server) {
@@ -406,6 +424,9 @@ export const CLIENT_SCRIPT = String.raw`
     if (document.activeElement !== $("include-input")) { $("include-input").value = (server.include || []).join(", "); }
     if (document.activeElement !== $("exclude-input")) { $("exclude-input").value = (server.exclude || []).join(", "); }
     $("path-value").textContent = "/" + (server.mount || "__sql-inspector") + "/";
+    $("stack-switch").setAttribute("aria-checked", server.stack === false ? "false" : "true");
+    var editor = server.editor ? server.editor.name : "vscode";
+    Array.prototype.forEach.call(document.querySelectorAll("[data-editor]"), function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-editor") === editor ? "true" : "false"); });
   }
   function pushSetting(body) {
     return requestSlow({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -424,7 +445,11 @@ export const CLIENT_SCRIPT = String.raw`
     });
     $("include-input").addEventListener("change", function () { pushSetting({ include: listOf($("include-input").value) }); });
     $("exclude-input").addEventListener("change", function () { pushSetting({ exclude: listOf($("exclude-input").value) }); });
-    $("settings-reset").addEventListener("click", function () { pushSetting({ redact: null, include: null, exclude: null }); });
+    $("stack-switch").addEventListener("click", function () { pushSetting({ stack: $("stack-switch").getAttribute("aria-checked") !== "true" }); });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-editor]"), function (b) {
+      b.addEventListener("click", function () { pushSetting({ editor: b.getAttribute("data-editor") }); });
+    });
+    $("settings-reset").addEventListener("click", function () { pushSetting({ redact: null, include: null, exclude: null, stack: null, editor: null }); });
     pop.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); setSettingsOpen(false, true); } });
     document.addEventListener("click", function (e) {
       if (!pop.hidden && !$("settings-dd").contains(e.target) && !$("privacy").contains(e.target)) { setSettingsOpen(false, false); }

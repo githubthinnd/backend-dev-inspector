@@ -25,6 +25,8 @@ function query(sql: string, extra: Partial<QueryEvent> = {}): QueryEvent {
   }
 }
 
+const WHERE = { file: "/proj/src/orders.ts", line: 42, column: 7, fn: "loadItems" }
+
 function trace(id: string, url: string, queries: QueryEvent[], method = "GET"): RequestTrace {
   return {
     id,
@@ -38,7 +40,7 @@ function trace(id: string, url: string, queries: QueryEvent[], method = "GET"): 
   }
 }
 
-const nPlusOne = [1, 2, 3].map(i => query(`select \`id\` from \`order_items\` where \`order_id\` = ${i}`))
+const nPlusOne = [1, 2, 3].map(i => query(`select \`id\` from \`order_items\` where \`order_id\` = ${i}`, { caller: WHERE }))
 function buildTraces() {
   return [
     trace("a", "/api/order-detail/1", [
@@ -80,7 +82,7 @@ function render(options: Options = {}) {
     calls.push({ path, init })
     if (path === "settings") {
       if (init?.method === "POST") {
-        const body = JSON.parse(String(init.body)) as { slowMs?: number | null, redact?: string | null, include?: string[] | null, exclude?: string[] | null }
+        const body = JSON.parse(String(init.body)) as { slowMs?: number | null, redact?: string | null, include?: string[] | null, exclude?: string[] | null, stack?: boolean | null, editor?: string | null }
         if ("slowMs" in body) {
           slow.slowMs = body.slowMs ?? slow.defaultSlowMs
         }
@@ -92,6 +94,12 @@ function render(options: Options = {}) {
         }
         if ("exclude" in body) {
           slow.exclude = body.exclude ?? []
+        }
+        if ("stack" in body) {
+          ;(slow as { stack?: boolean }).stack = body.stack ?? true
+        }
+        if ("editor" in body) {
+          ;(slow as { editor?: unknown }).editor = { name: body.editor ?? "vscode", template: "" }
         }
       }
       return { ...slow }
@@ -319,6 +327,49 @@ describe("inspector page", () => {
   })
 })
 
+describe("where a call was made", () => {
+  const editor = { name: "vscode", template: "vscode://file/{path}:{line}:{column}" }
+
+  it("shows the calling line of an insight and of a statement, as a link that opens the editor", async () => {
+    const { document, sources } = render({ slow: { slowMs: 100, defaultSlowMs: 100, root: "/proj", editor, stack: true } as never })
+    sources[0]!.onopen!()
+    await settle()
+    await selectRequest(document)
+    expect(document.querySelector(".insight-where")!.textContent).toBe("Called from src/orders.ts:42")
+
+    const statement = Array.from(document.querySelectorAll(".q")).find(q => q.textContent!.includes("order_items"))!
+    click(statement.querySelector(".q-head"))
+    const link = statement.querySelector("a.caller") as unknown as HTMLAnchorElement
+    expect(link.textContent).toBe("src/orders.ts:42")
+    expect(link.getAttribute("href")).toBe("vscode://file/proj/src/orders.ts:42:7")
+  })
+
+  it("shows the location without a link when the editor is off, and never links a scheme that is not an editor's", async () => {
+    for (const template of ["", "javascript:alert(1)//{path}"]) {
+      const { document, sources } = render({ slow: { slowMs: 100, defaultSlowMs: 100, root: "/proj", editor: { name: "none", template }, stack: true } as never })
+      sources[0]!.onopen!()
+      await settle()
+      await selectRequest(document)
+      const statement = Array.from(document.querySelectorAll(".q")).find(q => q.textContent!.includes("order_items"))!
+      click(statement.querySelector(".q-head"))
+      expect(statement.querySelector("a.caller")).toBeNull()
+      expect(statement.querySelector("span.caller")!.textContent).toBe("src/orders.ts:42")
+    }
+  })
+
+  it("turns the search for the calling line off and on, and picks the editor, from the settings", async () => {
+    const { document, calls, sources } = render({ slow: { slowMs: 100, defaultSlowMs: 100, stack: true, editor } as never })
+    sources[0]!.onopen!()
+    await settle()
+    expect(document.getElementById("stack-switch")!.getAttribute("aria-checked")).toBe("true")
+    ;(document.getElementById("stack-switch") as unknown as HTMLElement).click()
+    ;(document.querySelector("[data-editor='cursor']") as unknown as HTMLElement).click()
+    await settle()
+    const posts = calls.filter(c => c.path === "settings" && c.init?.method === "POST").map(c => JSON.parse(String(c.init!.body)))
+    expect(posts).toEqual([{ stack: false }, { editor: "cursor" }])
+  })
+})
+
 describe("settings: hiding values and the requests to follow", () => {
   const byId = (document: ReturnType<typeof render>["document"], id: string) => document.getElementById(id) as unknown as HTMLElement
   const posts = (calls: ReturnType<typeof render>["calls"]) => calls.filter(c => c.path === "settings" && c.init?.method === "POST").map(c => JSON.parse(String(c.init!.body)))
@@ -391,7 +442,7 @@ describe("settings: hiding values and the requests to follow", () => {
     expect(byId(document, "path-value").textContent).toBe("/_dev/sql/")
     byId(document, "settings-reset").click()
     await settle()
-    expect(posts(calls)).toEqual([{ redact: null, include: null, exclude: null }])
+    expect(posts(calls)).toEqual([{ redact: null, include: null, exclude: null, stack: null, editor: null }])
     expect(byId(document, "privacy").getAttribute("data-mode")).toBe("params")
   })
 })

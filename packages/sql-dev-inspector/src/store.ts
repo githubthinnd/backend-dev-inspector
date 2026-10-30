@@ -36,6 +36,8 @@ export class TraceStore {
    * `SQL_INSPECTOR_REDACT` (default `params`).
    */
   redact: RedactMode = "off"
+  /** Whether each call records where in the application it was made. The inspector sets it (default on); a bare store does not. */
+  captureCaller = false
   /** Bumped whenever a trace changes, so a cached report can tell it is stale without comparing the trace. */
   private readonly versions = new WeakMap<RequestTrace, number>()
 
