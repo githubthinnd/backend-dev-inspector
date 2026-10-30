@@ -19,7 +19,8 @@
     "dev:koa-sqlite": "npm run dev -w koa-sqlite",
     "dev:hono-sqlite": "npm run dev -w hono-sqlite",
     "dev:nuxt3-drizzle": "npm run dev -w nuxt3-drizzle",
-    "dev:nuxt3-prisma": "npm run dev -w nuxt3-prisma"
+    "dev:nuxt3-prisma": "npm run dev -w nuxt3-prisma",
+    "dev:express-gateway": "npm run dev -w express-gateway"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

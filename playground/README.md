@@ -52,6 +52,7 @@ The data is fake (a seeded SQLite database, and a small fake customer service on
 | [`fastify-sqlite`](apps/fastify-sqlite) | Fastify 5 | `better-sqlite3` | `backend-dev-inspector/fastify` |
 | [`koa-sqlite`](apps/koa-sqlite) | Koa 3 | `better-sqlite3` | `backend-dev-inspector/koa` |
 | [`hono-sqlite`](apps/hono-sqlite) | Hono | `better-sqlite3` | `backend-dev-inspector/hono` |
+| [`express-gateway`](apps/express-gateway) | Express 5, a gateway in front of the orders service of `express-sqlite` | outbound HTTP | W3C trace context between two services |
 
 The Nuxt apps render the front end with Vue (a Nuxt layer in [`layers/antimatter-ui`](layers/antimatter-ui)); the others serve the same design as plain HTML and JavaScript from [`shared/web`](shared/web). Both use one stylesheet and one set of texts ([`shared/src/content.ts`](shared/src/content.ts)), so they look and read the same.
 
@@ -77,6 +78,7 @@ Then start the app you want:
 | `fastify-sqlite` | `npm run dev:fastify-sqlite --prefix playground` | |
 | `koa-sqlite` | `npm run dev:koa-sqlite --prefix playground` | |
 | `hono-sqlite` | `npm run dev:hono-sqlite --prefix playground` | |
+| `express-gateway` | `npm run dev:express-sqlite --prefix playground` (orders, port 3000), then `npm run dev:express-gateway --prefix playground` (port 3020) | open `http://localhost:3020/api/gateway/fanout`, then search the orders inspector (`:3000/__sql-inspector/`) for the trace id shown in the gateway's |
 
 Open the address it prints (port 3000, or the next free one), click through the screens, then open `/__sql-inspector/` or the **Open inspector** button. Nuxt apps also get the floating button. The terminal that runs the app prints the same tree for each request.
 
