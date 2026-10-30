@@ -1,7 +1,33 @@
-import { closeSync, openSync, readFileSync, readSync, statSync } from "node:fs"
-import { SourceMap } from "node:module"
+import type * as Fs from "node:fs"
+import type { SourceMap as SourceMapClass } from "node:module"
 import { dirname, isAbsolute, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
+
+/**
+ * `node:fs` and `node:module` are taken from the running Node when a map is first needed, not imported: the core is also
+ * loaded by Workers, Deno and Bun (`wrapFetch`), where `SourceMap` is not exported by `node:module` and an import would stop
+ * the whole package from loading. Where they are missing, positions simply stay as they are.
+ */
+interface Builtins {
+  fs: typeof Fs
+  SourceMap: typeof SourceMapClass
+}
+
+let builtins: Builtins | null | undefined
+
+function node(): Builtins | null {
+  if (builtins === undefined) {
+    try {
+      const get = typeof process === "undefined" ? undefined : process.getBuiltinModule
+      const fs = get?.("node:fs")
+      const module = get?.("node:module")
+      builtins = fs && module?.SourceMap ? { fs, SourceMap: module.SourceMap } : null
+    } catch {
+      builtins = null
+    }
+  }
+  return builtins
+}
 
 /**
  * Where a position in a bundled file came from. A dev server (Nitro, Vite, webpack) runs your code as one bundle, so the
@@ -28,7 +54,7 @@ const MAX_MAP_BYTES = 64 * 1024 * 1024
 const MAX_CACHED = 256
 
 interface Loaded {
-  map: SourceMap
+  map: SourceMapClass
   dir: string
   root: string
 }
@@ -38,7 +64,8 @@ const CACHE = Symbol.for("sqlDevInspector.sourceMaps")
 const cache = ((globalThis as unknown as Record<symbol, Map<string, Loaded | null> | undefined>)[CACHE] ??= new Map<string, Loaded | null>())
 
 /** The last bytes of a file: where a bundler puts the pointer to its map. */
-function tailOf(file: string): string {
+function tailOf({ fs }: Builtins, file: string): string {
+  const { closeSync, openSync, readSync, statSync } = fs
   const fd = openSync(file, "r")
   try {
     const size = statSync(file).size
@@ -51,9 +78,10 @@ function tailOf(file: string): string {
   }
 }
 
-function payloadOf(file: string): { payload: string, dir: string } | null {
+function payloadOf(builtin: Builtins, file: string): { payload: string, dir: string } | null {
+  const { readFileSync, statSync } = builtin.fs
   const dir = dirname(file)
-  const pointer = URL_COMMENT.exec(tailOf(file).trimEnd())?.[1]
+  const pointer = URL_COMMENT.exec(tailOf(builtin, file).trimEnd())?.[1]
   if (pointer && INLINE.test(pointer)) {
     return { payload: Buffer.from(pointer.replace(INLINE, ""), "base64").toString("utf8"), dir }
   }
@@ -73,12 +101,16 @@ function load(file: string): Loaded | null {
     cache.set(file, hit)
     return hit
   }
+  const builtin = node()
+  if (!builtin) {
+    return null // not on Node: nothing is cached, nothing can be read
+  }
   let loaded: Loaded | null = null
   try {
-    const found = payloadOf(file)
+    const found = payloadOf(builtin, file)
     if (found) {
       const parsed = JSON.parse(found.payload) as { sourceRoot?: unknown, sections?: unknown }
-      loaded = { map: new SourceMap(parsed as never), dir: found.dir, root: typeof parsed.sourceRoot === "string" ? parsed.sourceRoot : "" }
+      loaded = { map: new builtin.SourceMap(parsed as never), dir: found.dir, root: typeof parsed.sourceRoot === "string" ? parsed.sourceRoot : "" }
     }
   } catch {
     loaded = null // no map, or not one we can read: the bundled position stays

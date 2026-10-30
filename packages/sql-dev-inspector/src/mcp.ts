@@ -200,6 +200,9 @@ function callTool(inspector: Inspector, name: string, args: Record<string, unkno
 }
 
 function respond(inspector: Inspector, request: RpcRequest): RpcResponse | null {
+  if (!request || typeof request !== "object" || Array.isArray(request)) {
+    return { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid request" } } // one bad item of a batch must not fail the others
+  }
   const id = request.id ?? null
   if (request.jsonrpc !== "2.0" || typeof request.method !== "string") {
     return { jsonrpc: "2.0", id, error: { code: -32600, message: "Invalid request" } }

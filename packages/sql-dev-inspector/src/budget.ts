@@ -35,7 +35,8 @@ export function parseBudget(text: string): Budget | null {
   const budget: Budget = { method, route: route.startsWith("/") ? route : `/${route}`, calls: null, ms: null, callMs: null }
   for (const part of text.slice(equals + 1).split(",")) {
     const [name, value] = part.split(":").map(item => item.trim())
-    const key = METRICS[(name ?? "").toLowerCase() as keyof typeof METRICS]
+    const lowered = (name ?? "").toLowerCase()
+    const key = Object.hasOwn(METRICS, lowered) ? METRICS[lowered as keyof typeof METRICS] : undefined // not "constructor" or "__proto__"
     const number = Number(value)
     if (!key || !value || !Number.isFinite(number) || number < 0) {
       return null
@@ -53,7 +54,7 @@ export function parseBudgets(raw: string | readonly string[] | undefined): Budge
 
 /** `^[METHOD ]route=calls:..` strings that all parse, or undefined when one does not (for validating input). */
 export function validBudgetList(raw: readonly unknown[]): string[] | undefined {
-  if (raw.length > MAX_BUDGETS || raw.some(item => typeof item !== "string" || parseBudget(item) === null)) {
+  if (raw.length > MAX_BUDGETS || raw.some(item => typeof item !== "string" || item.includes(";") || parseBudget(item) === null)) {
     return undefined
   }
   return (raw as string[]).map(item => item.trim())

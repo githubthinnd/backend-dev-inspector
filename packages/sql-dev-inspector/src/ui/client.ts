@@ -291,7 +291,8 @@ export const CLIENT_SCRIPT = String.raw`
     ]));
     var routeRows = o.routes.map(function (r) {
       var kinds = Object.keys(r.issues).map(function (k) { return h("span", { class: "chip warn", text: t("insight.title." + k) + " ×" + r.issues[k] }); });
-      return h("tr", { class: "clickable", tabindex: "0", onclick: function () { state.view = "request"; select(r.worstId); } }, [
+      var open = function () { state.view = "request"; select(r.worstId); };
+      return h("tr", { class: "clickable", tabindex: "0", role: "link", onclick: open, onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } }, [
         h("td", { class: "code", text: r.route }), h("td", { class: "num", text: String(r.requests) }),
         h("td", { class: "num", text: fmtMs(r.avgMs) }), h("td", { class: "num", text: fmtMs(r.p95Ms) }),
         h("td", { class: "num", text: num(r.avgCalls, 1) + " / " + r.maxCalls }), h("td", {}, kinds)

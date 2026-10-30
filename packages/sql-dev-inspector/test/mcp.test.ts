@@ -155,3 +155,15 @@ describe("MCP over HTTP", () => {
     expect(JSON.stringify(result.tools)).not.toMatch(/clear|delete|set_|update|write|execute/i)
   })
 })
+
+describe("a batch with a bad item", () => {
+  it("answers the good items and reports the bad one, instead of failing the whole batch", async () => {
+    const batch = await rpc([null, 5, [], { jsonrpc: "2.0", id: 7, method: "ping" }])
+    expect(batch.json).toEqual([
+      { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid request" } },
+      { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid request" } },
+      { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid request" } },
+      { jsonrpc: "2.0", id: 7, result: {} }
+    ])
+  })
+})

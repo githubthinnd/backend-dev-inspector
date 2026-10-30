@@ -877,6 +877,11 @@ describe("the overview", () => {
     expect(text).toContain("GET /api/order-detail/:id")
     expect(document.querySelectorAll(".ov-table tr.clickable").length).toBe(data.routes.length)
     expect(document.querySelector("#overview")?.getAttribute("aria-pressed")).toBe("true")
+    // a row that can be focused can be opened from the keyboard too
+    const row = document.querySelector(".ov-table tr.clickable") as HTMLElement
+    row.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }) as never)
+    await settle()
+    expect(document.querySelector("#overview")?.getAttribute("aria-pressed")).toBe("false")
   })
 })
 

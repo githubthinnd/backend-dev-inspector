@@ -115,6 +115,17 @@ describe("Elasticsearch", () => {
     expect(call!.details).toMatchObject({ status: 200 })
   })
 
+  it("is wrapped once per client, however many times it is asked", async () => {
+    uninstalls.push(elasticsearchDriver.install(rec())!)
+    const es = new Client({ node: "http://es.test:9200", Connection: connection(200, { hits: { hits: [] } }) as never })
+    instrumentElasticsearch(instrumentElasticsearch(es))
+    const trace = request("/twice")
+    await runInRequest(trace, async () => {
+      await es.search({ index: "orders" })
+    })
+    expect(trace.queries).toHaveLength(1)
+  })
+
   it("records an error answer, and a document write as an insert", async () => {
     uninstalls.push(elasticsearchDriver.install(rec())!)
     const bad = instrumentElasticsearch(new Client({ node: "http://es.test:9200", Connection: connection(503, { error: "down" }) as never, maxRetries: 0 }))

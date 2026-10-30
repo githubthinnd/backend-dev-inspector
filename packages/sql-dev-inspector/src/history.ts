@@ -1,6 +1,7 @@
 import type { QueryEvent, RequestTrace } from "./types.js"
 import { randomUUID } from "node:crypto"
 import { analyzeSql } from "./sql-analyzer.js"
+import { BACKGROUND_REQUEST_ID } from "./store.js"
 
 /**
  * Saving the recorded requests and loading them again, so a profile can be kept, attached to a bug report, or compared with
@@ -27,7 +28,8 @@ export const exportHistory = (traces: RequestTrace[], now = new Date()): History
   format: HISTORY_FORMAT,
   version: HISTORY_VERSION,
   savedAt: now.toISOString(),
-  requests: [...traces].reverse() // oldest first, so loading keeps the order
+  // oldest first, so loading keeps the order; the calls outside any request are not a request and are not saved
+  requests: traces.filter(trace => trace.id !== BACKGROUND_REQUEST_ID).reverse()
 })
 
 type Raw = Record<string, unknown>

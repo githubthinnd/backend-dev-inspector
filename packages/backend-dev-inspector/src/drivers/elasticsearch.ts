@@ -37,6 +37,7 @@ interface Diagnostic {
 }
 
 const MAX_TEXT = 300
+const WRAPPED = Symbol.for("backendDevInspector.elasticsearchWrapped")
 const IDS = /\/[0-9a-f]{8,}(?=\/|$)|\/\d+(?=\/|$)/gi
 
 /** The verb of a path (`_search`, `_count`, `_bulk`…), or of the method when the path has none. */
@@ -54,6 +55,12 @@ export function instrumentElasticsearch<T extends object>(client: T, recorder?: 
   if (!rec || typeof diagnostic?.on !== "function") {
     return client
   }
+  // once per client: a second call (a module evaluated twice in dev) would record every request twice
+  const marked = client as Record<symbol, boolean>
+  if (marked[WRAPPED]) {
+    return client
+  }
+  marked[WRAPPED] = true
   const id = objectId(client)
   const open = new Map<unknown, OperationHandle>()
   diagnostic.on("request", (error, result) => {

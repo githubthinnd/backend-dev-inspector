@@ -98,3 +98,22 @@ describe("the cache", () => {
     expect(originalPosition(hot, 3, 3)).not.toBeNull()
   })
 })
+
+describe("where Node's built-ins are not there", () => {
+  it("leaves positions as they are, and loading the module needs neither node:fs nor node:module", async () => {
+    const real = process.getBuiltinModule
+    try {
+      ;(process as { getBuiltinModule: unknown }).getBuiltinModule = undefined
+      // a fresh copy of the module, as a Workers-like runtime would load it
+      const { vi } = await import("vitest")
+      vi.resetModules()
+      const fresh = await import("../src/sourcemap")
+      const file = bundle("workers", "//# sourceMappingURL=index.mjs.map", "index.mjs.map")
+      expect(fresh.originalPosition(file, 3, 3)).toBeNull()
+    } finally {
+      ;(process as { getBuiltinModule: unknown }).getBuiltinModule = real
+    }
+    const text = (await import("node:fs")).readFileSync(new URL("../src/sourcemap.ts", import.meta.url), "utf8")
+    expect(text).not.toMatch(/^import (?!type\b)[^\n]*from "node:(?:fs|module)"/m)
+  })
+})

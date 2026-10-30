@@ -112,3 +112,14 @@ describe("loading more than the ring holds", () => {
     expect(store.list()).toHaveLength(1)
   })
 })
+
+describe("what is not a request", () => {
+  it("leaves the calls outside any request out of the file", () => {
+    const store = new TraceStore({ maxRequests: 10, maxQueriesPerRequest: 10 })
+    createRecorder(store).begin({ driver: "t", api: "q", text: "select 1", connectionId: 1, analysis: analyzeSql("select 1") })?.end()
+    const trace = store.startRequest("GET", "/x")
+    runInRequest(trace, () => createRecorder(store).begin({ driver: "t", api: "q", text: "select 2", connectionId: 1, analysis: analyzeSql("select 2") })?.end())
+    expect(store.list().map(t => t.id)).toContain("background")
+    expect(exportHistory(store.list()).requests.map(t => t.url)).toEqual(["/x"])
+  })
+})

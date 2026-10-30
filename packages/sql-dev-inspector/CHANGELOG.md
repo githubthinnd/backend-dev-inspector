@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **Loads under Workers, Deno and Bun.** The source-map lookup takes `node:fs` and `node:module` from the running Node when a map is first needed instead of importing them, so a runtime without `SourceMap` in `node:module` can still load the package (positions then stay as they are).
+- A history file leaves out the calls outside any request; one bad item of an MCP batch no longer fails the others; budget names such as `constructor` are refused; the rows of the overview can be opened from the keyboard.
 - **Floating panel with a token.** When the server answers 401 (a token is set and the inspector page has not been opened in this browser yet) the panel says so, with the address to open once, instead of staying blank. The token itself is never put in the panel.
 - Only the answer to the latest comparison question is shown (answers can arrive out of order), and a failed fetch of a comparison, an export or the history says "Couldn't reach the inspector" instead of a clipboard error.
 - **Comparison of a running request.** A comparison is fetched again when either request has changed since, instead of staying as it was at the first answer.

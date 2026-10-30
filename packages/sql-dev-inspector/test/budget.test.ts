@@ -57,3 +57,13 @@ describe("a request against its budget", () => {
     expect(reportFor("/api/orders=calls:1", 5, 1, 10, "/health").insights.some(i => i.type.startsWith("budget"))).toBe(false)
   })
 })
+
+describe("names that only look like metrics", () => {
+  it("are refused, and so is more than one budget in one item of a list", async () => {
+    const { validBudgetList } = await import("../src/budget")
+    expect(parseBudget("/api=constructor:5")).toBeNull()
+    expect(parseBudget("/api=__proto__:5,calls:1")).toBeNull()
+    expect(validBudgetList(["/a=calls:1;/b=ms:5"])).toBeUndefined()
+    expect(validBudgetList(["/a=calls:1", "GET /b=ms:5"])).toEqual(["/a=calls:1", "GET /b=ms:5"])
+  })
+})
