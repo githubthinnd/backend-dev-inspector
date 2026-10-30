@@ -1,5 +1,6 @@
-import type { DriverAdapter, OperationEnd, Recorder, StatementKind } from "sql-dev-inspector"
+import type { DriverAdapter, OperationEnd, StatementKind } from "sql-dev-inspector"
 import { describeOperation, runInOperation } from "sql-dev-inspector"
+import { wrapperDriver } from "./wrapper.js"
 
 /**
  * Prisma, through a client extension. Prisma runs queries in a native engine that gives the
@@ -17,19 +18,9 @@ import { describeOperation, runInOperation } from "sql-dev-inspector"
  * running) the extension passes every call through untouched.
  */
 
-let active: Recorder | null = null
+const wrapper = wrapperDriver("prisma")
 
-export const prismaDriver: DriverAdapter = {
-  name: "prisma",
-  install(recorder) {
-    active = recorder
-    return () => {
-      if (active === recorder) {
-        active = null
-      }
-    }
-  }
-}
+export const prismaDriver: DriverAdapter = wrapper.driver
 
 const MAX_TEXT = 300
 
@@ -81,7 +72,7 @@ interface OperationParams {
 }
 
 async function record({ model, operation, args, query }: OperationParams): Promise<unknown> {
-  const recorder = active
+  const recorder = wrapper.recorder()
   if (!recorder) {
     return await query(args)
   }

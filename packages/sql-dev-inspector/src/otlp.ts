@@ -60,7 +60,7 @@ function spanOf(query: QueryEvent, traceId: string, parentSpanId: string, root?:
       attributes.push(int("http.response.status_code", query.details.status))
     }
   } else {
-    attributes.push(str("db.system", SYSTEMS[query.driver ?? ""] ?? query.driver ?? "unknown"), str("db.query.text", query.sql), str("db.operation.name", query.analysis.label ?? query.analysis.kind))
+    attributes.push(str("db.system", (Object.hasOwn(SYSTEMS, query.driver ?? "") ? SYSTEMS[query.driver!] : undefined) ?? query.driver ?? "unknown"), str("db.query.text", query.sql), str("db.operation.name", query.analysis.label ?? query.analysis.kind))
     if (query.analysis.tables[0]) {
       attributes.push(str("db.collection.name", query.analysis.tables[0]))
     }

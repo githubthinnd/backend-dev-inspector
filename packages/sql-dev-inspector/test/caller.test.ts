@@ -62,3 +62,18 @@ describe("the editor of the links", () => {
     }
   })
 })
+
+describe("names that are also properties of every object", () => {
+  it("are not editors, drivers or families", async () => {
+    expect(resolveEditor("constructor")).toEqual(resolveEditor("vscode"))
+    expect(resolveEditor("hasOwnProperty").name).toBe("vscode")
+    const { exportOtlp } = await import("../src/otlp")
+    const { buildReport } = await import("../src/report")
+    const { analyzeSql } = await import("../src/sql-analyzer")
+    const call = { seq: 1, requestId: "r", connectionId: 1, api: "q", sql: "select 1", driver: "constructor", params: null, startedAt: 1000, durationMs: 1, rowCount: null, affectedRows: null, error: null, analysis: analyzeSql("select 1") }
+    const report = buildReport({ id: "r", method: "GET", url: "/x", status: 200, startedAt: 1000, durationMs: 5, queries: [call, { ...call, seq: 2 }, { ...call, seq: 3 }], droppedQueries: 0 } as never)
+    const system = exportOtlp([report]).resourceSpans[0]!.scopeSpans[0]!.spans.find(s => s.kind === 3)!.attributes.find(a => a.key === "db.system")!
+    expect(system.value).toEqual({ stringValue: "constructor" })
+    expect(report.insights.every(i => i.params.family === "sql")).toBe(true)
+  })
+})

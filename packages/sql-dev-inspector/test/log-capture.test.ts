@@ -89,3 +89,18 @@ describe("console output under its request", () => {
     expect(inspector.store.get(trace.id)!.logs![0]!.message).toBe("before the query")
   })
 })
+
+describe("muting is shared by every copy of the package", () => {
+  it("keeps the inspector's own output out of a request, whichever copy prints it", async () => {
+    setLogCapture(getInspector(), true)
+    vi.resetModules()
+    const other = await import("../src/log-capture") // a second copy of the module, as a CommonJS and an ESM build would be
+    const trace = getInspector().store.startRequest("GET", "/x")
+    const { runInRequest } = await import("../src/context")
+    runInRequest(trace, () => {
+      other.withoutCapture(() => console.log("the inspector's own line"))
+      console.log("the application's line")
+    })
+    expect((trace.logs ?? []).map(l => l.message)).toEqual(["the application's line"])
+  })
+})

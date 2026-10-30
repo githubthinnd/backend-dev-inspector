@@ -1,6 +1,7 @@
-import type { DriverAdapter, OperationEnd, Recorder } from "sql-dev-inspector"
+import type { DriverAdapter, OperationEnd } from "sql-dev-inspector"
 import { analyzeSql } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
+import { wrapperDriver } from "./wrapper.js"
 
 /**
  * The `mariadb` connector (not `mysql2`, which is covered by sql-dev-inspector and also talks to
@@ -34,20 +35,10 @@ export interface MariadbModule {
   createPool: (...args: never[]) => PoolLike
 }
 
-/** The recorder of the running inspector; null while it is not running, which makes wrapping a no-op. */
-let active: Recorder | null = null
+/** The recorder is looked up when a call is made, so a module wrapped before the application starts the inspector is still watched. */
+const wrapper = wrapperDriver("mariadb")
 
-export const mariadbDriver: DriverAdapter = {
-  name: "mariadb",
-  install(recorder) {
-    active = recorder
-    return () => {
-      if (active === recorder) {
-        active = null
-      }
-    }
-  }
-}
+export const mariadbDriver: DriverAdapter = wrapper.driver
 
 function sqlOf(first: unknown): string | null {
   if (typeof first === "string") {
@@ -87,7 +78,7 @@ function wrapTarget<T extends ConnectionLike>(target: T, connectionId: () => num
       continue
     }
     ;(target as Record<string, unknown>)[method] = function wrapped(this: unknown, ...args: unknown[]) {
-      const recorder = active
+      const recorder = wrapper.recorder()
       const sql = recorder ? sqlOf(args[0]) : null
       const handle = recorder && sql !== null
         ? recorder.begin({ driver: "mariadb", api: method, text: sql, params: paramsOf(args[0], args[1]), connectionId: connectionId(), analysis: analyzeSql(sql, "mysql") })
@@ -121,8 +112,8 @@ function wrapPool<T extends PoolLike>(pool: T): T {
 
 /** Returns a copy of the `mariadb` module whose connections and pools are reported to the inspector. */
 export function instrumentMariadb<M extends MariadbModule>(mariadb: M): M {
-  if (!active) {
-    return mariadb
+  if (!wrapper.recorder()) {
+    return mariadb // the inspector is off for this process
   }
   const { createConnection, createPool } = mariadb
   return {

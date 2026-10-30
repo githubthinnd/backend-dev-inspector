@@ -109,7 +109,7 @@ export function resolveEditor(raw: string | undefined): { name: string, template
   if (value === "") {
     return { name: DEFAULT_EDITOR, template: EDITORS[DEFAULT_EDITOR]! }
   }
-  if (value.toLowerCase() in EDITORS) {
+  if (Object.hasOwn(EDITORS, value.toLowerCase())) {
     const name = value.toLowerCase()
     return { name, template: EDITORS[name]! }
   }

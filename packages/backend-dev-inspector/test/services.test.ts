@@ -446,3 +446,29 @@ describe("wrapped objects with accessors", () => {
     }
   })
 })
+
+describe("Prisma and the MariaDB connector, applied before the inspector starts", () => {
+  it("are watched once it has, as the wrappers of the other libraries are", async () => {
+    const { prismaExtension, prismaDriver } = await import("../src/drivers/prisma")
+    const { instrumentMariadb, mariadbDriver } = await import("../src/drivers/mariadb")
+    resetInspectorForTests()
+    const previous = process.env.NODE_ENV
+    process.env.NODE_ENV = "development"
+    try {
+      const extension = prismaExtension()
+      const connection = { query: async () => [{ id: 1 }], execute: async () => [], end: async () => undefined }
+      const mariadb = instrumentMariadb({ createConnection: async () => connection, createPool: () => ({ query: async () => [{ id: 1 }], getConnection: async () => connection, end: async () => undefined }) } as never) as unknown as { createConnection: () => Promise<{ query: (sql: string) => Promise<unknown> }> }
+      // the application starts the inspector later
+      startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0", SQL_INSPECTOR_REDACT: "off" }, { drivers: [] })
+      uninstalls.push(prismaDriver.install(rec())!, mariadbDriver.install(rec())!)
+      const trace = request("/late-orm")
+      await runInRequest(trace, async () => {
+        await extension.query.$allOperations({ model: "User", operation: "findMany", args: {}, query: async () => [] })
+        await (await mariadb.createConnection()).query("select 1")
+      })
+      expect(trace.queries.map(q => q.driver)).toEqual(["prisma", "mariadb"])
+    } finally {
+      process.env.NODE_ENV = previous
+    }
+  })
+})

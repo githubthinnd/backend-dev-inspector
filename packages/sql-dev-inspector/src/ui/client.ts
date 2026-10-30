@@ -132,7 +132,7 @@ export const CLIENT_SCRIPT = String.raw`
       var text = m[0], cls = null;
       if (m[1]) { cls = "str"; } else if (m[2]) { cls = "id"; } else if (m[3]) { cls = "com"; } else if (m[4]) { cls = "num"; }
       else if (m[5]) {
-        if (KEYWORDS[text.toLowerCase()]) { cls = "kw"; }
+        if (Object.prototype.hasOwnProperty.call(KEYWORDS, text.toLowerCase())) { cls = "kw"; }
         else if (sql.charAt(m.index + text.length) === "(") { cls = "fn"; }
       }
       frag.appendChild(cls ? h("span", { class: cls, text: text }) : document.createTextNode(text));

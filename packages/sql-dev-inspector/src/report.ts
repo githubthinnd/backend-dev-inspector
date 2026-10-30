@@ -170,7 +170,7 @@ const FAMILIES: Record<string, string> = {
 /** `sql`, `mongodb`, `redis` or `http`: what kind of call an insight is about, which decides what to advise. */
 function familyOf(insight: InsightDraft, queries: QueryEvent[]): string {
   const first = queries.find(query => insight.seqs.includes(query.seq))
-  return FAMILIES[first?.driver ?? ""] ?? "sql"
+  return (Object.hasOwn(FAMILIES, first?.driver ?? "") ? FAMILIES[first!.driver!] : undefined) ?? "sql"
 }
 
 /** The advice for an insight, from the most specific message that exists (`insight.hint.slow.http`, then `insight.hint.slow`). */

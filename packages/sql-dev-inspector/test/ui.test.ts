@@ -1028,3 +1028,17 @@ describe("answers that arrive out of order, and requests that fail", () => {
     expect(r.document.querySelector("#toast, .toast")?.textContent ?? "").toContain("Couldn't reach the inspector")
   })
 })
+
+describe("highlighting names that are also properties of every object", () => {
+  it("does not colour toString or constructor as keywords", async () => {
+    const { document } = render({ statement: { sql: "select constructor, toString, valueOf from t where id = ?", params: [1] }, slow: { slowMs: 100, defaultSlowMs: 100, redact: "off" } as never })
+    await settle()
+    await selectRequest(document, 1)
+    click(document.querySelector(".q-head"))
+    const keywords = Array.from(document.querySelectorAll(".q-body pre.sql .kw")).map(el => el.textContent)
+    expect(keywords).toEqual(expect.arrayContaining(["select", "from", "where"]))
+    expect(keywords).not.toContain("constructor")
+    expect(keywords).not.toContain("toString")
+    expect(keywords).not.toContain("valueOf")
+  })
+})

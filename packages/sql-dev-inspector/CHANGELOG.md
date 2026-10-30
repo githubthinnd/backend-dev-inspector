@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Names that are also properties of every object (`constructor`, `hasOwnProperty`) are no longer taken for an editor, a driver, a family or a SQL keyword; the muting of the inspector's own console output is shared by every copy of the package.
 - **Loads under Workers, Deno and Bun.** The source-map lookup takes `node:fs` and `node:module` from the running Node when a map is first needed instead of importing them, so a runtime without `SourceMap` in `node:module` can still load the package (positions then stay as they are).
 - A history file leaves out the calls outside any request; one bad item of an MCP batch no longer fails the others; budget names such as `constructor` are refused; the rows of the overview can be opened from the keyboard.
 - **Floating panel with a token.** When the server answers 401 (a token is set and the inspector page has not been opened in this browser yet) the panel says so, with the address to open once, instead of staying blank. The token itself is never put in the panel.

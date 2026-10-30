@@ -19,15 +19,19 @@ const MAX_MESSAGE = 2000
 // eslint-disable-next-line no-control-regex
 const ANSI = /\u001B\[[0-9;]*m/g
 
-let muted = 0
+// One counter per process: the wrappers belong to whichever copy of this package patched `console` first, and the
+// inspector's own output (printed by any copy) must be muted for them.
+const MUTED = Symbol.for("sqlDevInspector.logsMuted")
+const mutedCount = () => ((globalThis as unknown as Record<symbol, { n: number } | undefined>)[MUTED] ??= { n: 0 })
 
 /** Runs `fn` without capturing what it prints: the inspector's own terminal output. */
 export function withoutCapture<T>(fn: () => T): T {
-  muted++
+  const muted = mutedCount()
+  muted.n++
   try {
     return fn()
   } finally {
-    muted--
+    muted.n--
   }
 }
 
@@ -45,7 +49,7 @@ function patchConsole() {
     const wrapper = ((...args: unknown[]) => {
       try {
         const inspector = getInspector()
-        if (inspector.logs && muted === 0) {
+        if (inspector.logs && mutedCount().n === 0) {
           const trace = currentTrace()
           if (trace && trace.id !== IGNORED_ID) {
             const logs = (trace.logs ??= [])
