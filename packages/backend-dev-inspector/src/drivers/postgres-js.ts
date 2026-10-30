@@ -2,7 +2,7 @@ import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector
 import { tracingChannel } from "node:diagnostics_channel"
 import { analyzeSql } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
-import { lazyRecorder } from "./verbs.js"
+import { wrapperDriver } from "./wrapper.js"
 
 /**
  * PostgreSQL through postgres.js (`postgres`), and with it Drizzle, Kysely and Prisma's adapters
@@ -63,7 +63,7 @@ function refresh(handle: OperationHandle, context: QueryContext) {
 export const postgresJsDriver: DriverAdapter = {
   name: "postgres",
   install(recorder) {
-    active = recorder // for `instrumentPostgres`
+    const release = wrapper.driver.install(recorder, { explicit: false }) // for `instrumentPostgres`
     // `tracingChannel` exists on every supported Node. The channel is only ever published by postgres.js 4.
     const channel = tracingChannel("postgres:query")
     const handles = new WeakMap<object, OperationHandle>()
@@ -103,14 +103,12 @@ export const postgresJsDriver: DriverAdapter = {
     channel.subscribe(handlers)
     return () => {
       channel.unsubscribe(handlers)
-      if (active === recorder) {
-        active = null
-      }
+      release?.()
     }
   }
 }
 
-let active: Recorder | null = null
+const wrapper = wrapperDriver("postgres")
 
 // ── postgres.js 3: an explicit wrapper ───────────────────────────────────
 
@@ -172,14 +170,12 @@ function follow(recorder: Recorder, query: QueryLike, id: number) {
  * the client is postgres.js 4, which needs no wrapper.
  */
 export function instrumentPostgres<T extends (...args: never[]) => unknown>(sql: T, recorder?: Recorder): T {
-  const rec = lazyRecorder(recorder, activeRecorder)
+  const rec = wrapper.recorder(recorder)
   if (!rec) {
     return sql
   }
   return wrap(rec, sql as unknown as SqlFunction, objectId(sql)) as unknown as T
 }
-
-const activeRecorder = () => active
 
 const SCOPES = new Set(["begin", "savepoint", "reserve"])
 

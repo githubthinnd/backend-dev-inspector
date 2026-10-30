@@ -51,6 +51,8 @@ describe("checking a request", () => {
       expect(check.redirect).not.toContain("token")
     }
     expect((checkToken(req({}, `/__sql-inspector/?a=1&token=${T}&b=2`), T, "m") as { redirect: string }).redirect).toBe("/__sql-inspector/?a=1&b=2")
+    // the other parameters keep their spelling: %20 stays %20, + stays +
+    expect((checkToken(req({}, `/__sql-inspector/?q=a%20b+c&token=${T}`), T, "m") as { redirect: string }).redirect).toBe("/__sql-inspector/?q=a%20b+c")
   })
 
   it("lets a non-local Host through only when a token is set", () => {

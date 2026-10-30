@@ -1,7 +1,8 @@
 import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector"
 import { describeOperation } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
-import { kindOfVerb, lazyRecorder } from "./verbs.js"
+import { wrapperDriver } from "./wrapper.js"
+import { kindOfVerb } from "./verbs.js"
 
 /**
  * Elasticsearch and OpenSearch, through the events the client's transport publishes (`client.diagnostic`):
@@ -14,19 +15,9 @@ import { kindOfVerb, lazyRecorder } from "./verbs.js"
  * attempt number. Nothing is loaded from the client library.
  */
 
-let active: Recorder | null = null
+const wrapper = wrapperDriver("elasticsearch")
 
-export const elasticsearchDriver: DriverAdapter = {
-  name: "elasticsearch",
-  install(recorder) {
-    active = recorder
-    return () => {
-      if (active === recorder) {
-        active = null
-      }
-    }
-  }
-}
+export const elasticsearchDriver: DriverAdapter = wrapper.driver
 
 interface Meta {
   request?: { id?: unknown, params?: { method?: string, path?: string, body?: unknown, bulkBody?: unknown } }
@@ -58,7 +49,7 @@ function kindOf(method: string, path: string) {
 }
 
 export function instrumentElasticsearch<T extends object>(client: T, recorder?: Recorder): T {
-  const rec = lazyRecorder(recorder, () => active)
+  const rec = wrapper.recorder(recorder)
   const diagnostic = (client as { diagnostic?: Diagnostic }).diagnostic
   if (!rec || typeof diagnostic?.on !== "function") {
     return client

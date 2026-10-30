@@ -25,7 +25,7 @@ const INLINE = /^data:application\/json[^,]*;base64,/
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i
 const TAIL_BYTES = 2048
 const MAX_MAP_BYTES = 64 * 1024 * 1024
-const MAX_CACHED = 64
+const MAX_CACHED = 256
 
 interface Loaded {
   map: SourceMap
@@ -33,7 +33,9 @@ interface Loaded {
   root: string
 }
 
-const cache = new Map<string, Loaded | null>()
+// One cache per process, however many copies of this package are loaded (like the request scope).
+const CACHE = Symbol.for("sqlDevInspector.sourceMaps")
+const cache = ((globalThis as unknown as Record<symbol, Map<string, Loaded | null> | undefined>)[CACHE] ??= new Map<string, Loaded | null>())
 
 /** The last bytes of a file: where a bundler puts the pointer to its map. */
 function tailOf(file: string): string {
@@ -65,7 +67,11 @@ function payloadOf(file: string): { payload: string, dir: string } | null {
 
 function load(file: string): Loaded | null {
   if (cache.has(file)) {
-    return cache.get(file) ?? null
+    // least recently used goes last: a bundle that is looked up all the time is never the one evicted
+    const hit = cache.get(file) ?? null
+    cache.delete(file)
+    cache.set(file, hit)
+    return hit
   }
   let loaded: Loaded | null = null
   try {

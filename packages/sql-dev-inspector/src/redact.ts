@@ -12,6 +12,9 @@ export type RedactMode = "params" | "all" | "off"
 
 export const DEFAULT_REDACT: RedactMode = "params"
 
+/** How much a mode hides: a request keeps the most hidden mode it was recorded under. */
+export const REDACT_RANK: Record<RedactMode, number> = { off: 0, params: 1, all: 2 }
+
 const OFF = new Set(["off", "0", "false", "no", "none"])
 const ALL = new Set(["all", "strict", "sql"])
 

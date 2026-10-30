@@ -1,7 +1,7 @@
 import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector"
 import { analyzeSql } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
-import { lazyRecorder } from "./verbs.js"
+import { wrapperDriver } from "./wrapper.js"
 
 /**
  * Cloudflare D1, the database binding of a Worker (`env.DB`):
@@ -15,19 +15,9 @@ import { lazyRecorder } from "./verbs.js"
  * loaded from Cloudflare's packages.
  */
 
-let active: Recorder | null = null
+const wrapper = wrapperDriver("d1")
 
-export const d1Driver: DriverAdapter = {
-  name: "d1",
-  install(recorder) {
-    active = recorder
-    return () => {
-      if (active === recorder) {
-        active = null
-      }
-    }
-  }
-}
+export const d1Driver: DriverAdapter = wrapper.driver
 
 const MAX_TEXT = 4000
 const RUNNERS = new Set(["first", "all", "run", "raw"])
@@ -58,7 +48,7 @@ function outcomeOf(result: unknown) {
 }
 
 export function instrumentD1<T extends object>(db: T, recorder?: Recorder): T {
-  const rec = lazyRecorder(recorder, () => active)
+  const rec = wrapper.recorder(recorder)
   if (!rec) {
     return db
   }

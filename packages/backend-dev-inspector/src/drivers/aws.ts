@@ -1,7 +1,8 @@
 import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector"
 import { describeOperation } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
-import { kindOfVerb, quoted, lazyRecorder } from "./verbs.js"
+import { wrapperDriver } from "./wrapper.js"
+import { kindOfVerb, quoted } from "./verbs.js"
 
 /**
  * AWS SDK for JavaScript v3 (S3, DynamoDB, SQS, SNS, Lambda, …), through the client's own middleware stack:
@@ -14,19 +15,9 @@ import { kindOfVerb, quoted, lazyRecorder } from "./verbs.js"
  * a body, an item or a key of a DynamoDB table. Nothing is loaded from the SDK, so it adds no dependency.
  */
 
-let active: Recorder | null = null
+const wrapper = wrapperDriver("aws")
 
-export const awsDriver: DriverAdapter = {
-  name: "aws",
-  install(recorder) {
-    active = recorder
-    return () => {
-      if (active === recorder) {
-        active = null
-      }
-    }
-  }
-}
+export const awsDriver: DriverAdapter = wrapper.driver
 
 const MAX_TEXT = 300
 /** The inputs that name a resource and say nothing about its content. */
@@ -76,7 +67,7 @@ function describe(recorder: Recorder, clientId: number, context: MiddlewareConte
  * calling it twice on one client does no harm.
  */
 export function instrumentAws<T extends object>(client: T, recorder?: Recorder): T {
-  const rec = lazyRecorder(recorder, () => active)
+  const rec = wrapper.recorder(recorder)
   const stack = (client as ClientLike).middlewareStack
   if (!rec || !stack) {
     return client

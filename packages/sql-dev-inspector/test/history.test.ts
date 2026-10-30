@@ -102,3 +102,13 @@ describe("history file", () => {
     expect(store.list()).toHaveLength(3)
   })
 })
+
+describe("loading more than the ring holds", () => {
+  it("says how many are in the store now", () => {
+    const store = new TraceStore({ maxRequests: 1, maxQueriesPerRequest: 10 })
+    const back = importHistory(exportHistory(recorded().list()))!
+    expect(back).toHaveLength(2)
+    expect(store.load(back)).toBe(1)
+    expect(store.list()).toHaveLength(1)
+  })
+})

@@ -80,3 +80,21 @@ describe("the caller of a stack that goes through a bundle", () => {
     expect(callerFromStack(stack(file, 3, 3))).toMatchObject({ file, line: 3, column: 3 })
   })
 })
+
+describe("the cache", () => {
+  it("keeps the bundle that is used all the time when it is full, and forgets the one that is not", () => {
+    const hot = bundle("hot", "//# sourceMappingURL=index.mjs.map", "index.mjs.map")
+    expect(originalPosition(hot, 3, 3)).not.toBeNull()
+    // 300 other files, each looked up once, would push a first-in-first-out cache past the hot one
+    for (let i = 0; i < 300; i++) {
+      const other = bundle(`cold-${i}`, "")
+      originalPosition(other, 1, 1)
+      if (i % 20 === 0) {
+        originalPosition(hot, 3, 3)
+      }
+    }
+    // the hot map is still cached: removing the file from disk does not make it forgotten
+    rmSync(join(hot, ".."), { recursive: true, force: true })
+    expect(originalPosition(hot, 3, 3)).not.toBeNull()
+  })
+})

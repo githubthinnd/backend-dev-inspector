@@ -489,7 +489,7 @@ For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "
 ```bash
 npm install
 npm run typecheck
-npm test            # 491 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
+npm test            # 499 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
 npm run build
 ```
 

@@ -90,8 +90,11 @@ export class TraceStore {
     this.emit({ type: "query", requestId: trace.id })
   }
 
-  /** Adds requests loaded from a history file, oldest first; they take the place of the oldest ones once the ring is full. */
-  load(traces: RequestTrace[]) {
+  /**
+   * Adds requests loaded from a history file, oldest first; they take the place of the oldest ones once the ring is full.
+   * Returns how many of them are in the store now (the ring may be smaller than the file).
+   */
+  load(traces: RequestTrace[]): number {
     for (const trace of traces) {
       this.loaded.add(trace)
       this.traces.push(trace)
@@ -101,6 +104,7 @@ export class TraceStore {
       this.bump(trace)
     }
     this.emit({ type: "settings" })
+    return traces.filter(trace => this.traces.includes(trace)).length
   }
 
   /** A statement finished after it was recorded; listeners only need to know the trace changed. */

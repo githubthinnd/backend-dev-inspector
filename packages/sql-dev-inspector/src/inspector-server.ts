@@ -21,7 +21,9 @@ const TRAILING_SLASHES = /\/+$/
 const REDACT_MODES = new Set(["params", "all", "off"])
 const QUERY_OR_HASH = /[?#]/
 const REQUEST_DETAIL = /^\/api\/requests\/([\w-]+)$/
-const overviews = new WeakMap<object, { key: string, overview: ReturnType<typeof buildOverview> }>()
+// Kept under a shared key like the rest of the process-wide state, so two copies of this package share one answer.
+const OVERVIEWS = Symbol.for("sqlDevInspector.overviews")
+const overviews = ((globalThis as unknown as Record<symbol, WeakMap<object, { key: string, overview: ReturnType<typeof buildOverview> }> | undefined>)[OVERVIEWS] ??= new WeakMap())
 const REQUEST_COMPARE = /^\/api\/compare\/([\w-]+)\/([\w-]+)$/
 const REQUEST_OTLP = /^\/api\/requests\/([\w-]+)\/otlp$/
 const REQUEST_EXPORT = /^\/api\/requests\/([\w-]+)\/export$/
@@ -311,8 +313,7 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
         sendJson(res, { message: "Not a history file saved by the inspector (format sql-dev-inspector/history, version 1)" }, 400)
         return
       }
-      store.load(traces)
-      sendJson(res, { loaded: traces.length })
+      sendJson(res, { loaded: store.load(traces), total: traces.length })
     }).catch(() => sendJson(res, { message: "Invalid or too large JSON body (at most 8 MB)" }, 400))
     return
   }

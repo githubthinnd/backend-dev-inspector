@@ -3,7 +3,7 @@ import type { QueryEvent, SqlAnalysis } from "./types.js"
 import { currentOperation, currentTrace, IGNORED_ID } from "./context.js"
 import { rememberCallKey } from "./call-key.js"
 import { findCaller } from "./caller.js"
-import { redactParams } from "./redact.js"
+import { REDACT_RANK, redactParams } from "./redact.js"
 
 export interface OperationStart {
   /** Driver name, shown next to the call (`pg`, `redis`...). */
@@ -100,8 +100,7 @@ export function createRecorder(store: TraceStore): Recorder {
             event.caller = caller
           }
         }
-        const hidden = { off: 0, params: 1, all: 2 }
-        if (trace.redact === undefined || hidden[redact] > hidden[trace.redact]) {
+        if (trace.redact === undefined || REDACT_RANK[redact] > REDACT_RANK[trace.redact]) {
           trace.redact = redact
         }
         const parent = currentOperation()

@@ -140,9 +140,9 @@ export function checkToken(req: Pick<IncomingMessage, "headers" | "url" | "metho
   const at = raw.indexOf("?")
   const query = new URLSearchParams(at === -1 ? "" : raw.slice(at + 1))
   if (req.method === "GET" && sameSecret(query.get("token") ?? undefined, token)) {
-    query.delete("token")
     const path = `/${(at === -1 ? raw : raw.slice(0, at)).replace(/^[/\\]+/, "")}`
-    const rest = query.toString()
+    // Only the token pair is taken out; the other parameters keep the exact spelling they had.
+    const rest = (at === -1 ? "" : raw.slice(at + 1)).split("&").filter(pair => pair !== "" && new URLSearchParams(pair).keys().next().value !== "token").join("&")
     return {
       ok: true,
       setCookie: `${TOKEN_COOKIE}=${token}; Path=/${mount}; HttpOnly; SameSite=Strict`,

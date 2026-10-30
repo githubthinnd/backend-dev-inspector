@@ -1,7 +1,8 @@
 import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector"
 import { describeOperation, runInOperation } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
-import { quoted, lazyRecorder } from "./verbs.js"
+import { wrapperDriver } from "./wrapper.js"
+import { quoted } from "./verbs.js"
 
 /**
  * BullMQ job queues: what the application adds to a queue while it handles a request.
@@ -15,19 +16,9 @@ import { quoted, lazyRecorder } from "./verbs.js"
  * parameter, so it is hidden unless values are shown. Nothing is loaded from BullMQ.
  */
 
-let active: Recorder | null = null
+const wrapper = wrapperDriver("bullmq")
 
-export const bullmqDriver: DriverAdapter = {
-  name: "bullmq",
-  install(recorder) {
-    active = recorder
-    return () => {
-      if (active === recorder) {
-        active = null
-      }
-    }
-  }
-}
+export const bullmqDriver: DriverAdapter = wrapper.driver
 
 const METHODS = new Set(["add", "addBulk", "upsertJobScheduler"])
 const MAX_TEXT = 300
@@ -42,7 +33,7 @@ function jobNames(method: string, args: unknown[]): string[] {
 }
 
 export function instrumentBullmq<T extends object>(queue: T, recorder?: Recorder): T {
-  const rec = lazyRecorder(recorder, () => active)
+  const rec = wrapper.recorder(recorder)
   if (!rec) {
     return queue
   }
@@ -75,15 +66,18 @@ export function instrumentBullmq<T extends object>(queue: T, recorder?: Recorder
           handle.end({ rowCount: Array.isArray(result) ? result.length : 1 })
           return result
         }
+        let pending: Promise<unknown>
         try {
-          return runInOperation(handle.event, () => (value as Method).apply(target, args)).then(finish, (error: unknown) => {
-            handle.end({ error })
-            throw error
-          })
+          // Promise.resolve: a queue (or a test double) whose method returns a plain value is still one call
+          pending = Promise.resolve(runInOperation(handle.event, () => (value as Method).apply(target, args)))
         } catch (error) {
           handle.end({ error })
           throw error
         }
+        return pending.then(finish, (error: unknown) => {
+          handle.end({ error })
+          throw error
+        })
       }
     }
   })

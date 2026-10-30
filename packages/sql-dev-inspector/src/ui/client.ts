@@ -238,22 +238,32 @@ export const CLIENT_SCRIPT = String.raw`
         result.appendChild(h("table", { class: "compare-table" }, data.findings.map(function (f) { return h("tr", {}, [h("th", { text: t("insight.title." + f.type) }), pairCell({ a: f.a, b: f.b, delta: f.b - f.a }, "n")]); })));
       }
     }
-    select.addEventListener("change", function () {
-      var other = select.value;
-      var choice = other ? { for: tr.id, against: other, data: null } : null;
-      state.compare = choice;
-      result.textContent = "";
-      if (!other) { return; }
-      fetch("./api/compare/" + encodeURIComponent(other) + "/" + encodeURIComponent(tr.id)).then(function (r) { return r.json(); }).then(function (data) {
+    // What the list says about a request: when any of it changes, a comparison made with it is out of date.
+    function sigOf(id) {
+      var row = state.requests.filter(function (r) { return r.id === id; })[0];
+      return row ? [row.queryCount, row.status, row.durationMs, row.warnings, row.errors].join(":") : "";
+    }
+    function fetchCompare(choice) {
+      choice.sig = sigOf(choice.against) + "|" + sigOf(tr.id);
+      fetch("./api/compare/" + encodeURIComponent(choice.against) + "/" + encodeURIComponent(tr.id)).then(function (r) { return r.json(); }).then(function (data) {
         if (state.compare === choice) { choice.data = data; show(data); }
       }).catch(function () { toast(t("toast.copyFailed")); });
+    }
+    select.addEventListener("change", function () {
+      var other = select.value;
+      var choice = other ? { for: tr.id, against: other, data: null, sig: "" } : null;
+      state.compare = choice;
+      result.textContent = "";
+      if (choice) { fetchCompare(choice); }
     });
     box.appendChild(h("div", { class: "compare-bar" }, [h("strong", { text: t("compare.title") }), select]));
     box.appendChild(result);
-    // The page redraws on every change of the server; a comparison that was already fetched is drawn again from what was fetched.
+    // The page redraws on every change of the server: a comparison already fetched is drawn again from what was fetched, and
+    // fetched again only when one of the two requests has changed since (a request that is still running keeps changing).
     if (state.compare && state.compare.for === tr.id) {
       select.value = state.compare.against;
-      if (select.value && state.compare.data) { show(state.compare.data); }
+      if (select.value && state.compare.data && state.compare.sig === sigOf(state.compare.against) + "|" + sigOf(tr.id)) { show(state.compare.data); }
+      else if (select.value) { fetchCompare(state.compare); }
     }
     return h("section", { class: "section" }, [h("div", { class: "section-head" }, [h("h2", { text: t("compare.heading") })]), box]);
   }
@@ -531,24 +541,40 @@ export const CLIENT_SCRIPT = String.raw`
     if (typeof v === "string") { return "'" + v.replace(/'/g, "''") + "'"; }
     try { return "'" + JSON.stringify(v).replace(/'/g, "''") + "'"; } catch (e) { return "?"; }
   }
+  // Placeholders are found outside strings, quoted names and comments. With numbered placeholders ($1) a ? is an operator
+  // (Postgres JSON), not a placeholder; ?? is a quoted name (mysql2). When the placeholders do not match the values one to
+  // one the statement is not shown with values at all: a wrong value is worse than none.
   function inlineValues(sql, params) {
     if (!params || !params.length) { return null; }
     if (params.some(function (p) { return typeof p === "string" && HIDDEN.test(p); })) { return null; }
-    var out = "", i = 0, used = 0, quote = "";
+    var numbered = /\$\d/.test(sql);
+    var out = "", i = 0, used = 0, quote = "", end;
     while (i < sql.length) {
-      var c = sql.charAt(i);
+      var c = sql.charAt(i), d = sql.charAt(i + 1);
       if (quote) {
         out += c;
-        if (c === quote) { if (sql.charAt(i + 1) === quote) { out += quote; i++; } else { quote = ""; } }
+        if (c === quote) { if (d === quote) { out += quote; i++; } else { quote = ""; } }
+      } else if (c === "-" && d === "-") {
+        end = sql.indexOf("\n", i); end = end < 0 ? sql.length : end; out += sql.slice(i, end); i = end; continue;
+      } else if (c === "/" && d === "*") {
+        end = sql.indexOf("*/", i + 2); end = end < 0 ? sql.length : end + 2; out += sql.slice(i, end); i = end; continue;
       } else if (c === "'" || c === '"' || c === BACKTICK) { quote = c; out += c; }
-      else if (c === "?") { out += used < params.length ? literal(params[used]) : "?"; used++; }
-      else if (c === "$" && /\d/.test(sql.charAt(i + 1))) {
+      else if (c === "?" && !numbered) {
+        if (used >= params.length) { return null; }
+        if (d === "?") {
+          var name = params[used];
+          out += typeof name === "string" ? BACKTICK + name.replace(/\x60/g, BACKTICK + BACKTICK) + BACKTICK : literal(name); i++;
+        } else { out += literal(params[used]); }
+        used++;
+      } else if (c === "$" && /\d/.test(d)) {
         var j = i + 1; while (/\d/.test(sql.charAt(j))) { j++; }
-        var n = Number(sql.slice(i + 1, j)); out += n >= 1 && n <= params.length ? literal(params[n - 1]) : sql.slice(i, j); used++; i = j - 1;
+        var n = Number(sql.slice(i + 1, j));
+        if (n < 1 || n > params.length) { return null; }
+        out += literal(params[n - 1]); used++; i = j; continue;
       } else { out += c; }
       i++;
     }
-    return used ? out : null;
+    return used && (numbered || used === params.length) ? out : null;
   }
   function fmtBytes(n) { return n < 1024 ? n + " B" : n < 1048576 ? num(n / 1024, 1) + " KB" : num(n / 1048576, 1) + " MB"; }
   function detailsEl(d) {
@@ -702,7 +728,7 @@ export const CLIENT_SCRIPT = String.raw`
       file.text().then(function (body) {
         return fetch("./api/history", { method: "POST", headers: { "content-type": "application/json" }, body: body }).then(function (r) { return r.json(); });
       }).then(function (result) {
-        toast(result && typeof result.loaded === "number" ? t("settings.history.loaded", { count: result.loaded }) : t("settings.history.failed"));
+        toast(!result || typeof result.loaded !== "number" ? t("settings.history.failed") : result.total > result.loaded ? t("settings.history.loadedSome", { count: result.loaded, total: result.total }) : t("settings.history.loaded", { count: result.loaded }));
         $("history-file").value = ""; refresh();
       }).catch(function () { toast(t("settings.history.failed")); });
     });

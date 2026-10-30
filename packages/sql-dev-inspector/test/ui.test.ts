@@ -44,7 +44,7 @@ function trace(id: string, url: string, queries: QueryEvent[], method = "GET", l
 }
 
 const nPlusOne = [1, 2, 3].map(i => query(`select \`id\` from \`order_items\` where \`order_id\` = ${i}`, { caller: WHERE }))
-function buildTraces(layered = false, values: "real" | "hidden" | null = null) {
+function buildTraces(layered = false, values: "real" | "hidden" | null = null, custom?: { sql: string, params: unknown[] }) {
   return [
     trace("a", "/api/order-detail/1", [
       ...nPlusOne,
@@ -53,7 +53,7 @@ function buildTraces(layered = false, values: "real" | "hidden" | null = null) {
       query("insert into `<img src=x onerror=window.__pwned=1>` values (1)", { rowCount: null, affectedRows: 1 }),
       query("commit")
     ], "GET", [{ level: "warn", at: 1020, message: "cache miss for order 1\nsecond line", caller: WHERE }, { level: "log", at: 1030, message: "done" }]),
-    trace("b", "/api/customers", [query(values ? "select 1 from `customers` where `id` = ? and `note` = 'a?b' and `n` = ?" : "select 1 from `customers`", values ? { params: values === "real" ? [7, "O'Brien"] : ["<number>", "<string:7>"] } : layered ? { driver: "prisma", details: { status: 200, requestBytes: 7, responseBytes: 2048, contentType: "application/json" }, statements: [query("select `id` from `customers` limit 1", { driver: "libsql", rowCount: 1 })] } : {})], "POST"),
+    trace("b", "/api/customers", [query(custom ? custom.sql : values ? "select 1 from `customers` where `id` = ? and `note` = 'a?b' and `n` = ?" : "select 1 from `customers`", custom ? { params: custom.params } : values ? { params: values === "real" ? [7, "O'Brien"] : ["<number>", "<string:7>"] } : layered ? { driver: "prisma", details: { status: 200, requestBytes: 7, responseBytes: 2048, contentType: "application/json" }, statements: [query("select `id` from `customers` limit 1", { driver: "libsql", rowCount: 1 })] } : {})], "POST"),
     trace("c", "/api/broken", [query("select boom", { error: "You have an error in your SQL syntax" })])
   ]
 }
@@ -69,12 +69,13 @@ interface Options {
   layered?: boolean
   values?: "real" | "hidden"
   recordedUnder?: "params" | "all" | "off"
+  statement?: { sql: string, params: unknown[] }
 }
 
 interface Source { onopen: (() => void) | null, onmessage: ((event: { data: string }) => void) | null, onerror: (() => void) | null }
 
 function render(options: Options = {}) {
-  const traces = buildTraces(options.layered, options.values ?? null)
+  const traces = buildTraces(options.layered, options.values ?? null, options.statement)
   if (options.recordedUnder) {
     traces.forEach((t) => { t.redact = options.recordedUnder })
   }
@@ -158,7 +159,7 @@ function render(options: Options = {}) {
   window.document.write(html.replace(/<script>[\s\S]*<\/script>/, ""))
   window.document.close()
   window.eval(script)
-  return { window, document: window.document, html, calls, sources, slow }
+  return { window, document: window.document, html, calls, sources, slow, traces }
 }
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 25))
@@ -738,6 +739,40 @@ describe("values in place of placeholders", () => {
   })
 })
 
+describe("values in place of placeholders: what is not a placeholder", () => {
+  const view = async (statement: { sql: string, params: unknown[] }) => {
+    const { document } = render({ statement, slow: { slowMs: 100, defaultSlowMs: 100, redact: "off" } as never })
+    await settle()
+    await selectRequest(document, 1)
+    click(document.querySelector(".q-head"))
+    const button = Array.from(document.querySelectorAll(".seg-btn")).find(b => b.textContent === "With values") as HTMLElement | undefined
+    if (!button) {
+      return null
+    }
+    click(button)
+    return document.querySelector(".q-body pre.sql")?.textContent
+  }
+
+  it("skips a ? in a comment", async () => {
+    expect(await view({ sql: "select 1 -- is it ok?\nwhere id = ?", params: [7] })).toBe("select 1 -- is it ok?\nwhere id = 7")
+    expect(await view({ sql: "select /* why? */ 1 where id = ?", params: [7] })).toBe("select /* why? */ 1 where id = 7")
+  })
+
+  it("reads ?? as a quoted name", async () => {
+    expect(await view({ sql: "select ?? from t where id = ?", params: ["name", 7] })).toBe("select `name` from t where id = 7")
+  })
+
+  it("leaves ? alone in a statement with numbered placeholders (Postgres JSON operators)", async () => {
+    expect(await view({ sql: "select * from t where data ? 'k' and id = $1", params: [7] })).toBe("select * from t where data ? 'k' and id = 7")
+  })
+
+  it("is not offered when the placeholders and the values do not match one to one", async () => {
+    expect(await view({ sql: "select 1 where id = ?", params: [1, 2] })).toBeNull()
+    expect(await view({ sql: "select 1 where a = ? and b = ?", params: [1] })).toBeNull()
+    expect(await view({ sql: "select 1 where a = $3", params: [1] })).toBeNull()
+  })
+})
+
 describe("a request recorded while values were hidden", () => {
   it("says so once values are shown, and not when the setting still matches", async () => {
     const shown = render({ recordedUnder: "params", slow: { slowMs: 100, defaultSlowMs: 100, redact: "off" } as never })
@@ -785,6 +820,46 @@ describe("redrawing while requests arrive", () => {
     for (let i = 0; i < 6; i++) { r.sources[0]!.onmessage!({ data: "{}" }) }
     await settle()
     expect(urls.filter(u => u.includes("overview")).length - before).toBeLessThanOrEqual(1)
+  })
+})
+
+describe("a comparison against a request that keeps changing", () => {
+  it("is fetched again once either request has changed, and not before", async () => {
+    const r = render()
+    await settle()
+    await selectRequest(r.document)
+    const urls: string[] = []
+    const traces = buildTraces()
+    const data = compareReports(buildReport(traces[1]!), buildReport(traces[0]!))
+    const real = r.window.fetch.bind(r.window)
+    Object.assign(r.window, { fetch: (url: string, init?: RequestInit) => {
+      urls.push(String(url))
+      return String(url).includes("compare") ? Promise.resolve({ json: () => Promise.resolve(data), text: () => Promise.resolve("") }) : real(url, init)
+    } })
+    const select = r.document.querySelector(".compare-select") as HTMLSelectElement
+    select.value = "b"
+    select.dispatchEvent(new r.window.Event("change"))
+    await settle()
+    r.sources[0]!.onmessage!({ data: "{}" })
+    await settle()
+    expect(urls.filter(u => u.includes("compare"))).toHaveLength(1)
+    r.traces[1]!.durationMs = 999 // the compared request finishes later than it was first seen
+    r.sources[0]!.onmessage!({ data: "{}" })
+    await settle()
+    expect(urls.filter(u => u.includes("compare"))).toHaveLength(2)
+  })
+})
+
+describe("loading a history file larger than the page keeps", () => {
+  it("says how many were kept", async () => {
+    const { document, window } = render()
+    await settle()
+    Object.assign(window, { fetch: () => Promise.resolve({ text: () => Promise.resolve("{}"), json: () => Promise.resolve({ loaded: 1, total: 3 }) }) })
+    const input = document.querySelector("#history-file") as HTMLInputElement
+    Object.defineProperty(input, "files", { value: [{ text: () => Promise.resolve("{}") }], configurable: true })
+    input.dispatchEvent(new window.Event("change"))
+    await settle()
+    expect(document.querySelector("#toast, .toast")?.textContent ?? "").toContain("Loaded 1 of 3 requests")
   })
 })
 

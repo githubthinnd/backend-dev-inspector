@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- **Comparison of a running request.** A comparison is fetched again when either request has changed since, instead of staying as it was at the first answer.
+- **"With values"** skips a `?` in a comment, reads `??` as a quoted name, leaves `?` alone beside numbered placeholders, and is not offered when the placeholders and the values do not match one to one.
+- **Loading a history file** says how many requests the page kept (`{ loaded, total }`) when the file holds more than the ring.
+- The `?token=` redirect keeps the other parameters exactly as they were written; the source-map cache is least-recently-used (256 entries) and, like the overview answer, shared by every copy of the package.
 - **Token that is too short.** `SQL_INSPECTOR_TOKEN` shorter than 8 characters used to be ignored, leaving the inspector open to someone who believed it was protected. It now locks the inspector (401 for everyone, with a message at start) until the setting is fixed. The `?token=` redirect always stays on this server.
 - **History files.** Loaded requests are no longer expired by the live-request TTL (a file saved days ago opened and vanished at the next read), and a saved request keeps the SQL a library sent for it and the mode it was recorded under.
 - **The page redraws less.** The overview is rebuilt at most once a second and cached on the server until a request changes; a comparison already fetched is not fetched again on every change.

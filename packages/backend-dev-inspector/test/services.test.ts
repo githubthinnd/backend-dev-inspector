@@ -298,3 +298,31 @@ describe("wrapping before the inspector starts", () => {
     }
   })
 })
+
+describe("BullMQ with a queue whose methods are not promises", () => {
+  it("is still one call, and does not turn the application's call into a TypeError", async () => {
+    uninstalls.push(bullmqDriver.install(rec())!)
+    const queue = instrumentBullmq({ name: "plain", add: (name: string) => ({ name }) as unknown as Promise<unknown> })
+    const trace = request("/plain")
+    const job = await runInRequest(trace, async () => await queue.add("x"))
+    expect(job).toEqual({ name: "x" })
+    expect(trace.queries.map(q => [q.sql, q.error])).toEqual([["BULLMQ plain add 'x'", null]])
+  })
+})
+
+describe("recorders shared between copies of the package", () => {
+  it("are kept under one key, so a second copy sees the recorder the first installed", async () => {
+    const { wrapperDriver } = await import("../src/drivers/wrapper")
+    const first = wrapperDriver("shared-test")
+    const second = wrapperDriver("shared-test")
+    const release = first.driver.install(rec(), { explicit: false })!
+    const trace = request("/shared")
+    runInRequest(trace, () => {
+      second.recorder()!.begin({ driver: "x", api: "q", text: "select 1", connectionId: 1, analysis: { kind: "select", tables: [], subqueryDepth: 0, subqueryCount: 0, fingerprint: "select ?", selectStar: false, savepoint: null } })?.end()
+    })
+    expect(trace.queries.map(q => q.sql)).toEqual(["select 1"])
+    release()
+    // once the first copy's install is released nothing is left, and (the test runner is not a dev server) the inspector is off
+    expect(second.recorder()).toBeNull()
+  })
+})

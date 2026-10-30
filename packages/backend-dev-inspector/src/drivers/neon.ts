@@ -1,7 +1,7 @@
 import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector"
 import { analyzeSql } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
-import { lazyRecorder } from "./verbs.js"
+import { wrapperDriver } from "./wrapper.js"
 
 /**
  * Neon's serverless driver over HTTP, `neon(url)`: the function it returns runs a query when it is awaited, which no
@@ -16,19 +16,9 @@ import { lazyRecorder } from "./verbs.js"
  * Drizzle and Prisma on the HTTP driver go through `neon()` and are covered.) Nothing is loaded from Neon.
  */
 
-let active: Recorder | null = null
+const wrapper = wrapperDriver("neon")
 
-export const neonDriver: DriverAdapter = {
-  name: "neon",
-  install(recorder) {
-    active = recorder
-    return () => {
-      if (active === recorder) {
-        active = null
-      }
-    }
-  }
-}
+export const neonDriver: DriverAdapter = wrapper.driver
 
 const MAX_TEXT = 4000
 
@@ -86,7 +76,7 @@ function follow(recorder: Recorder, id: number, text: string, params: unknown[] 
 const templateText = (strings: ArrayLike<string>) => Array.from(strings).reduce((text, piece, index, all) => text + piece + (index < all.length - 1 ? `$${index + 1}` : ""), "")
 
 export function instrumentNeon<T extends (...args: never[]) => unknown>(sql: T, recorder?: Recorder): T {
-  const rec = lazyRecorder(recorder, () => active)
+  const rec = wrapper.recorder(recorder)
   if (!rec) {
     return sql
   }
