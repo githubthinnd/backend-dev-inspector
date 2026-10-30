@@ -103,6 +103,33 @@ function execPatch(recorder: Recorder, driver: string, target: object, connectio
   }
 }
 
+/**
+ * SQLite reads the statement when it is prepared, so a syntax error or a missing table is raised by
+ * `prepare()`, before any `run` / `get` / `all` exists to report it. A failed prepare is listed as a call
+ * with its error; one that succeeds is not (the statement is reported when it runs).
+ */
+function preparePatch(recorder: Recorder, driver: string, target: object, connectionOf: (database: unknown) => number, wrapSuccess?: (database: object, statement: unknown) => void): Patch {
+  return {
+    target,
+    name: "prepare",
+    make: original => function patchedPrepare(this: object, ...args: unknown[]) {
+      try {
+        const statement = (original as (...a: unknown[]) => unknown).apply(this, args)
+        wrapSuccess?.(this, statement)
+        return statement
+      } catch (error) {
+        try {
+          const sql = String(args[0])
+          recorder.begin({ driver, api: "prepare", text: sql, connectionId: connectionOf(this), analysis: analyzeSql(sql, "sqlite") })?.end({ error })
+        } catch {
+          // best effort: the original error is what the caller must get
+        }
+        throw error
+      }
+    } as never
+  }
+}
+
 // ── better-sqlite3 ──────────────────────────────────────────────────────
 
 interface BetterSqliteStatement {
@@ -136,7 +163,8 @@ export const betterSqlite3Driver: DriverAdapter = {
     }
     return applyPatches(Database, [
       ...statementPatches(recorder, "better-sqlite3", statementPrototype, describe),
-      execPatch(recorder, "better-sqlite3", Database.prototype, database => objectId(database as object))
+      execPatch(recorder, "better-sqlite3", Database.prototype, database => objectId(database as object)),
+      preparePatch(recorder, "better-sqlite3", Database.prototype, database => objectId(database as object))
     ])
   }
 }
@@ -171,17 +199,11 @@ export const nodeSqliteDriver: DriverAdapter = {
       return { text: String(sourceSQL ?? ""), connectionId: objectId(owner ?? (statement as object)) }
     }
     return applyPatches(sqlite.DatabaseSync, [
-      {
-        target: sqlite.DatabaseSync.prototype,
-        name: "prepare",
-        make: original => function patchedPrepare(this: object, ...args: unknown[]) {
-          const statement = (original as (...a: unknown[]) => unknown).apply(this, args)
-          if (statement && typeof statement === "object") {
-            owners.set(statement, this)
-          }
-          return statement
-        } as never
-      },
+      preparePatch(recorder, "node:sqlite", sqlite.DatabaseSync.prototype, database => objectId(database as object), (database, statement) => {
+        if (statement && typeof statement === "object") {
+          owners.set(statement, database)
+        }
+      }),
       ...statementPatches(recorder, "node:sqlite", sqlite.StatementSync.prototype, describe),
       execPatch(recorder, "node:sqlite", sqlite.DatabaseSync.prototype, database => objectId(database as object))
     ])

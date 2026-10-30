@@ -44,6 +44,18 @@ describe.skipIf(!betterSqliteBuilt)("better-sqlite3", () => {
     db.close()
   })
 
+  it("records an error raised while the statement is prepared, and rethrows it", () => {
+    const trace = request("/prepare-error")
+    expect(() => runInRequest(trace, () => db.prepare("select * from missing_table"))).toThrow(/no such table/)
+    expect(trace.queries.map(q => [q.api, q.sql, q.error?.includes("no such table")])).toEqual([["prepare", "select * from missing_table", true]])
+  })
+
+  it("does not list a statement that prepared fine until it runs", () => {
+    const trace = request("/prepare-ok")
+    runInRequest(trace, () => db.prepare("select 1"))
+    expect(trace.queries).toHaveLength(0)
+  })
+
   it("records run, get, all and iterate with their rows and parameters", () => {
     const trace = request("/users")
     runInRequest(trace, () => {
