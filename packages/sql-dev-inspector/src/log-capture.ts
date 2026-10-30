@@ -1,5 +1,5 @@
 import { format } from "node:util"
-import type { Inspector } from "./runtime.js"
+import { getInspector, type Inspector } from "./runtime.js"
 import { currentTrace, IGNORED_ID } from "./context.js"
 import { findCaller } from "./caller.js"
 
@@ -12,7 +12,7 @@ import { findCaller } from "./caller.js"
  * on or off later needs nothing more. The inspector's own output is never captured.
  */
 
-const INSTALLED = Symbol.for("sqlDevInspector.logsInstalled")
+const WRAPPED = Symbol.for("sqlDevInspector.logsWrapper")
 const LEVELS = ["log", "info", "warn", "error", "debug"] as const
 const MAX_ENTRIES = 200
 const MAX_MESSAGE = 2000
@@ -31,16 +31,21 @@ export function withoutCapture<T>(fn: () => T): T {
   }
 }
 
-export function installLogCapture(inspector: Inspector): () => void {
-  const holder = console as unknown as Record<symbol, (() => void) | undefined>
-  holder[INSTALLED]?.() // an earlier install (a restart in a test) stops capturing; its wrapper stays and passes calls through
-  let active = true
-
+/**
+ * Wraps each console method that is not wrapped yet. The wrappers read the setting on every call, so switching capture
+ * off leaves them in place and inert; if something else replaced a method since (another logger, a test's spy), the next
+ * switch-on wraps the new one.
+ */
+function patchConsole() {
   for (const level of LEVELS) {
+    if ((console[level] as unknown as Record<symbol, boolean | undefined>)[WRAPPED]) {
+      continue
+    }
     const original = console[level].bind(console) as (...args: unknown[]) => void
-    console[level] = ((...args: unknown[]) => {
+    const wrapper = ((...args: unknown[]) => {
       try {
-        if (active && inspector.logs && muted === 0) {
+        const inspector = getInspector()
+        if (inspector.logs && muted === 0) {
           const trace = currentTrace()
           if (trace && trace.id !== IGNORED_ID) {
             const logs = (trace.logs ??= [])
@@ -55,11 +60,19 @@ export function installLogCapture(inspector: Inspector): () => void {
         // never get in the way of the application's own logging
       }
       original(...args)
-    }) as never
+    }) as unknown as Record<symbol, boolean>
+    wrapper[WRAPPED] = true
+    console[level] = wrapper as never
   }
-  const stop = () => {
-    active = false
+}
+
+/**
+ * Turns the listing of console output on or off. `console` is only touched once it is on for the first time, so an
+ * application that never asks for it keeps the console it has (and so do the tests that spy on it).
+ */
+export function setLogCapture(inspector: Inspector, on: boolean): void {
+  inspector.logs = on
+  if (on) {
+    patchConsole()
   }
-  holder[INSTALLED] = stop
-  return stop
 }

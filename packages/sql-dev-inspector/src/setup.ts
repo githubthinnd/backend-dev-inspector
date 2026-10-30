@@ -4,7 +4,7 @@ import { resolveEditor } from "./caller.js"
 import type { RedactMode } from "./redact.js"
 import { parsePatterns } from "./route-filter.js"
 import { translate } from "./i18n/index.js"
-import { installLogCapture, withoutCapture } from "./log-capture.js"
+import { setLogCapture, withoutCapture } from "./log-capture.js"
 import { createRecorder } from "./recorder.js"
 import { buildReport } from "./report.js"
 import { type Brand, getInspector, type Inspector, isInspectorEnabled, normalizeMount } from "./runtime.js"
@@ -73,9 +73,10 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
     inspector.defaults.filters.exclude = [...inspector.filters.exclude]
   }
   if (options.logs !== undefined) {
-    inspector.logs = options.logs
     inspector.defaults.logs = options.logs
+    inspector.logs = options.logs
   }
+  setLogCapture(inspector, inspector.logs)
   if (options.stack !== undefined) {
     inspector.stack = options.stack
     inspector.store.captureCaller = options.stack
@@ -114,7 +115,6 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
   }
 
   if (first) {
-    installLogCapture(inspector)
     if (inspector.logToTerminal) {
       store.subscribe((change) => {
         if (change.type !== "request-end") {

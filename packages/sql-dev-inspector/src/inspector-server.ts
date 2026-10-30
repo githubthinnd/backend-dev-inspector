@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
 import { diagnose } from "./doctor.js"
+import { setLogCapture } from "./log-capture.js"
 import { handleMcp } from "./mcp.js"
 import { installedDrivers } from "./setup.js"
 import { parsePatterns } from "./route-filter.js"
@@ -324,7 +325,7 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
         store.captureCaller = inspector.stack
       }
       if ("logs" in change) {
-        inspector.logs = change.logs ?? inspector.defaults.logs
+        setLogCapture(inspector, change.logs ?? inspector.defaults.logs)
       }
       if ("editor" in change) {
         inspector.editor = change.editor === null || change.editor === undefined ? { ...inspector.defaults.editor } : resolveEditor(change.editor)

@@ -1,7 +1,7 @@
 export { describeOperation, genericFingerprint, type OperationDescription } from "./analysis.js"
 export { bindToRequest, currentTrace, runIgnored, runInRequest } from "./context.js"
 export type { DriverAdapter, InstallContext } from "./driver.js"
-export { installLogCapture, withoutCapture } from "./log-capture.js"
+export { setLogCapture, withoutCapture } from "./log-capture.js"
 export { type Caller, EDITORS, findCaller, resolveEditor, shortLocation } from "./caller.js"
 export { type Check, diagnose, registerDiagnostics } from "./doctor.js"
 export { handleMcp } from "./mcp.js"

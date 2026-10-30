@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { runIgnored, runInRequest } from "../src/context"
 import { createRecorder } from "../src/recorder"
+import { setLogCapture } from "../src/log-capture"
 import { getInspector } from "../src/runtime"
 import { resetInspectorForTests, startInspector } from "../src/setup"
 import { analyzeSql } from "../src/sql-analyzer"
@@ -28,7 +29,8 @@ const record = (trace: ReturnType<typeof getInspector>["store"]["startRequest"] 
   createRecorder(getInspector().store).begin({ driver: "t", api: "q", text: "select 1", connectionId: 1, analysis: analyzeSql("select 1") })?.end() ?? trace
 
 describe("console output under its request", () => {
-  it("is off by default: nothing is listed, and the application still prints", () => {
+  it("is off by default: nothing is listed, the application still prints, and console is not touched", () => {
+    expect(vi.isMockFunction(console.log)).toBe(true)
     const trace = getInspector().store.startRequest("GET", "/x")
     runInRequest(trace, () => console.log("hello", 1))
     expect(trace.logs).toBeUndefined()
@@ -37,7 +39,7 @@ describe("console output under its request", () => {
 
   it("lists each line under the request that printed it, with its level, time and calling line, and still prints it", () => {
     const inspector = getInspector()
-    inspector.logs = true
+    setLogCapture(inspector, true)
     inspector.stack = true
     const trace = inspector.store.startRequest("GET", "/orders")
     runInRequest(trace, () => {
@@ -53,7 +55,7 @@ describe("console output under its request", () => {
 
   it("ignores output outside any request, in a request the filters leave out, and the inspector's own", () => {
     const inspector = getInspector()
-    inspector.logs = true
+    setLogCapture(inspector, true)
     console.log("at startup")
     runIgnored(() => console.log("a filtered request"))
     expect(inspector.store.list().flatMap(trace => trace.logs ?? [])).toEqual([])
@@ -62,7 +64,7 @@ describe("console output under its request", () => {
 
   it("keeps ANSI colours out, and the list and each line within bounds", () => {
     const inspector = getInspector()
-    inspector.logs = true
+    setLogCapture(inspector, true)
     const trace = inspector.store.startRequest("GET", "/x")
     runInRequest(trace, () => {
       console.log("\u001B[31mred\u001B[0m")
@@ -78,7 +80,7 @@ describe("console output under its request", () => {
 
   it("shows with the request in the report API once the request has a call", () => {
     const inspector = getInspector()
-    inspector.logs = true
+    setLogCapture(inspector, true)
     const trace = inspector.store.startRequest("GET", "/x")
     runInRequest(trace, () => {
       console.log("before the query")
