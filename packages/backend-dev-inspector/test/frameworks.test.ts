@@ -8,8 +8,11 @@ import { inspectorMiddleware as astro } from "../src/frameworks/astro"
 import { inspectorPlugin as fastifyPlugin } from "../src/frameworks/fastify"
 import { inspectorMiddleware as honoMiddleware } from "../src/frameworks/hono"
 import { inspectorMiddleware as koaMiddleware } from "../src/frameworks/koa"
+import { inspectNest } from "../src/frameworks/nest"
 import { inspectorRoute, withInspector, withInspectorAction, withInspectorPage } from "../src/frameworks/next"
+import { inspectReactRouter, inspectRemix } from "../src/frameworks/remix"
 import { inspectorHandle } from "../src/frameworks/sveltekit"
+import { trpcInspector } from "../src/frameworks/trpc"
 import { inspector as vitePlugin } from "../src/frameworks/vite"
 import { BRAND, withDefaults } from "../src/options"
 import { wrapFetch } from "../src/web"
@@ -352,5 +355,91 @@ describe("web-standard adapters", () => {
     expect(wrapFetch(handler)).toBe(handler)
     const res = await withInspector(handler)(new Request(`${URL_BASE}/x`), undefined)
     expect(await res.text()).toBe("plain")
+  })
+})
+
+describe("NestJS", () => {
+  it("on Express: adds the middleware to the application", async () => {
+    const used: unknown[] = []
+    const app = { getHttpAdapter: () => ({ getType: () => "express" }), use: (fn: unknown) => used.push(fn) }
+    expect(await inspectNest(app)).toBe(app)
+    expect(used).toHaveLength(1)
+    const handler = (req: never, res: { end: (body?: string) => void }) => (used[0] as (req: never, res: unknown, next: () => void) => void)(req, res, () => {
+      void callDatabase("select nest").then(() => res.end("ok"))
+    })
+    const res = await inject(handler, { url: "/cats" })
+    expect(res.body).toBe("ok")
+    expect(traceOf("/cats")!.queries.map(q => q.sql)).toEqual(["select nest"])
+  })
+
+  it("on Fastify: registers the plugin, so guards, pipes and handlers belong to their request", async () => {
+    const fastify = Fastify()
+    const app = { getHttpAdapter: () => ({ getType: () => "fastify" }), register: (plugin: never) => fastify.register(plugin) }
+    await inspectNest(app)
+    fastify.get("/dogs", async () => {
+      await callDatabase("select dogs")
+      return { ok: true }
+    })
+    await fastify.ready()
+    await fastify.inject({ url: "/dogs" })
+    expect(traceOf("/dogs")!.queries.map(q => q.sql)).toEqual(["select dogs"])
+    await fastify.close()
+  })
+
+  it("does nothing outside development", async () => {
+    vi.stubEnv("SQL_INSPECTOR", "0")
+    resetInspectorForTests()
+    const used: unknown[] = []
+    await inspectNest({ getHttpAdapter: () => ({ getType: () => "express" }), use: (fn: unknown) => used.push(fn) })
+    expect(used).toEqual([])
+  })
+})
+
+describe("tRPC", () => {
+  const procedure = (path: string, type: string, work: () => Promise<unknown>, ok = true) => trpcInspector()({ path, type, next: async () => {
+    await work()
+    return ok ? { ok: true, data: 1 } : { ok: false, error: { code: "INTERNAL_SERVER_ERROR" } }
+  } })
+
+  it("leaves a line for every procedure of a batch under its request, and does not change the result", async () => {
+    const web = (await import("sql-dev-inspector")).createWebInspector()
+    const res = await web.track(new Request(`${URL_BASE}/api/trpc/orders.list,users.get`), async () => {
+      expect(await procedure("orders.list", "query", () => callDatabase("select orders"))).toEqual({ ok: true, data: 1 })
+      await procedure("users.get", "query", () => callDatabase("select users"), false)
+      return new Response("[]")
+    })
+    expect(res.status).toBe(200)
+    const trace = traceOf("/api/trpc/orders.list,users.get")!
+    expect(trace.queries).toHaveLength(2)
+    expect(trace.logs!.map(l => [l.level, l.message.replace(/ · [\d.]+ ms/, "")])).toEqual([
+      ["info", "tRPC query orders.list · ok"],
+      ["error", "tRPC query users.get · INTERNAL_SERVER_ERROR"]
+    ])
+  })
+
+  it("is a request of its own where there is none, and a failure is a 500", async () => {
+    await procedure("orders.list", "query", () => callDatabase("select alone"))
+    expect(traceOf("orders.list")).toMatchObject({ method: "QUERY", status: 200 })
+    await procedure("orders.create", "mutation", () => callDatabase("insert alone"), false)
+    expect(traceOf("orders.create")).toMatchObject({ method: "MUTATION", status: 500 })
+  })
+
+  it("passes through outside development", async () => {
+    vi.stubEnv("SQL_INSPECTOR", "0")
+    resetInspectorForTests()
+    expect(await procedure("a.b", "query", async () => undefined)).toEqual({ ok: true, data: 1 })
+  })
+})
+
+describe("Remix and React Router", () => {
+  it("wraps the request handler: loaders and actions belong to their request, and the inspector's pages are answered", async () => {
+    const handler = inspectRemix(async (request: Request, context: { user: string }) => {
+      await callDatabase("select loader")
+      return new Response(`${new URL(request.url).pathname}:${context.user}`)
+    })
+    expect(await (await handler(new Request(`${URL_BASE}/orders`), { user: "ann" })).text()).toBe("/orders:ann")
+    expect(traceOf("/orders")!.queries.map(q => q.sql)).toEqual(["select loader"])
+    expect((await handler(new Request(`${URL_BASE}/__sql-inspector/api/requests`), { user: "x" })).headers.get("content-type")).toContain("json")
+    expect(inspectReactRouter).toBe(inspectRemix)
   })
 })

@@ -46,7 +46,16 @@
     "turso",
     "postgres.js",
     "db0",
-    "nuxthub"
+    "nuxthub",
+    "nestjs",
+    "trpc",
+    "remix",
+    "react-router",
+    "aws-sdk",
+    "elasticsearch",
+    "bullmq",
+    "neon",
+    "cloudflare-d1"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -103,7 +112,19 @@
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./nest": {
+      "types": "./dist/frameworks/nest.d.ts",
+      "import": "./dist/frameworks/nest.js"
+    },
+    "./trpc": {
+      "types": "./dist/frameworks/trpc.d.ts",
+      "import": "./dist/frameworks/trpc.js"
+    },
+    "./remix": {
+      "types": "./dist/frameworks/remix.d.ts",
+      "import": "./dist/frameworks/remix.js"
+    }
   },
   "files": [
     "CHANGELOG.md",

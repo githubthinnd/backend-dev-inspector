@@ -163,6 +163,22 @@ export const createOrder = withInspectorAction("createOrder", async (data: FormD
 
 `redirect()` and `notFound()` are not failures (they end as 307 and 404), and a component called inside a wrapped route handler joins that request. Without the wrapper, those calls are listed under "outside any request".
 
+### NestJS, tRPC, Remix and React Router
+
+```ts
+// NestJS main.ts: before listen(); picks the Express or Fastify adapter by itself
+import { inspectNest } from "backend-dev-inspector/nest"
+await inspectNest(app)
+
+// tRPC: every procedure leaves a line under its request (a batch is one request), or is a request of its own without one
+import { trpcInspector } from "backend-dev-inspector/trpc"
+const inspected = t.procedure.use(trpcInspector())
+
+// Remix / React Router framework mode: wrap the request handler
+import { inspectRemix } from "backend-dev-inspector/remix"
+const handler = inspectRemix(createRequestHandler(build))
+```
+
 ### SvelteKit
 
 ```ts
@@ -315,7 +331,9 @@ These sit on a driver above, so they are watched through it. Statements are the 
 | Framework | Import | Verified |
 |---|---|---|
 | Express 5 / Connect | `createInspector().middleware` | ✅ real app in the playground; unit tests with a faithful `req` / `res` |
-| NestJS | the Express or Fastify entry above | 🟡 |
+| NestJS | `await inspectNest(app)` from `backend-dev-inspector/nest` (picks Express or Fastify) | ✅ on Fastify through a stand-in app object; 🧪 on Express; not run inside a real Nest container |
+| tRPC | `trpcInspector()` from `backend-dev-inspector/trpc`, as a procedure middleware | 🧪 with the documented middleware arguments |
+| Remix, React Router (framework mode) | `inspectRemix(handler)` from `backend-dev-inspector/remix` | 🧪 with a handler of the documented shape |
 | Fastify 5 | `backend-dev-inspector/fastify` | ✅ real Fastify |
 | Koa 3 | `backend-dev-inspector/koa` | ✅ real Koa |
 | Hono 4 | `backend-dev-inspector/hono` | ✅ real Hono (Node) |
@@ -327,7 +345,7 @@ These sit on a driver above, so they are watched through it. Statements are the 
 | Bun, Deno, Workers | `wrapFetch` | 🟡 uses web APIs and `AsyncLocalStorage` only; tested on Node.js |
 | Plain Node `http`, scripts, cron | `handle` / `track` / `task` | ✅ |
 
-Not supported: Nuxt 2 (EOL), runtimes without `AsyncLocalStorage`, and databases without a driver listed above (for example Oracle, SQL Server, DynamoDB).
+Not supported: Nuxt 2 (EOL), runtimes without `AsyncLocalStorage`, and databases without a driver listed above (for example Oracle, SQL Server).
 
 ## What it tells you
 
@@ -458,7 +476,7 @@ interface SqlInspector {
 | Import | For |
 |---|---|
 | `backend-dev-inspector` | the API above, `instrumentMariadb`, `instrumentPostgres`, every export of `sql-dev-inspector` |
-| `/fastify` `/koa` `/hono` `/next` `/sveltekit` `/astro` `/vite` | framework adapters |
+| `/fastify` `/koa` `/hono` `/next` `/sveltekit` `/astro` `/vite` `/nest` `/trpc` `/remix` | framework adapters |
 | `/nuxt` `/nitro` | Nuxt module, Nitro plugin |
 | `/prisma` | `prismaExtension()` |
 | `/client` | `mountSqlInspectorWidget({ baseURL })`, the floating button |
