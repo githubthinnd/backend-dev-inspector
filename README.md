@@ -44,7 +44,7 @@ A slow endpoint is rarely one slow query. It is the same query run forty times, 
 - **Dev only**: nothing runs when `NODE_ENV=production`. Nothing is written to disk or sent anywhere unless you ask for it.
 
 <p align="center">
-  <img alt="The Customers screen of the demo app, with the inspector's floating button showing 11 calls and a warning" src="docs/media/nuxt-customers.jpg" width="49%">
+  <img alt="The Customers screen of the demo app, with the inspector's floating button and its count of warnings" src="docs/media/nuxt-customers.jpg" width="49%">
   <img alt="The inspector panel docked at the bottom of the app: the N+1 warning first, with the line of code and how to fix it, then the totals and where the time went" src="docs/media/inspector-n-plus-one.jpg" width="49%">
 </p>
 <p align="center">

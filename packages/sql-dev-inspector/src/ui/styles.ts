@@ -6,16 +6,17 @@
  */
 
 const DARK = `
-  --bg: #0d1117; --surface: #151b23; --surface-2: #1b232d; --surface-3: #242e3a;
-  --border: #283241; --border-strong: #3a4757;
-  --text: #e6edf3; --text-2: #aab5c3; --text-3: #929eac;
-  --accent: #5aa2ff; --accent-weak: rgba(90, 162, 255, .14); --accent-text: #0d1117;
-  --ok: #4ac26b; --ok-weak: rgba(74, 194, 107, .14);
-  --warn: #e3a008; --warn-weak: rgba(227, 160, 8, .14);
-  --err: #ff7b7b; --err-weak: rgba(255, 107, 107, .15);
-  --shadow: 0 8px 24px rgba(0, 0, 0, .45);
-  --syn-kw: #c792ea; --syn-str: #8bd49c; --syn-num: #f2a65e; --syn-id: #7cb7ff; --syn-fn: #e6c07b; --syn-com: #7d8896;
+  --bg: #0a0e1a; --surface: #111729; --surface-2: #182038; --surface-3: #212c4a;
+  --border: #222d4a; --border-strong: #364366;
+  --text: #eef2fb; --text-2: #b6c1d9; --text-3: #92a0bd;
+  --accent: #7c9cff; --accent-weak: rgba(124, 156, 255, .16); --accent-text: #0a0e1a;
+  --ok: #3ddc97; --ok-weak: rgba(61, 220, 151, .14);
+  --warn: #ffb84d; --warn-weak: rgba(255, 184, 77, .15);
+  --err: #ff7a90; --err-weak: rgba(255, 122, 144, .16);
+  --shadow: 0 10px 30px rgba(2, 5, 15, .6);
+  --syn-kw: #c4a1ff; --syn-str: #7ee2b8; --syn-num: #ffb36b; --syn-id: #8cc2ff; --syn-fn: #ffd479; --syn-com: #7a88a6;
 `
+
 
 export const STYLES = `
 :root {

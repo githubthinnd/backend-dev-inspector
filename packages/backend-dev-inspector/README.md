@@ -24,7 +24,7 @@ When a client calls your API, `backend-dev-inspector` shows **what the server di
 You see it in three places: **a tree in your terminal**, **a page** at `/__sql-inspector/`, and **a panel inside your app**. In production it does nothing.
 
 <p align="center">
-  <img alt="The Customers screen of the demo app, with the inspector's floating button showing 11 calls and a warning" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/nuxt-customers.jpg" width="49%">
+  <img alt="The Customers screen of the demo app, with the inspector's floating button and its count of warnings" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/nuxt-customers.jpg" width="49%">
   <img alt="The inspector panel docked at the bottom of the app: the N+1 warning first, with the line of code and how to fix it, then the totals and where the time went" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/inspector-n-plus-one.jpg" width="49%">
 </p>
 <p align="center">
