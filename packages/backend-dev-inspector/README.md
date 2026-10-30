@@ -55,8 +55,10 @@ You see it in three places: **a tree in your terminal**, **a live page** at `/__
 - **Warnings that point at the cause**: N+1 loops, repeated calls, slow calls, errors, too many statements.
 - **Per-request attribution** that survives concurrency and connection pools (`AsyncLocalStorage`).
 - **Three views**: terminal tree, live web page (search, filters, timeline waterfall, formatted SQL), floating in-app panel with keyboard shortcuts.
-- **Works with what you already use**: it observes your existing libraries (`pg`, `mysql2`, `mongodb`, `ioredis`, `fetch`…), so your code does not change.
+- **Works with what you already use**: it observes your existing libraries (`pg`, `postgres.js`, `mysql2`, `better-sqlite3`, `libSQL` / Turso, `mongodb`, `ioredis`, `fetch`…), so your code does not change.
 - **Adapters** for Express, Fastify, Koa, Hono, Nuxt / Nitro, Next.js, SvelteKit, Astro, Vite and plain Node `http`.
+- **Values hidden by default**: bind parameters are shown as their type and size (`<string:12>`), and a stricter mode masks the whole statement. N+1 detection still works. [Details](#hiding-values).
+- **Choose what to follow**: include or exclude requests by route (`/api/**`), and serve the page from a path of your choosing. [Details](#choosing-which-requests-are-traced).
 - **Safe by default**: off in production, local only, in memory only, secrets kept out of what it records. [Details](#what-it-records-and-what-it-hides).
 - **English, Vietnamese and Japanese** in the terminal, the page and the panel.
 - **No network access and no telemetry**: no CDN, no fonts, no analytics.
@@ -224,6 +226,11 @@ const mariadb = instrumentMariadb(mariadbModule) // unchanged outside developmen
 // Prisma: add the client extension
 import { prismaExtension } from "backend-dev-inspector/prisma"
 const prisma = new PrismaClient().$extends(prismaExtension())
+
+// postgres.js 3 (version 4 needs nothing): wrap the client once
+import postgres from "postgres"
+import { instrumentPostgres } from "backend-dev-inspector"
+const sql = instrumentPostgres(postgres(process.env.DATABASE_URL))
 ```
 
 ## Supported technologies
@@ -244,8 +251,11 @@ Every technology is a *driver*: its calls are described as the SQL statement the
 |---|---|---|---|
 | **PostgreSQL** | `pg` ≥ 8 | patches `Client#query`; pool-aware | ✅ Real client, `pg` 8 + protocol mock |
 | **MySQL, MariaDB server** | `mysql2` ≥ 3 | patches `Connection#query` / `execute` (via `sql-dev-inspector`) | ✅ Real client, `mysql2` 3 + protocol mock |
+| **PostgreSQL** (postgres.js) | `postgres` ≥ 3 | 4: subscribes to its tracing channel. 3: `instrumentPostgres(sql)` wrapper | ✅ Real client, `postgres` 4 and 3 + protocol mock |
 | **SQLite** | `better-sqlite3` ≥ 9 | patches statements and `exec`; `db.transaction()` shows as a transaction | ✅ Real client, v13 |
 | | `node:sqlite` (built in) | the same; **opt-in** | ✅ Real, Node 22+ |
+| **libSQL, Turso** | `@libsql/client` ≥ 0.14 | patches the client and transaction classes of the local, HTTP and WebSocket clients (the ESM and the CommonJS copy) | ✅ Real client, in-memory database; remote client on a refused connection |
+| **db0** (Nitro `useDatabase()`, NuxtHub) | `db0` | through the driver under the connector (`better-sqlite3`, libSQL, `pg`, `mysql2`): nothing to set up. Other connectors (PGlite, Neon, D1…): `withTracing(db)` from `db0/tracing` | ✅ over `better-sqlite3` and libSQL; 🧪 the tracing channel, with a stand-in connector |
 | **MongoDB** | `mongodb` ≥ 5 (and Mongoose) | switches on the driver's command monitoring | ✅ Real client, `mongodb` 7 + protocol mock |
 | **Redis** | `ioredis` 6, `redis` 6 (node-redis) | subscribes to the clients' own tracing channels | ✅ Real clients |
 | | `ioredis` 5 | small patch on `sendCommand` | ✅ Real client, patch path forced |
@@ -259,10 +269,10 @@ These sit on a driver above, so they are watched through it. Statements are the 
 
 | ORM / builder | Runs on | Verified |
 |---|---|---|
-| Drizzle ORM | `pg`, `mysql2`, `better-sqlite3` | ✅ with `better-sqlite3` and `mysql2` |
+| Drizzle ORM | `pg`, `postgres`, `mysql2`, `better-sqlite3`, `@libsql/client` | ✅ with `better-sqlite3` and `mysql2` |
 | Prisma | its own engine | ✅ through `prismaExtension()` (calls shown by model and operation) |
 | Mongoose | `mongodb` | 🟡 |
-| Kysely, Knex, Sequelize, TypeORM | `pg`, `mysql2`, `better-sqlite3` | 🟡 |
+| Kysely, Knex, Sequelize, TypeORM | `pg`, `postgres`, `mysql2`, `better-sqlite3` | 🟡 |
 
 ### Frameworks
 
@@ -305,7 +315,11 @@ Every `SQL_INSPECTOR_*` variable below is read from the environment through an a
 |---|---|---|
 | `NODE_ENV` | — | `production` is **always off**, even with `SQL_INSPECTOR=1`; `development` is on |
 | `SQL_INSPECTOR` | — | `1` turns it on outside development (for example `test`); `0` turns it off |
-| `SQL_INSPECTOR_DRIVERS` | all | Comma-separated drivers to keep: `mysql2`, `pg`, `better-sqlite3`, `mongodb`, `ioredis`, `redis`, `http`, `fetch`, `mariadb`, `prisma`, and `node:sqlite` (opt-in). `all` or empty keeps everything |
+| `SQL_INSPECTOR_DRIVERS` | all | Comma-separated drivers to keep: `mysql2`, `pg`, `postgres`, `better-sqlite3`, `libsql`, `db0`, `mongodb`, `ioredis`, `redis`, `http`, `fetch`, `mariadb`, `prisma`, and `node:sqlite` (opt-in). `all` or empty keeps everything |
+| `SQL_INSPECTOR_REDACT` | `params` | What is kept of values: `params` (bind parameters become their type and size), `all` (the statement is shown with every value masked), `off` (everything as sent). See [Hiding values](#hiding-values) |
+| `SQL_INSPECTOR_INCLUDE` | — | Comma-separated route patterns: only matching requests are traced (`/api/**`). See [Choosing which requests are traced](#choosing-which-requests-are-traced) |
+| `SQL_INSPECTOR_EXCLUDE` | — | Comma-separated route patterns that are never traced (`/health,/assets/**`) |
+| `SQL_INSPECTOR_PATH` | `__sql-inspector` | Where the page is served: `_dev/sql` serves it at `/_dev/sql/` |
 | `SQL_INSPECTOR_SLOW_MS` | `100` | Slow-call threshold in milliseconds |
 | `SQL_INSPECTOR_LANG` | `en` | Terminal language and the page's starting language: `en`, `vi`, `ja`. Your machine's `LANG` is deliberately ignored |
 | `SQL_INSPECTOR_LOG` | on | `0` turns the terminal output off |
@@ -318,6 +332,47 @@ Every `SQL_INSPECTOR_*` variable below is read from the environment through an a
 | `NO_COLOR` | — | turns terminal colors off |
 
 `node:sqlite` is opt-in because merely loading it prints Node's experimental-feature warning, which an app that does not use SQLite must never see: set `SQL_INSPECTOR_DRIVERS=node:sqlite`, or pass `nodeSqliteDriver` to `createInspector({ drivers })`.
+
+### Hiding values
+
+The calls often carry personal data. By default the inspector keeps **the shape of a call, not its values**:
+
+| `SQL_INSPECTOR_REDACT` | Bind parameters | The statement |
+|---|---|---|
+| `params` (default) | shown as type and size: `<string:12>`, `<number>`, `<null>` | as written; a statement a driver builds from a template (`mysql2`'s `query(sql, values)`) is shown as the template, with its `?` |
+| `all` | as above | shown with every value masked (`where email = ?`), the way the N+1 detector sees it |
+| `off` | as sent | as sent |
+
+N+1 detection and duplicate detection keep working: the inspector compares the calls as they really were, in memory, and never shows or sends the values. Two limits to know: in `params` mode a value that **you typed into the SQL** is still visible (use `all`), and error messages from the database can quote a value (`Duplicate entry 'a@b.c'`).
+
+### Choosing which requests are traced
+
+```bash
+SQL_INSPECTOR_INCLUDE="/api/**" SQL_INSPECTOR_EXCLUDE="/api/webhooks/**,/health" npm run dev
+```
+
+A pattern is a path: `/api/orders` (exactly that), `/api/*` (one segment), `/api/**` (that path and everything under it), `/*-webhook` (`*` inside a segment matches any characters). The query string is ignored. When `INCLUDE` is set only matching requests are traced; `EXCLUDE` then removes from those. A request that is left out is dropped entirely: its calls are not listed under "(outside request)" either. Jobs started with `inspector.task()` are never filtered. The same settings exist as options: `createInspector({ include: ["/api/**"], exclude: ["/health"] })`.
+
+### Moving the page
+
+`SQL_INSPECTOR_PATH=_dev/sql` (or `createInspector({ path: "/_dev/sql" })`) serves the page, its API and its event stream under `/_dev/sql/` instead of `/__sql-inspector/`, under your base path as before. The floating panel follows (`mountSqlInspectorWidget({ baseURL, path })`; the Nuxt module does it for you). Next.js is the exception: its route is a folder in your project (`app/%5F%5Fsql-inspector/`), so rename that folder instead.
+
+### Nuxt module options
+
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  modules: [["backend-dev-inspector/nuxt", {
+    redact: "params",                 // "params" | "all" | "off"
+    include: ["/api/**"],
+    exclude: ["/api/health"],
+    path: "/_dev/sql"
+  }]]
+  // or, equivalently, a top-level `sqlInspector: { ... }` key
+})
+```
+
+The module applies them in `nuxt dev` only, and passes them to the Nitro server.
 
 ### Floating panel
 
@@ -349,12 +404,15 @@ interface SqlInspector {
   task<T>(name: string, fn: () => T | Promise<T>): Promise<T> // a unit of work that is not HTTP
 }
 
-// StartOptions: { drivers?: DriverAdapter[], brand?: { title: string, short: string } }
+// StartOptions: {
+//   drivers?: DriverAdapter[], brand?: { title: string, short: string },
+//   redact?: "params" | "all" | "off", include?: string[], exclude?: string[], path?: string
+// }
 ```
 
 | Import | For |
 |---|---|
-| `backend-dev-inspector` | the API above, `instrumentMariadb`, every export of `sql-dev-inspector` |
+| `backend-dev-inspector` | the API above, `instrumentMariadb`, `instrumentPostgres`, every export of `sql-dev-inspector` |
 | `/fastify` `/koa` `/hono` `/next` `/sveltekit` `/astro` `/vite` | framework adapters |
 | `/nuxt` `/nitro` | Nuxt module, Nitro plugin |
 | `/prisma` | `prismaExtension()` |
@@ -366,7 +424,7 @@ The page's HTTP routes, all under `/__sql-inspector/`: `GET /` (page), `GET /api
 
 ## What it records and what it hides
 
-- SQL and MongoDB filters are shown **with their real values**: do not share your screen while connected to real data.
+- **Bind parameters are hidden by default** (type and size only), see [Hiding values](#hiding-values). SQL text you wrote yourself, MongoDB filters and error messages can still contain values: use `SQL_INSPECTOR_REDACT=all` to mask statements too, and do not share your screen while connected to real data.
 - **Redis**: the clients' own sanitising applies (`SET key ?`); values of writes are never recorded, reads show their key.
 - **HTTP**: user names and passwords in a URL are dropped; values of query parameters that look like credentials (`token`, `key`, `secret`, `password`, `auth`, `signature`, `session`…) are replaced by `?`. Headers and bodies are never recorded.
 - Everything lives in the memory of the dev process and expires (see `SQL_INSPECTOR_TTL_MINUTES`). Nothing is written to disk or sent anywhere.
@@ -379,6 +437,10 @@ The page's HTTP routes, all under `/__sql-inspector/`: `GET /` (page), `GET /api
 - **Redis** needs a client that publishes its commands (`ioredis` 6 or `redis` 6); `ioredis` 5 is patched instead. A `MULTI` in node-redis is one call, because the client does not publish its commands individually; in ioredis `MULTI … EXEC` shows as a transaction.
 - **Prisma** shows calls by model and operation (the SQL Prisma generates is not available at that point), and has no savepoints.
 - **SQLite** errors raised while *preparing* a statement (a missing table, a syntax error) are not recorded; errors raised when it runs are.
+- **postgres.js 3** has to be wrapped (`instrumentPostgres`), because the copy an application imports cannot be patched from outside; version 4 needs nothing. A statement built with helpers (`sql(columns)`) is shown with placeholders.
+- **libSQL**: a transaction is listed as BEGIN … COMMIT with its statements; the client's internal statements are not.
+- **db0**: connectors whose driver is not watched (PGlite, Neon, D1…) are only seen when you wrap the database with `withTracing()`.
+- **A lazy query awaited outside its request** (a postgres.js query or Drizzle builder created in a handler but awaited elsewhere) is attributed to where it is awaited.
 - **Next.js**: only route handlers you wrap are attributed to their request.
 - Statements outside any request or task are grouped under one "(outside request)" entry. Requests that make no recorded call (assets, HMR) are not kept.
 - Not a profiler: durations are wall-clock, measured around each call.
@@ -393,6 +455,8 @@ The page's HTTP routes, all under `/__sql-inspector/`: `GET /` (page), `GET /api
 | A library's calls are missing | See the support tables; for MariaDB and Prisma you must add the helper line |
 | Two copies of a library in `node_modules` | The inspector patches the copy it can import; make sure the app and the inspector share one (a hoisted peer) |
 | The floating button is missing | Outside Nuxt you must call `mountSqlInspectorWidget`. Try `Alt+Shift+D`, or clear the `sqlDevInspector.widget` key in `localStorage` |
+| Calls show `<number>` / `<string:5>` instead of values | That is `SQL_INSPECTOR_REDACT` at its default; set it to `off` to see values |
+| Requests I excluded still appear | The pattern must match the path (`/api/**` matches `/api` and below); the query string is ignored |
 | `403` on the inspector page | The `Host` is not local: add it to `SQL_INSPECTOR_ALLOWED_HOSTS` |
 
 ## Moving from `sql-dev-inspector`
@@ -408,7 +472,7 @@ Change the import path; nothing else:
 
 ## Dependencies and supply chain
 
-- **One runtime dependency:** `sql-dev-inspector`. The watched libraries are optional peer dependencies, never installed by this package. Scanners that resolve peers (Socket) attribute the alerts of those libraries and of their own dependencies (`eval` in `mysql2` and `generate-function`, native install scripts in `better-sqlite3`, network access in the database clients, minified or unmaintained transitive packages, URL strings in comments) to this package. None of that is code shipped here.
+- **One runtime dependency:** `sql-dev-inspector`. The watched libraries (`pg`, `postgres`, `mysql2`, `better-sqlite3`, `@libsql/client`, `mongodb`, `ioredis`) are optional peer dependencies, never installed by this package. Scanners that resolve peers (Socket) attribute the alerts of those libraries and of their own dependencies (`eval` in `mysql2` and `generate-function`, native install scripts in `better-sqlite3`, network access in the database clients, minified or unmaintained transitive packages, URL strings in comments) to this package. None of that is code shipped here.
 - **Its own code**: no install scripts, no network calls, no child processes, no `eval` / `new Function` / `new RegExp(string)`, and it reads no environment variable itself (the only reader is the allow-list in `sql-dev-inspector`). A test fails if any of that appears in `src/`.
 - **Reflection**: drivers are observed by patching a prototype, subscribing to a `diagnostics_channel`, or wrapping an object you pass in. The originals are restored on uninstall.
 - **Provenance**: releases are built by GitHub Actions with npm provenance and trusted publishing. Verify an install with `npm audit signatures`.

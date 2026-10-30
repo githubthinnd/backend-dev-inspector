@@ -1,6 +1,18 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.0] - 2026-10-30
+
+### Added
+
+- **libSQL / Turso** (`@libsql/client` 0.14 or newer): the local, HTTP and WebSocket clients, in both their ESM and CommonJS copies, with transactions listed as BEGIN … COMMIT and the statements of a `batch` listed one by one. Driver name `libsql`.
+- **postgres.js** (`postgres`): version 4 is reported through its own tracing channel, with nothing to set up; version 3 through `instrumentPostgres(sql)`, which also covers `sql.unsafe()` and the `sql` of `begin()` / `savepoint()` / `reserve()` callbacks. Driver name `postgres`.
+- **db0** (Nitro `useDatabase()`, NuxtHub): calls through a connector whose driver is already watched (`better-sqlite3`, libSQL, `pg`, `mysql2`) are recorded once, at the driver. For other connectors (PGlite, Neon, D1…) the `db0.query` tracing channel of `withTracing(db)` is followed, leaving the watched connectors out so nothing is listed twice. Driver name `db0`.
+- Optional peer dependencies `@libsql/client` and `postgres`; `tryImport` for libraries with a separate ESM copy.
+- Everything new in `sql-dev-inspector` 1.3: value redaction, route filters, a custom path, and the Nuxt module options.
+
+### Changed
+
+- Requires `sql-dev-inspector` 1.3 or newer. **Bind parameters are no longer shown by default**: set `SQL_INSPECTOR_REDACT=off` to get the previous behavior.
 
 ### Documentation
 

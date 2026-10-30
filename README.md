@@ -49,8 +49,9 @@ A slow endpoint is rarely one slow query. It is the same query run forty times, 
 - **One tree per request**, across SQL, MongoDB, Redis and outbound HTTP, with transactions and savepoints nested the way they ran.
 - **Warnings that point at the cause**: N+1 loops, repeated calls, slow calls, errors, too many statements.
 - **Three views**: a tree in the terminal, a live page at `/__sql-inspector/`, and a floating panel inside your app.
-- **No change to your code paths**: they observe the libraries your app already uses (`pg`, `mysql2`, `mongodb`, `ioredis`, `fetch`…).
+- **No change to your code paths**: they observe the libraries your app already uses (`pg`, `postgres.js`, `mysql2`, `libSQL`, `mongodb`, `ioredis`, `fetch`…).
 - **Dev only**: nothing runs when `NODE_ENV=production`.
+- **Under your control**: hide values, follow only the routes you choose, and serve the page from a path you pick.
 
 ## Which package
 
@@ -85,7 +86,7 @@ Run your app with `NODE_ENV=development`, make a request, and open `http://local
 
 | Area | Supported |
 |---|---|
-| **Databases** | PostgreSQL (`pg`), MySQL and MariaDB (`mysql2`, `mariadb`), SQLite (`better-sqlite3`, `node:sqlite`), MongoDB (`mongodb`, Mongoose) |
+| **Databases** | PostgreSQL (`pg`, `postgres.js`), MySQL and MariaDB (`mysql2`, `mariadb`), SQLite (`better-sqlite3`, `node:sqlite`), libSQL and Turso (`@libsql/client`), MongoDB (`mongodb`, Mongoose), and db0 (Nitro `useDatabase()`, NuxtHub) |
 | **Caches** | Redis (`ioredis` 5 and 6, `redis` 6) |
 | **Outbound HTTP** | `node:http`, `node:https`, global `fetch`, `undici` |
 | **ORMs and builders** | Drizzle, Prisma 7, Kysely, Knex, Sequelize, TypeORM, Mongoose, through the drivers above |
@@ -110,7 +111,7 @@ Calls that are not SQL count the same way: three `GET customer:<id>` calls to Re
 
 - **Off in production.** With `NODE_ENV=production` nothing is patched and the middleware only calls `next()`.
 - **Local only.** The inspector page refuses non-local `Host` headers (DNS rebinding) and cross-site POSTs. Data lives in the memory of the dev process; nothing is written to disk or sent anywhere.
-- **Secrets stay out.** Redis values and HTTP credentials are not recorded; credential-looking URL parameters are hidden. SQL values are shown, so do not share your screen on real data.
+- **Values stay out by default.** Bind parameters are shown as their type and size (`<string:12>`), Redis values and HTTP credentials are not recorded, credential-looking URL parameters are hidden, and a stricter mode masks whole statements. Statements you wrote yourself can still contain values, so do not share your screen on real data.
 - **Small supply chain.** `sql-dev-inspector` has no runtime dependencies; `backend-dev-inspector` has one, `sql-dev-inspector`. The libraries they watch are optional peers. Tests fail if the source uses `eval`, child processes, network calls of its own, or reads environment variables outside one allow-list.
 - **Verifiable releases.** Published from GitHub Actions with npm provenance and trusted publishing. Check an install with `npm audit signatures`.
 

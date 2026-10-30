@@ -62,6 +62,8 @@ GET /api/orders/42 → 200  163ms total · 12 queries · 148ms in SQL
 - **Three views**: terminal tree, live web page, floating in-app panel with keyboard shortcuts. Light, dark and system themes; responsive down to a narrow docked panel.
 - **English, Vietnamese and Japanese** in the terminal, the page and the panel; adding a language is one block of text (see [Languages](#languages)).
 - **Nothing changes in your code**: it works at the `mysql2` driver level, so every library built on `mysql2` is covered.
+- **Values hidden by default**: bind parameters are shown as their type and size, and a stricter mode masks the whole statement; N+1 detection still works ([Hiding values](#hiding-values)).
+- **Choose what to follow**: include or exclude requests by route, and serve the page from a path of your choosing ([Choosing which requests are traced](#choosing-which-requests-are-traced)).
 - **Safe by default**: never active when `NODE_ENV=production`; local only; in memory only.
 - **No runtime dependencies** (the `mysql2` you already have is an optional peer). No CDN, no fonts, no analytics.
 
@@ -238,12 +240,59 @@ Settings (including language) are stored in `localStorage`. The panel loads only
 | `SQL_INSPECTOR_DRIVERS` | all | comma separated driver names to keep (`mysql2`); `all` or empty keeps every driver that is installed. Mostly useful with packages built on this one |
 | `SQL_INSPECTOR_MAX_QUERIES` | `1000` | statements kept per request |
 | `SQL_INSPECTOR_TX_CONVENTION` | off | `1` enables the transaction-convention insights |
+| `SQL_INSPECTOR_REDACT` | `params` | What is kept of values: `params` (bind parameters become their type and size), `all` (the statement is shown with every value masked), `off` (everything as sent) |
+| `SQL_INSPECTOR_INCLUDE` | — | Comma-separated route patterns: only matching requests are traced (`/api/**`) |
+| `SQL_INSPECTOR_EXCLUDE` | — | Comma-separated route patterns that are never traced (`/health,/assets/**`) |
+| `SQL_INSPECTOR_PATH` | `__sql-inspector` | Where the page is served: `_dev/sql` serves it at `/_dev/sql/` |
 | `NO_COLOR` | — | disables terminal colors |
+
+### Hiding values
+
+The statements often carry personal data. By default the inspector keeps **the shape of a call, not its values**:
+
+| `SQL_INSPECTOR_REDACT` | Bind parameters | The statement |
+|---|---|---|
+| `params` (default) | shown as type and size: `<string:12>`, `<number>`, `<null>` | as written; `query(sql, values)` is shown as the template, with its `?` (mysql2 puts the values into the text before sending it) |
+| `all` | as above | shown with every value masked (`where email = ?`), the way the N+1 detector sees it |
+| `off` | as sent | as sent |
+
+N+1 and duplicate detection keep working: the inspector compares the calls as they really were, in memory, and never shows or sends the values. In `params` mode a value **you typed into the SQL** is still visible (use `all`), and a database error message can quote a value (`Duplicate entry 'a@b.c'`).
+
+### Choosing which requests are traced
+
+```bash
+SQL_INSPECTOR_INCLUDE="/api/**" SQL_INSPECTOR_EXCLUDE="/api/webhooks/**,/health" npm run dev
+```
+
+A pattern is a path: `/api/orders` (exactly that), `/api/*` (one segment), `/api/**` (that path and everything under it), `/*-webhook` (`*` inside a segment matches any characters). The query string is ignored. When `INCLUDE` is set only matching requests are traced; `EXCLUDE` then removes from those. A request that is left out is dropped entirely (its statements are not listed under "(outside request)" either); `task()` is never filtered. The same settings are options: `createSqlInspector({ include: ["/api/**"], exclude: ["/health"] })`.
+
+### Moving the page
+
+`SQL_INSPECTOR_PATH=_dev/sql` (or `createSqlInspector({ path: "/_dev/sql" })`) serves the page, its API and its event stream under `/_dev/sql/` instead of `/__sql-inspector/`, under your base path as before. The floating panel follows: `mountSqlInspectorWidget({ baseURL, path })`; the Nuxt module does it for you.
+
+### Nuxt module options
+
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  modules: [["sql-dev-inspector/nuxt", {
+    redact: "params",                 // "params" | "all" | "off"
+    include: ["/api/**"],
+    exclude: ["/api/health"],
+    path: "/_dev/sql"
+  }]]
+  // or, equivalently, a top-level `sqlInspector: { ... }` key
+})
+```
+
+The module applies them in `nuxt dev` only, and passes them to the Nitro server.
 
 ## API
 
 ```ts
-createSqlInspector(): SqlInspector
+createSqlInspector(options?: StartOptions): SqlInspector
+
+// StartOptions: { drivers?, brand?, redact?: "params" | "all" | "off", include?: string[], exclude?: string[], path?: string }
 
 interface SqlInspector {
   enabled: boolean                       // false in production / when switched off: everything below is a no-op
@@ -343,6 +392,8 @@ The tool must never make your app look worse, so:
 | All queries under "(outside request)" | middleware mounted after the route that ran SQL, or SQL ran outside an awaited handler (timers, queues) — wrap it in `sqlInspector.task()` |
 | Floating button missing | Non-Nuxt: you haven't called `mountSqlInspectorWidget`. Nuxt: it exists in `nuxt dev` only. Try `Alt+Shift+D`, or clear the `sqlDevInspector.widget` key in `localStorage` |
 | An ORM's queries are missing | It doesn't use `mysql2` underneath |
+| Statements show `<number>` / `<string:5>` instead of values | That is `SQL_INSPECTOR_REDACT` at its default; set it to `off` to see values |
+| Requests I excluded still appear | The pattern must match the path (`/api/**` matches `/api` and below); the query string is ignored |
 | Two copies of `mysql2` in `node_modules` | The inspector patches the copy it can import; make sure app and inspector share one (hoisted peer) |
 
 ## Development
@@ -350,7 +401,7 @@ The tool must never make your app look worse, so:
 ```bash
 npm install
 npm run typecheck
-npm test            # 281 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
+npm test            # 351 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
 npm run build
 ```
 

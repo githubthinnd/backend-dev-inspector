@@ -1,10 +1,22 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.0] - 2026-10-30
+
+### Added
+
+- **Hiding values**: `SQL_INSPECTOR_REDACT` (`params`, `all`, `off`; or the `redact` option). In `params` mode bind parameters are shown as their type and size (`<string:12>`, `<number>`), and `mysql2`'s `query(sql, values)` is shown as the statement with its `?`. In `all` mode the statement is shown with every value masked. N+1 and duplicate detection are unchanged: the report compares the calls as they were, from a hash kept outside the event.
+- **Route filters**: `SQL_INSPECTOR_INCLUDE` and `SQL_INSPECTOR_EXCLUDE` (or the `include` / `exclude` options): comma-separated path patterns with `*` and `**`. A request that is left out is dropped, its statements are not listed under "(outside request)". Works in the Node, web-standard and Nitro adapters; `task()` is never filtered.
+- **Custom path**: `SQL_INSPECTOR_PATH` (or the `path` option) serves the page from another path than `/__sql-inspector/`; the floating panel takes a `path` option and the Nuxt module passes it on.
+- **Nuxt module options** (`redact`, `include`, `exclude`, `path`), inline in `modules` or under a top-level `sqlInspector` key.
+- Exports: `parseRedactMode`, `redactParams`, `redactValue`, `matchRoute`, `isTracked`, `parsePatterns`, `runIgnored`, `normalizeMount`, `applyToEnv`, `DEFAULT_MOUNT`, and the `RedactMode` and `RouteFilters` types.
+
+### Changed
+
+- **Bind parameters are no longer shown by default.** Set `SQL_INSPECTOR_REDACT=off` to get the previous behavior. A statement built by `query(sql, values)` is now shown as the template with its `?` unless redaction is off.
 
 ### Documentation
 
-- README rewritten: contents, a support matrix for libraries and frameworks with how far each was verified, and a clearer introduction.
+- README rewritten: contents, a support matrix for libraries and frameworks with how far each was verified, a clearer introduction, and sections for the new settings.
 
 ## [1.2.1] - 2026-10-28
 

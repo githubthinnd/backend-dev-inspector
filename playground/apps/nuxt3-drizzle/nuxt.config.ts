@@ -4,6 +4,8 @@ export default defineNuxtConfig({
   extends: ["../../layers/antimatter-ui"],
   compatibilityDate: "2026-01-01",
   modules: ["backend-dev-inspector/nuxt"],
+  // The inspector's own settings: hide bind parameters (the default), and leave these routes out of the list.
+  sqlInspector: { redact: "params", exclude: ["/api/health", "/api/scenarios"] },
   runtimeConfig: {
     public: { playgroundFramework: "Nuxt 3", playgroundData: "Drizzle ORM" }
   },
