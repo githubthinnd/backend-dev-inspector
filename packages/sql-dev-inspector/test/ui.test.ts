@@ -686,6 +686,20 @@ describe("copying a request for a report", () => {
   })
 })
 
+describe("downloading a request as JSON", () => {
+  it("has a button that fetches the export of the selected request", async () => {
+    const { document, window } = render()
+    await settle()
+    await selectRequest(document)
+    const urls: string[] = []
+    Object.assign(window, { fetch: (url: string) => { urls.push(String(url)); return Promise.resolve({ text: () => Promise.resolve("{}"), json: () => Promise.resolve({}) }) } })
+    Object.assign(window.URL, { createObjectURL: () => "blob:x" })
+    click(document.querySelector(".detail-head .export-json"))
+    await settle()
+    expect(urls).toEqual(["./api/requests/a/export"])
+  })
+})
+
 describe("console output of a request", () => {
   it("lists what the application printed under its request, with level, time and calling line, as text", async () => {
     const { document, sources } = render({ slow: { slowMs: 100, defaultSlowMs: 100, root: "/proj", editor: { name: "vscode", template: "vscode://file/{path}:{line}:{column}" } } as never })

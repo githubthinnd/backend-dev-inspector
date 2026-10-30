@@ -73,6 +73,10 @@ describe("the setup check", () => {
     expect(ok.type).toContain("text/markdown")
     expect(ok.body).toContain("## GET /api/x")
     expect(get("/api/requests/nope/markdown").status).toBe(404)
+    const json = get(`/api/requests/${trace.id}/export`)
+    expect(json.type).toContain("application/json")
+    expect(JSON.parse(json.body)).toMatchObject({ format: "sql-dev-inspector/request", version: 1, calls: [{ text: "select 1" }] })
+    expect(get("/api/requests/nope/export").status).toBe(404)
   })
 
   it("is served by the inspector as JSON, and the settings list the drivers", () => {

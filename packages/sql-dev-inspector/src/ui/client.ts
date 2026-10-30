@@ -215,7 +215,15 @@ export const CLIENT_SCRIPT = String.raw`
       statusEl(tr.status),
       h("button", { class: "btn sm export", title: t("detail.copyMarkdown.title"), onclick: function () {
         fetch("./api/requests/" + encodeURIComponent(tr.id) + "/markdown").then(function (r) { return r.text(); }).then(copy).catch(function () { toast(t("toast.copyFailed")); });
-      } }, [icon("copy"), h("span", { text: t("detail.copyMarkdown") })])
+      } }, [icon("copy"), h("span", { text: t("detail.copyMarkdown") })]),
+      h("button", { class: "btn sm export-json", title: t("detail.downloadJson.title"), onclick: function () {
+        fetch("./api/requests/" + encodeURIComponent(tr.id) + "/export").then(function (r) { return r.text(); }).then(function (body) {
+          var link = document.createElement("a");
+          link.href = URL.createObjectURL(new Blob([body], { type: "application/json" }));
+          link.download = "request-" + tr.id.slice(0, 8) + ".json";
+          document.body.appendChild(link); link.click(); link.remove();
+        }).catch(function () { toast(t("toast.copyFailed")); });
+      } }, [icon("copy"), h("span", { text: t("detail.downloadJson") })])
     ]));
     inner.appendChild(h("div", { class: "kpis" }, [
       kpi(t("kpi.total"), fmtMs(tr.durationMs)),

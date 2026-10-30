@@ -65,3 +65,60 @@ export function exportMarkdown(report: RequestReport, root?: string, locale: Loc
   lines.push("### Tree", "", "```", renderReport(report, locale, root).replace(ANSI, ""), "```", "")
   return lines.join("\n")
 }
+
+export const EXPORT_FORMAT = "sql-dev-inspector/request"
+export const EXPORT_VERSION = 1
+
+export interface RequestExport {
+  format: typeof EXPORT_FORMAT
+  version: number
+  exportedAt: string
+  /** What was done to values before they were recorded: `params`, `all` or `off`. */
+  redact: string
+  request: { id: string, method: string, url: string, status: number | null, startedAt: string, durationMs: number | null, droppedCalls: number }
+  totals: RequestReport["totals"]
+  findings: Array<{ type: string, severity: string, message: string, hint?: string, calls: number[], from?: string }>
+  calls: Array<{
+    seq: number, driver: string | null, kind: string, label?: string, text: string, params: unknown[] | null, tables: string[]
+    startedAt: string, durationMs: number | null, rows: number | null, affectedRows: number | null, error: string | null, from?: string, connection: number
+  }>
+  console: Array<{ level: string, atMs: number, message: string, from?: string }>
+}
+
+const whereOf = (caller: { file: string, line: number } | undefined, root?: string) => caller ? shortLocation(caller, root) : undefined
+
+/**
+ * One request as a stable, versioned JSON document, for scripts, CI artifacts and other tools. Values are as redacted
+ * as the inspector is set to redact them. `version` changes only when a field is removed or changes meaning.
+ */
+export function exportJson(report: RequestReport, options: { root?: string, redact?: string, now?: Date } = {}): RequestExport {
+  const { trace, totals, insights } = report
+  return {
+    format: EXPORT_FORMAT,
+    version: EXPORT_VERSION,
+    exportedAt: (options.now ?? new Date()).toISOString(),
+    redact: options.redact ?? "params",
+    request: {
+      id: trace.id, method: trace.method, url: trace.url, status: trace.status,
+      startedAt: new Date(trace.startedAt).toISOString(), durationMs: trace.durationMs, droppedCalls: trace.droppedQueries
+    },
+    totals,
+    findings: insights.map((insight) => {
+      const first = trace.queries.find(query => insight.seqs.includes(query.seq))
+      const from = whereOf(first?.caller, options.root)
+      return { type: insight.type, severity: insight.severity, message: insight.message, ...(insight.hint ? { hint: insight.hint } : {}), calls: insight.seqs, ...(from ? { from } : {}) }
+    }),
+    calls: trace.queries.map((query) => {
+      const from = whereOf(query.caller, options.root)
+      return {
+        seq: query.seq, driver: query.driver ?? null, kind: query.analysis.kind, ...(query.analysis.label ? { label: query.analysis.label } : {}),
+        text: query.sql, params: query.params, tables: query.analysis.tables, startedAt: new Date(query.startedAt).toISOString(),
+        durationMs: query.durationMs, rows: query.rowCount, affectedRows: query.affectedRows, error: query.error, ...(from ? { from } : {}), connection: query.connectionId
+      }
+    }),
+    console: (trace.logs ?? []).map((entry) => {
+      const from = whereOf(entry.caller, options.root)
+      return { level: entry.level, atMs: Math.max(0, entry.at - trace.startedAt), message: entry.message, ...(from ? { from } : {}) }
+    })
+  }
+}

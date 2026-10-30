@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
 import { diagnose } from "./doctor.js"
-import { exportMarkdown } from "./export.js"
+import { exportJson, exportMarkdown } from "./export.js"
 import { setLogCapture } from "./log-capture.js"
 import { handleMcp } from "./mcp.js"
 import { installedDrivers } from "./setup.js"
@@ -16,6 +16,7 @@ const TRAILING_SLASHES = /\/+$/
 const REDACT_MODES = new Set(["params", "all", "off"])
 const QUERY_OR_HASH = /[?#]/
 const REQUEST_DETAIL = /^\/api\/requests\/([\w-]+)$/
+const REQUEST_EXPORT = /^\/api\/requests\/([\w-]+)\/export$/
 const REQUEST_MARKDOWN = /^\/api\/requests\/([\w-]+)\/markdown$/
 
 export { DEFAULT_MOUNT as INSPECTOR_PATH } from "./runtime.js"
@@ -234,6 +235,23 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
         errors: insights.filter(i => i.severity === "error").length
       }
     }))
+    return
+  }
+
+  const exported = REQUEST_EXPORT.exec(path)
+  if (req.method === "GET" && exported) {
+    const trace = store.get(exported[1]!)
+    if (!trace) {
+      sendJson(res, { message: "Request not found (evicted or cleared)" }, 404)
+      return
+    }
+    res.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": `attachment; filename="request-${trace.id.slice(0, 8)}.json"`,
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff"
+    })
+    res.end(JSON.stringify(exportJson(cachedReport(store, trace, inspector.report), { root: inspector.root, redact: inspector.redact }), null, 2))
     return
   }
 

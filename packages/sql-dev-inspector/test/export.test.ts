@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { runInRequest } from "../src/context"
-import { exportMarkdown } from "../src/export"
+import { exportJson, exportMarkdown } from "../src/export"
 import { createRecorder } from "../src/recorder"
 import { buildReport } from "../src/report"
 import { analyzeSql } from "../src/sql-analyzer"
@@ -48,5 +48,33 @@ describe("a request as Markdown", () => {
     expect(markdown).toContain("### Tree")
     // eslint-disable-next-line no-control-regex
     expect(markdown).not.toMatch(/\u001B\[/)
+  })
+})
+
+describe("a request as JSON", () => {
+  const doc = exportJson(buildReport(sample()), { root: process.cwd(), redact: "params", now: new Date("2026-01-02T03:04:05Z") })
+
+  it("is a versioned document that says how it was redacted", () => {
+    expect(doc).toMatchObject({ format: "sql-dev-inspector/request", version: 1, exportedAt: "2026-01-02T03:04:05.000Z", redact: "params" })
+    expect(doc.request).toMatchObject({ method: "GET", url: "/api/orders?page=2", status: 200 })
+  })
+
+  it("has every call with its timing, tables and where it was made", () => {
+    expect(doc.calls).toHaveLength(5)
+    expect(doc.calls[0]).toMatchObject({ driver: "pg", kind: "select", tables: ["items"], rows: 2, error: null })
+    expect(doc.calls[0]!.from).toMatch(/^test\/export\.test\.ts:\d+$/)
+    expect(doc.calls[4]!.error).toBe("bad | pipe")
+  })
+
+  it("has the findings with their calls and advice, the totals and the console", () => {
+    expect(doc.findings[0]).toMatchObject({ type: "n-plus-one", severity: "warn" })
+    expect(doc.findings[0]!.calls).toHaveLength(4)
+    expect(doc.findings[0]!.hint).toBeTruthy()
+    expect(doc.totals.breakdown.total).toBeGreaterThanOrEqual(0)
+    expect(doc.console).toEqual([{ level: "warn", atMs: 12, message: "slow cache\nsecond line" }])
+  })
+
+  it("survives JSON.stringify and parse unchanged", () => {
+    expect(JSON.parse(JSON.stringify(doc))).toEqual(doc)
   })
 })
