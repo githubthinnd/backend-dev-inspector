@@ -24,7 +24,7 @@ const request = (url: string): RequestTrace => getInspector().store.startRequest
 const shape = (trace: RequestTrace) => trace.queries.map(q => [q.analysis.kind, q.rowCount, q.affectedRows, q.error])
 
 beforeEach(() => {
-  startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0" }, { drivers: [] })
+  startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0", SQL_INSPECTOR_REDACT: "off" }, { drivers: [] })
 })
 afterEach(() => {
   getInspector().store.clear()

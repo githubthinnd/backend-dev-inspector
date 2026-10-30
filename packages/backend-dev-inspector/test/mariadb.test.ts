@@ -57,7 +57,7 @@ let uninstall: (() => void) | null = null
 const request = (url: string): RequestTrace => getInspector().store.startRequest("GET", url)
 
 beforeEach(() => {
-  startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0" }, { drivers: [] })
+  startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0", SQL_INSPECTOR_REDACT: "off" }, { drivers: [] })
   uninstall = mariadbDriver.install(createRecorder(getInspector().store))
 })
 afterEach(() => {

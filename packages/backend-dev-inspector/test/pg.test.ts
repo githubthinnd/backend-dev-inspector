@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { createRequire } from "node:module"
-import { createRecorder, getInspector, type RequestTrace, resetInspectorForTests, runInRequest, startInspector } from "sql-dev-inspector"
+import { buildReport, createRecorder, getInspector, type RequestTrace, resetInspectorForTests, runInRequest, startInspector } from "sql-dev-inspector"
 import { pgDriver } from "../src/drivers/pg"
 import { startMockPostgres, type MockPostgres } from "./helpers/mock-postgres"
 
@@ -22,7 +22,7 @@ const calls = (trace: RequestTrace) => trace.queries.map(q => ({ sql: q.sql, api
 
 beforeEach(() => {
   server = startMockPostgres()
-  startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0" }, { drivers: [] })
+  startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0", SQL_INSPECTOR_REDACT: "off" }, { drivers: [] })
   uninstall = pgDriver.install(recorder())
 })
 afterEach(async () => {
@@ -51,6 +51,21 @@ describe("pg driver", () => {
     expect(trace.queries[0]!.durationMs).toBeGreaterThanOrEqual(0)
     expect(trace.queries[0]!.analysis).toMatchObject({ kind: "select", tables: ["users"] })
     expect(trace.queries[0]!.connectionId).toBe(server.processIds[0])
+  })
+
+  it("hides the values of a parameterised query by default, and still tells an N+1 from a duplicate", async () => {
+    getInspector().store.redact = "params"
+    const client = await connect()
+    const trace = request("/redacted")
+    await runInRequest(trace, async () => {
+      for (const id of [1, 2, 3]) {
+        await client.query("select id, name from users where id = $1", [id])
+      }
+    })
+    expect(trace.queries.map(q => q.params)).toEqual([["<number>"], ["<number>"], ["<number>"]])
+    expect(JSON.stringify(trace.queries)).not.toMatch(/\[\s*[123]\s*\]/)
+    expect(buildReport(trace).insights.map(i => i.type)).toContain("n-plus-one")
+    getInspector().store.redact = "off" // the other tests of this file read the values
   })
 
   it("records parameterised queries (extended protocol) with their values", async () => {

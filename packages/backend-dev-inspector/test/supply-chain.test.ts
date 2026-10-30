@@ -29,7 +29,7 @@ describe("what the package depends on", () => {
   })
 
   it("makes every peer optional, so installing the package pulls no driver in", () => {
-    expect(Object.keys(pkg.peerDependencies).sort()).toEqual(["better-sqlite3", "ioredis", "mongodb", "mysql2", "pg"])
+    expect(Object.keys(pkg.peerDependencies).sort()).toEqual(["@libsql/client", "better-sqlite3", "ioredis", "mongodb", "mysql2", "pg", "postgres"])
     for (const name of Object.keys(pkg.peerDependencies)) {
       expect(pkg.peerDependenciesMeta[name]?.optional, name).toBe(true)
     }
@@ -70,14 +70,15 @@ describe("what the package does", () => {
     let total = 0
     let literal = 0
     for (const file of files.filter(f => f.name !== "src/peer.ts")) {
-      total += [...file.text.matchAll(/\btryLoad\(/g)].length
-      for (const match of file.text.matchAll(/\btryLoad\(r => r\("([^"]+)"\)/g)) {
+      total += [...file.text.matchAll(/\btry(?:Load|Import)\(/g)].length
+      for (const match of file.text.matchAll(/\btry(?:Load|Import)\(r => r\("([^"]+)"\)/g)) {
         literal++
-        expect(declared, `${file.name} loads ${match[1]}, which is not a declared peer dependency`).toContain(match[1])
+        const name = match[1]!.startsWith("@") ? match[1]!.split("/").slice(0, 2).join("/") : match[1]!.split("/")[0]!
+        expect(declared, `${file.name} loads ${match[1]}, which is not a declared peer dependency`).toContain(name)
       }
     }
     expect(total).toBeGreaterThan(0)
-    expect(literal, "every tryLoad call must have the form tryLoad(r => r(\"literal\"))").toBe(total)
+    expect(literal, "every tryLoad / tryImport call must have the form tryLoad(r => r(\"literal\"))").toBe(total)
   })
 
   it("compiles no code from strings, starts no processes, makes no calls of its own", () => {
