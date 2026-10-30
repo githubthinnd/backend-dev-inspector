@@ -10,11 +10,13 @@ const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g
 const OBJECT_ID = /\b[0-9a-f]{24}\b/gi
 const NUMBER = /\b\d+(?:\.\d+)?\b/g
 const JSON_STRING_VALUE = /(:\s*)"(?:[^"\\]|\\.)*"/g
+const SINGLE_QUOTED = /'(?:[^'\\]|\\.)*'/g
 const WHITESPACE_RUN = /\s+/g
 
 /** The call with its values masked, so two calls that differ only in ids or literals share one fingerprint. */
 export function genericFingerprint(text: string): string {
   return text
+    .replace(SINGLE_QUOTED, "?")
     .replace(JSON_STRING_VALUE, "$1\"?\"")
     .replace(UUID, "?")
     .replace(OBJECT_ID, "?")

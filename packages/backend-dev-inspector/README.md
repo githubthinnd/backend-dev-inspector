@@ -234,7 +234,26 @@ const prisma = new PrismaClient().$extends(prismaExtension())
 import postgres from "postgres"
 import { instrumentPostgres } from "backend-dev-inspector"
 const sql = instrumentPostgres(postgres(process.env.DATABASE_URL))
+
+// AWS SDK v3 (S3, DynamoDB, SQS, SNS, Lambda…): one line per client, through its own middleware stack
+import { instrumentAws } from "backend-dev-inspector"
+const s3 = instrumentAws(new S3Client({}))   // a call per command, with its status, request id and retries
+
+// Elasticsearch / OpenSearch: through the client's diagnostic events
+import { instrumentElasticsearch } from "backend-dev-inspector"
+const es = instrumentElasticsearch(new Client({ node }))
+
+// BullMQ: what the request adds to a queue (its Redis commands are kept under the call)
+import { instrumentBullmq } from "backend-dev-inspector"
+const emails = instrumentBullmq(new Queue("emails", { connection }))
+
+// Neon over HTTP, and Cloudflare D1
+import { instrumentNeon, instrumentD1 } from "backend-dev-inspector"
+const sql = instrumentNeon(neon(databaseUrl))
+const db = instrumentD1(env.DB)
 ```
+
+None of these load the library: they work on the object you pass, so they add no dependency. Resource names (bucket, queue, index, table) are recorded; bodies, items, message and job data are not (a job's data and a search's query are kept as parameters, hidden unless values are shown).
 
 ## Supported technologies
 
@@ -264,6 +283,11 @@ Every technology is a *driver*: its calls are described as the SQL statement the
 | | `ioredis` 5 | small patch on `sendCommand` | ✅ Real client, patch path forced |
 | **HTTP out** | `node:http`, `node:https`, global `fetch`, `undici` | subscribes to Node's `diagnostics_channel` | ✅ Real client code over in-memory sockets |
 | **MariaDB connector** | `mariadb` 3 | `instrumentMariadb(module)` helper | 🧪 Documented API |
+| **AWS SDK v3** | any `@aws-sdk/client-*` | `instrumentAws(client)`: a middleware that runs before the SDK's retries, so one call per command with its attempts | ✅ Real `@aws-sdk/client-sqs` with a stand-in transport |
+| **Elasticsearch** | `@elastic/elasticsearch` 8 and 9 | `instrumentElasticsearch(client)`: the transport's `request` / `response` diagnostic events | ✅ Real client with a stand-in connection. OpenSearch: 🟡 same events, not run |
+| **BullMQ** | `bullmq` | `instrumentBullmq(queue)`: `add`, `addBulk`, `upsertJobScheduler`; its Redis commands are kept under the call | 🧪 A stand-in queue of the documented shape; not run against Redis |
+| **Neon (HTTP)** | `@neondatabase/serverless` | `instrumentNeon(sql)`: tagged queries, `sql.query()`, `sql.transaction()` | ✅ Real `neon()` with a stand-in `fetch`. The WebSocket `Pool` / `Client`: ❌ not covered |
+| **Cloudflare D1** | the `env.DB` binding | `instrumentD1(db)`: `prepare().bind()` + `first` / `all` / `run` / `raw`, `batch`, `exec` | 🧪 A stand-in binding of the documented shape; not run in `workerd` |
 | **Prisma** | `@prisma/client` 7 | `$extends(prismaExtension())` | ✅ Real Prisma 7 client (libSQL adapter), in the playground |
 
 ### ORMs and query builders

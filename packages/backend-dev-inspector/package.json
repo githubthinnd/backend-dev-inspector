@@ -161,8 +161,11 @@
     }
   },
   "devDependencies": {
+    "@aws-sdk/client-sqs": "^3.1160.0",
+    "@elastic/elasticsearch": "^9.5.1",
     "@hono/node-server": "^2.1.5",
     "@libsql/client": "^0.18.0",
+    "@neondatabase/serverless": "^1.2.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/koa": "^3.0.3",
     "@types/node": "^22.20.5",
