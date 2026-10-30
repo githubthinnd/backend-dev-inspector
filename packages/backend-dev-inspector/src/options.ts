@@ -1,5 +1,6 @@
 import type { Brand, StartOptions } from "sql-dev-inspector"
-import { markSiblingLoaded, parseDriverList, pickEnv } from "sql-dev-inspector"
+import { markSiblingLoaded, parseDriverList, pickEnv, registerDiagnostics } from "sql-dev-inspector"
+import { libraryChecks } from "./doctor.js"
 import { allDrivers, optInDrivers } from "./drivers/index.js"
 
 export const BRAND: Brand = { title: "Backend Inspector", short: "DEV" }
@@ -11,6 +12,7 @@ export const BRAND: Brand = { title: "Backend Inspector", short: "DEV" }
  */
 export function withDefaults(options: StartOptions = {}, env = pickEnv()): StartOptions {
   markSiblingLoaded()
+  registerDiagnostics("backend-dev-inspector", () => libraryChecks())
   const base = options.drivers ?? allDrivers
   const wanted = parseDriverList(env.SQL_INSPECTOR_DRIVERS)
   const extra = optInDrivers.filter(driver => wanted.includes(driver.name) && !base.some(known => known.name === driver.name))

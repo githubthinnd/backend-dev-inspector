@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
+import { diagnose } from "./doctor.js"
+import { installedDrivers } from "./setup.js"
 import { parsePatterns } from "./route-filter.js"
 import type { RedactMode } from "./redact.js"
 import { DEFAULT_MOUNT, type Inspector } from "./runtime.js"
@@ -53,6 +55,7 @@ function settingsOf(inspector: Inspector) {
     include: inspector.filters.include,
     exclude: inspector.filters.exclude,
     stack: inspector.stack,
+    drivers: installedDrivers(),
     editor: inspector.editor,
     root: inspector.root,
     defaults: { redact: inspector.defaults.redact, include: inspector.defaults.filters.include, exclude: inspector.defaults.filters.exclude, stack: inspector.defaults.stack, editor: inspector.defaults.editor.name },
@@ -256,6 +259,11 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
         clearTimeout(timer)
       }
     })
+    return
+  }
+
+  if (req.method === "GET" && path === "/api/doctor") {
+    sendJson(res, { checks: diagnose(inspector) })
     return
   }
 

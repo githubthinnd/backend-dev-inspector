@@ -67,6 +67,13 @@ export function renderPage(localeHint: Locale | null = null, title: string | nul
           <p class="pop-hint" data-i18n="settings.filters.hint"></p>
         </section>
         <section class="pop-sec">
+          <h3 data-i18n="settings.status"></h3>
+          <p class="pop-hint dim" data-i18n="settings.drivers"></p>
+          <div class="chips" id="drivers"></div>
+          <button type="button" class="btn sm" id="check" data-i18n="settings.check"></button>
+          <ul class="checks" id="checks" hidden></ul>
+        </section>
+        <section class="pop-sec">
           <h3 data-i18n="settings.source"></h3>
           <button type="button" class="switch row" id="stack-switch" role="switch" aria-checked="true"><span class="track"></span><span data-i18n="settings.stack"></span></button>
           <p class="pop-hint" data-i18n="settings.stack.hint"></p>

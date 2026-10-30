@@ -106,6 +106,13 @@ svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; s
 .pop-input { height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: 12.5px var(--mono); }
 .pop-input::placeholder { color: var(--text-3); }
 .pop-input:focus { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-weak); outline: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+.chip.driver { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--text); font: 600 11.5px var(--mono); }
+.chip.driver.none { color: var(--warn); border-color: var(--warn); font-family: inherit; }
+.checks { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.checks li { display: flex; gap: 8px; align-items: flex-start; color: var(--text-2); font-size: 12px; line-height: 1.4; }
+.checks .dot { flex: none; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--ok); }
+.checks .warn .dot { background: var(--warn); } .checks .error .dot { background: var(--err); }
 .pop-code { display: inline-block; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); font: 12.5px var(--mono); }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
 .switch { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-weight: 550; font-size: 12px; cursor: pointer; }

@@ -181,5 +181,8 @@
     "undici": "^8.12.3",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
+  },
+  "bin": {
+    "backend-dev-inspector": "./dist/cli.js"
   }
 }

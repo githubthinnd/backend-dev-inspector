@@ -70,6 +70,7 @@ describe("settings API", () => {
       include: [],
       exclude: [],
       stack: true,
+      drivers: expect.any(Array),
       editor: { name: "vscode", template: "vscode://file/{path}:{line}:{column}" },
       root: expect.any(String),
       defaults: { redact: "params", include: [], exclude: [], stack: true, editor: "vscode" },

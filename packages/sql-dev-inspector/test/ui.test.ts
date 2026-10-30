@@ -656,3 +656,27 @@ describe("page document", () => {
 })
 
 vi.setConfig({ testTimeout: 10000 })
+
+describe("status: the drivers, and the setup check", () => {
+  it("lists the drivers that are watching, and says so when there are none", async () => {
+    const { document, sources } = render({ slow: { slowMs: 100, defaultSlowMs: 100, drivers: ["mysql2", "pg"] } as never })
+    sources[0]!.onopen!()
+    await settle()
+    expect(Array.from(document.querySelectorAll("#drivers .chip"), c => c.textContent)).toEqual(["mysql2", "pg"])
+
+    const none = render({ slow: { slowMs: 100, defaultSlowMs: 100, drivers: [] } as never })
+    none.sources[0]!.onopen!()
+    await settle()
+    expect(none.document.querySelector("#drivers .chip.none")!.textContent).toBe("No driver is active")
+  })
+
+  it("runs the check and shows what it found", async () => {
+    const { document, window } = render()
+    Object.assign(window, { fetch: (url: string) => Promise.resolve({ json: () => Promise.resolve(String(url).includes("doctor") ? { checks: [{ id: "a", status: "ok", message: "All good" }, { id: "b", status: "warn", message: "Look here" }] } : {}) }) })
+    ;(document.getElementById("check") as unknown as HTMLElement).click()
+    await settle()
+    const items = Array.from(document.querySelectorAll("#checks li"))
+    expect(items.map(li => li.textContent)).toEqual(["All good", "Look here"])
+    expect(items[1]!.className).toBe("warn")
+  })
+})

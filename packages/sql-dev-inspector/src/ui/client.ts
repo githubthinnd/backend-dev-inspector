@@ -432,6 +432,9 @@ export const CLIENT_SCRIPT = String.raw`
     if (document.activeElement !== $("exclude-input")) { $("exclude-input").value = (server.exclude || []).join(", "); }
     $("path-value").textContent = "/" + (server.mount || "__sql-inspector") + "/";
     $("stack-switch").setAttribute("aria-checked", server.stack === false ? "false" : "true");
+    var box = $("drivers"); box.textContent = "";
+    (server.drivers || []).forEach(function (name) { box.appendChild(h("span", { class: "chip driver", text: name })); });
+    if (!(server.drivers || []).length) { box.appendChild(h("span", { class: "chip driver none", text: t("settings.drivers.none") })); }
     var editor = server.editor ? server.editor.name : "vscode";
     Array.prototype.forEach.call(document.querySelectorAll("[data-editor]"), function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-editor") === editor ? "true" : "false"); });
   }
@@ -452,6 +455,14 @@ export const CLIENT_SCRIPT = String.raw`
     });
     $("include-input").addEventListener("change", function () { pushSetting({ include: listOf($("include-input").value) }); });
     $("exclude-input").addEventListener("change", function () { pushSetting({ exclude: listOf($("exclude-input").value) }); });
+    $("check").addEventListener("click", function () {
+      var list = $("checks"), btn = $("check");
+      btn.textContent = t("settings.check.running"); list.hidden = false; list.textContent = "";
+      fetch("./api/doctor").then(function (r) { return r.json(); }).then(function (d) {
+        (d.checks || []).forEach(function (c) { list.appendChild(h("li", { class: c.status }, [h("span", { class: "dot" }), h("span", { text: c.message })])); });
+      }).catch(function () { list.appendChild(h("li", { class: "error" }, [h("span", { class: "dot" }), h("span", { text: t("settings.check.failed") })])); })
+        .then(function () { btn.textContent = t("settings.check"); });
+    });
     $("stack-switch").addEventListener("click", function () { pushSetting({ stack: $("stack-switch").getAttribute("aria-checked") !== "true" }); });
     Array.prototype.forEach.call(document.querySelectorAll("[data-editor]"), function (b) {
       b.addEventListener("click", function () { pushSetting({ editor: b.getAttribute("data-editor") }); });

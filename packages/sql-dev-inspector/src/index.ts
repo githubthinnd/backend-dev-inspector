@@ -2,6 +2,7 @@ export { describeOperation, genericFingerprint, type OperationDescription } from
 export { bindToRequest, currentTrace, runIgnored, runInRequest } from "./context.js"
 export type { DriverAdapter, InstallContext } from "./driver.js"
 export { type Caller, EDITORS, findCaller, resolveEditor, shortLocation } from "./caller.js"
+export { type Check, diagnose, registerDiagnostics } from "./doctor.js"
 export { applyToEnv, ENV_KEYS, type InspectorEnv, pickEnv } from "./env.js"
 export { createSqlInspector, type SqlInspector } from "./node.js"
 export { DEFAULT_REDACT, parseRedactMode, type RedactMode, redactParams, redactValue } from "./redact.js"
