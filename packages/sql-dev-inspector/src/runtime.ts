@@ -38,6 +38,8 @@ export interface Inspector {
   redact: RedactMode
   /** Which requests are traced (`SQL_INSPECTOR_INCLUDE` / `SQL_INSPECTOR_EXCLUDE`). */
   filters: RouteFilters
+  /** What the UI resets the settings to: what the environment and the options of the process said. */
+  defaults: { redact: RedactMode, filters: RouteFilters }
   /** Where the inspector is served, without slashes: `__sql-inspector`, or what `SQL_INSPECTOR_PATH` chose. */
   mount: string
   /** Language of server-side text (terminal output, `Insight.message`). */
@@ -102,6 +104,7 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
       logToTerminal: env.SQL_INSPECTOR_LOG !== "0",
       redact,
       filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) },
+      defaults: { redact, filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) } },
       mount: normalizeMount(env.SQL_INSPECTOR_PATH)
     }
   }

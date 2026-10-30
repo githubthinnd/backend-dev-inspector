@@ -248,6 +248,8 @@ Settings (including language) are stored in `localStorage`. The panel loads only
 
 ### Hiding values
 
+You can also change it while the app runs: the **gear** in the page's top bar opens the settings (hide values, routes to include or exclude, the page's address), the pill next to it always says whether values are hidden, and the floating panel's settings menu has the same "Hide values" switch. Changes apply to calls recorded from then on and are lost when the server restarts, which then starts from the environment again.
+
 The statements often carry personal data. By default the inspector keeps **the shape of a call, not its values**:
 
 | `SQL_INSPECTOR_REDACT` | Bind parameters | The statement |
@@ -401,7 +403,7 @@ The tool must never make your app look worse, so:
 ```bash
 npm install
 npm run typecheck
-npm test            # 351 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
+npm test            # 362 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
 npm run build
 ```
 

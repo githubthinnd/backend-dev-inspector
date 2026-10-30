@@ -91,6 +91,22 @@ svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; s
 .seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
 .seg button { height: 26px; padding: 0 10px; border-radius: 4px; color: var(--text-2); font-weight: 550; font-size: 12px; }
 .seg button:hover { color: var(--text); }
+.seg button { white-space: nowrap; }
+.seg.wide { display: flex; } .seg.wide button { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--ok-weak); color: var(--ok); font-size: 11.5px; font-weight: 650; white-space: nowrap; }
+.pill svg { width: 13px; height: 13px; }
+.pill:hover { border-color: var(--border-strong); }
+.pill[data-mode="off"] { background: var(--warn-weak); color: var(--warn); }
+.pop { position: absolute; z-index: 40; right: 0; top: calc(100% + 6px); width: 340px; max-width: calc(100vw - 24px); max-height: calc(100vh - 80px); overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); text-align: left; }
+.pop-title { margin: 0 0 8px; font-size: 14px; font-weight: 700; }
+.pop-sec { padding: 10px 0; border-top: 1px solid var(--border); }
+.pop-sec h3 { margin: 0 0 8px; color: var(--text-3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
+.pop-hint { margin: 8px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.45; } .pop-hint.dim { color: var(--text-3); margin-top: 2px; }
+.pop-row { display: grid; gap: 4px; margin-bottom: 8px; color: var(--text-2); font-size: 12px; font-weight: 550; }
+.pop-input { height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: 12.5px var(--mono); }
+.pop-input::placeholder { color: var(--text-3); }
+.pop-input:focus { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-weak); outline: none; }
+.pop-code { display: inline-block; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); font: 12.5px var(--mono); }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
 .switch { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-weight: 550; font-size: 12px; cursor: pointer; }
 .switch .track { position: relative; width: 28px; height: 16px; border-radius: 999px; background: var(--border-strong); transition: background .15s; }

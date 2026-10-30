@@ -238,6 +238,44 @@ describe("floating launcher", () => {
     expect(post).toHaveBeenCalledWith("/__sql-inspector/api/clear", { method: "POST" })
   })
 
+  describe("hiding values", () => {
+    const SETTINGS_URL = "/__sql-inspector/api/settings"
+
+    function mountWithServer(redact: string) {
+      const view = mount()
+      const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+        if (init?.method === "POST") {
+          redact = (JSON.parse(String(init.body)) as { redact: string }).redact
+        }
+        return Promise.resolve({ json: () => Promise.resolve({ slowMs: 100, defaultSlowMs: 100, min: 1, max: 600000, redact }) })
+      })
+      ;(view.win as unknown as { fetch: unknown }).fetch = fetchMock
+      const pressed = () => view.root.querySelectorAll<HTMLElement>("[data-redact][aria-pressed=true]")[0]?.dataset.redact
+      const connect = async () => {
+        FakeEventSource.instances[0]!.onopen!()
+        await settle()
+      }
+      return { ...view, fetchMock, pressed, connect }
+    }
+
+    it("shows what the server does with values, and the hint for it", async () => {
+      const view = mountWithServer("all")
+      await view.connect()
+      expect(view.pressed()).toBe("all")
+      expect(view.q<HTMLElement>("[data-redact-hint]").textContent).toContain("masked")
+    })
+
+    it("sends the choice to the server and follows its answer", async () => {
+      const view = mountWithServer("params")
+      await view.connect()
+      view.q<HTMLElement>("[data-redact=off]").click()
+      await settle()
+      expect(view.fetchMock).toHaveBeenCalledWith(SETTINGS_URL, expect.objectContaining({ method: "POST", body: JSON.stringify({ redact: "off" }) }))
+      expect(view.pressed()).toBe("off")
+      expect(view.q<HTMLElement>("[data-redact-hint]").textContent).toContain("Do not share your screen")
+    })
+  })
+
   describe("slow query threshold", () => {
     const SETTINGS_URL = "/__sql-inspector/api/settings"
     const settingsReply = (slowMs: number, defaultSlowMs = 100) => ({ slowMs, defaultSlowMs, min: 1, max: 600000 })

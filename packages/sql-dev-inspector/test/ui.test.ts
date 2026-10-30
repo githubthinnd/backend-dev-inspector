@@ -75,13 +75,24 @@ function render(options: Options = {}) {
   }
   const calls: { path: string, init?: RequestInit }[] = []
   const sources: Source[] = []
-  const slow = { slowMs: 100, defaultSlowMs: 100, min: 1, max: 600000, ...options.slow }
+  const slow = { slowMs: 100, defaultSlowMs: 100, min: 1, max: 600000, redact: "params", include: [] as string[], exclude: [] as string[], mount: "__sql-inspector", ...options.slow }
   const respond = (path: string, init?: RequestInit) => {
     calls.push({ path, init })
     if (path === "settings") {
       if (init?.method === "POST") {
-        const body = JSON.parse(String(init.body)) as { slowMs: number | null }
-        slow.slowMs = body.slowMs ?? slow.defaultSlowMs
+        const body = JSON.parse(String(init.body)) as { slowMs?: number | null, redact?: string | null, include?: string[] | null, exclude?: string[] | null }
+        if ("slowMs" in body) {
+          slow.slowMs = body.slowMs ?? slow.defaultSlowMs
+        }
+        if ("redact" in body) {
+          slow.redact = body.redact ?? "params"
+        }
+        if ("include" in body) {
+          slow.include = body.include ?? []
+        }
+        if ("exclude" in body) {
+          slow.exclude = body.exclude ?? []
+        }
       }
       return { ...slow }
     }
@@ -305,6 +316,83 @@ describe("inspector page", () => {
     click(document.getElementById("clear"))
     await settle()
     expect(calls).toContain("POST ./api/clear")
+  })
+})
+
+describe("settings: hiding values and the requests to follow", () => {
+  const byId = (document: ReturnType<typeof render>["document"], id: string) => document.getElementById(id) as unknown as HTMLElement
+  const posts = (calls: ReturnType<typeof render>["calls"]) => calls.filter(c => c.path === "settings" && c.init?.method === "POST").map(c => JSON.parse(String(c.init!.body)))
+  const change = (window: ReturnType<typeof render>["window"], input: HTMLElement, value: string) => {
+    ;(input as unknown as HTMLInputElement).value = value
+    input.dispatchEvent(new window.Event("change") as never)
+  }
+
+  it("shows in the top bar that values are hidden, and opens the settings from it", async () => {
+    const { document, sources } = render()
+    sources[0]!.onopen!()
+    await settle()
+    const pill = byId(document, "privacy")
+    expect(pill.textContent).toContain("Values hidden")
+    expect(pill.getAttribute("data-mode")).toBe("params")
+    expect(byId(document, "settings-pop").hidden).toBe(true)
+    pill.click()
+    expect(byId(document, "settings-pop").hidden).toBe(false)
+  })
+
+  it("opens from the gear button, closes on Escape, and keeps the first control reachable", async () => {
+    const { document, window } = render()
+    await settle()
+    const gear = byId(document, "settings")
+    const pop = byId(document, "settings-pop")
+    gear.click()
+    expect(pop.hidden).toBe(false)
+    expect(gear.getAttribute("aria-expanded")).toBe("true")
+    expect(pop.getAttribute("role")).toBe("dialog")
+    pop.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }) as never)
+    expect(pop.hidden).toBe(true)
+    expect(gear.getAttribute("aria-expanded")).toBe("false")
+  })
+
+  it("changes how values are hidden, and the pill follows what the server says", async () => {
+    const { document, calls, sources } = render()
+    sources[0]!.onopen!()
+    await settle()
+    const off = document.querySelector("[data-redact='off']") as unknown as HTMLElement
+    off.click()
+    await settle()
+    expect(posts(calls)).toEqual([{ redact: "off" }])
+    expect(byId(document, "privacy").getAttribute("data-mode")).toBe("off")
+    expect(byId(document, "privacy").textContent).toContain("Values visible")
+    expect(off.getAttribute("aria-pressed")).toBe("true")
+    expect(byId(document, "redact-hint").textContent).toContain("Do not share your screen")
+
+    ;(document.querySelector("[data-redact='all']") as unknown as HTMLElement).click()
+    await settle()
+    expect(byId(document, "privacy").textContent).toContain("Statements masked")
+  })
+
+  it("sends the routes to include and exclude as lists, and shows what the server holds", async () => {
+    const { document, window, calls, sources } = render({ slow: { slowMs: 100, defaultSlowMs: 100, include: ["/api/**"], exclude: [] } as never })
+    sources[0]!.onopen!()
+    await settle()
+    expect((byId(document, "include-input") as unknown as HTMLInputElement).value).toBe("/api/**")
+    change(window, byId(document, "exclude-input"), " /health , /api/webhooks/** ,")
+    await settle()
+    expect(posts(calls)).toEqual([{ exclude: ["/health", "/api/webhooks/**"] }])
+    change(window, byId(document, "include-input"), "")
+    await settle()
+    expect(posts(calls).at(-1)).toEqual({ include: [] })
+  })
+
+  it("resets the three settings to the server's defaults, and shows the address of the page", async () => {
+    const { document, calls, sources } = render({ slow: { slowMs: 100, defaultSlowMs: 100, mount: "_dev/sql", redact: "off" } as never })
+    sources[0]!.onopen!()
+    await settle()
+    expect(byId(document, "path-value").textContent).toBe("/_dev/sql/")
+    byId(document, "settings-reset").click()
+    await settle()
+    expect(posts(calls)).toEqual([{ redact: null, include: null, exclude: null }])
+    expect(byId(document, "privacy").getAttribute("data-mode")).toBe("params")
   })
 })
 

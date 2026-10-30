@@ -1,10 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
+import { parsePatterns } from "./route-filter.js"
+import type { RedactMode } from "./redact.js"
 import { DEFAULT_MOUNT, type Inspector } from "./runtime.js"
 import { rejectReason } from "./guard.js"
 import { cachedReport, formattedSql } from "./report-cache.js"
 import { renderPage } from "./ui/page.js"
 
 const TRAILING_SLASHES = /\/+$/
+const REDACT_MODES = new Set(["params", "all", "off"])
 const QUERY_OR_HASH = /[?#]/
 const REQUEST_DETAIL = /^\/api\/requests\/([\w-]+)$/
 
@@ -40,7 +43,17 @@ export const SLOW_MS_RANGE = { min: 1, max: 600_000 } as const
 const MAX_BODY_BYTES = 1024
 
 function settingsOf(inspector: Inspector) {
-  return { slowMs: inspector.report.slowMs, defaultSlowMs: inspector.defaultSlowMs, ...SLOW_MS_RANGE, brand: inspector.brand }
+  return {
+    slowMs: inspector.report.slowMs,
+    defaultSlowMs: inspector.defaultSlowMs,
+    ...SLOW_MS_RANGE,
+    brand: inspector.brand,
+    redact: inspector.redact,
+    include: inspector.filters.include,
+    exclude: inspector.filters.exclude,
+    defaults: { redact: inspector.defaults.redact, include: inspector.defaults.filters.include, exclude: inspector.defaults.filters.exclude },
+    mount: inspector.mount
+  }
 }
 
 function sendJson(res: ServerResponse, body: unknown, status = 200) {
@@ -73,8 +86,7 @@ function readJsonBody(req: IncomingMessage): Promise<unknown> {
 }
 
 /** `null` asks for the default; a number must be a whole millisecond count in `SLOW_MS_RANGE`. */
-function parseSlowMs(body: unknown): number | null | undefined {
-  const value = (body as { slowMs?: unknown } | null)?.slowMs
+function parseSlowMs(value: unknown): number | null | undefined {
   if (value === null) {
     return null
   }
@@ -82,6 +94,67 @@ function parseSlowMs(body: unknown): number | null | undefined {
     return value
   }
   return undefined
+}
+
+const MAX_PATTERNS = 50
+const MAX_PATTERN_LENGTH = 200
+const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F]/
+
+/** A list of route patterns, each a short plain string. */
+function parsePatternList(value: unknown): string[] | null | undefined {
+  if (value === null) {
+    return null
+  }
+  if (!Array.isArray(value) || value.length > MAX_PATTERNS) {
+    return undefined
+  }
+  const cleaned: string[] = []
+  for (const item of value) {
+    if (typeof item !== "string" || item.length > MAX_PATTERN_LENGTH || CONTROL_CHARACTERS.test(item)) {
+      return undefined
+    }
+    cleaned.push(item)
+  }
+  return parsePatterns(cleaned)
+}
+
+interface SettingsChange {
+  slowMs?: number | null
+  redact?: RedactMode | null
+  include?: string[] | null
+  exclude?: string[] | null
+}
+
+/** What a POST to `/api/settings` may change: any of these, each validated on its own; anything else is refused. */
+function parseSettingsBody(body: unknown): SettingsChange | string {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return "Expected a JSON object"
+  }
+  const input = body as Record<string, unknown>
+  const change: SettingsChange = {}
+  if ("slowMs" in input) {
+    const slowMs = parseSlowMs(input.slowMs)
+    if (slowMs === undefined) {
+      return `slowMs must be a whole number from ${SLOW_MS_RANGE.min} to ${SLOW_MS_RANGE.max}, or null`
+    }
+    change.slowMs = slowMs
+  }
+  if ("redact" in input) {
+    if (input.redact !== null && !REDACT_MODES.has(String(input.redact))) {
+      return "redact must be \"params\", \"all\", \"off\" or null"
+    }
+    change.redact = input.redact as RedactMode | null
+  }
+  for (const key of ["include", "exclude"] as const) {
+    if (key in input) {
+      const list = parsePatternList(input[key])
+      if (list === undefined) {
+        return `${key} must be a list of at most ${MAX_PATTERNS} short route patterns, or null`
+      }
+      change[key] = list
+    }
+  }
+  return Object.keys(change).length > 0 ? change : "Nothing to change"
 }
 
 /**
@@ -180,12 +253,24 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
       return
     }
     readJsonBody(req).then((body) => {
-      const slowMs = parseSlowMs(body)
-      if (slowMs === undefined) {
-        sendJson(res, { message: `slowMs must be a whole number from ${SLOW_MS_RANGE.min} to ${SLOW_MS_RANGE.max}, or null` }, 400)
+      const change = parseSettingsBody(body)
+      if (typeof change === "string") {
+        sendJson(res, { message: change }, 400)
         return
       }
-      inspector.report.slowMs = slowMs ?? inspector.defaultSlowMs
+      if ("slowMs" in change) {
+        inspector.report.slowMs = change.slowMs ?? inspector.defaultSlowMs
+      }
+      if ("redact" in change) {
+        inspector.redact = change.redact ?? inspector.defaults.redact
+        store.redact = inspector.redact
+      }
+      if ("include" in change) {
+        inspector.filters.include = change.include ?? [...inspector.defaults.filters.include]
+      }
+      if ("exclude" in change) {
+        inspector.filters.exclude = change.exclude ?? [...inspector.defaults.filters.exclude]
+      }
       store.settingsChanged()
       sendJson(res, settingsOf(inspector))
     }).catch(() => sendJson(res, { message: "Invalid JSON body" }, 400))

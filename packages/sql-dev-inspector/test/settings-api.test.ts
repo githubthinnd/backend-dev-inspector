@@ -50,11 +50,25 @@ async function post(body: string, contentType = "application/json") {
 
 afterEach(() => {
   inspector.report.slowMs = inspector.defaultSlowMs
+  inspector.redact = inspector.defaults.redact
+  inspector.store.redact = inspector.defaults.redact
+  inspector.filters.include = [...inspector.defaults.filters.include]
+  inspector.filters.exclude = [...inspector.defaults.filters.exclude]
 })
 
 describe("settings API", () => {
   it("reports the current threshold, the default and the allowed range", () => {
-    expect(get().json).toEqual({ slowMs: inspector.defaultSlowMs, defaultSlowMs: inspector.defaultSlowMs, ...SLOW_MS_RANGE, brand: null })
+    expect(get().json).toEqual({
+      slowMs: inspector.defaultSlowMs,
+      defaultSlowMs: inspector.defaultSlowMs,
+      ...SLOW_MS_RANGE,
+      brand: null,
+      redact: "params",
+      include: [],
+      exclude: [],
+      defaults: { redact: "params", include: [], exclude: [] },
+      mount: "__sql-inspector"
+    })
   })
 
   it("changes the threshold for reports and tells every viewer", async () => {
@@ -123,5 +137,45 @@ describe("request list counts", () => {
 
     expect(row).toMatchObject({ errors: 1, warnings: 0 })
     inspector.store.clear()
+  })
+
+  describe("hiding values and choosing the requests to follow", () => {
+    it("changes how values are hidden, for the recorder too, and tells every viewer", async () => {
+      const changes: StoreChange[] = []
+      const stop = inspector.store.subscribe(change => changes.push(change))
+      const res = await post(JSON.stringify({ redact: "all" }))
+      stop()
+      expect(res.statusCode).toBe(200)
+      expect(res.json.redact).toBe("all")
+      expect(inspector.store.redact).toBe("all")
+      expect(changes).toContainEqual({ type: "settings" })
+    })
+
+    it("sets the routes to include and exclude, normalising them, and null goes back to the defaults", async () => {
+      const set = await post(JSON.stringify({ include: ["api/**", " /health "], exclude: ["/api/webhooks/**"] }))
+      expect(set.json).toMatchObject({ include: ["/api/**", "/health"], exclude: ["/api/webhooks/**"] })
+      expect(inspector.filters).toEqual({ include: ["/api/**", "/health"], exclude: ["/api/webhooks/**"] })
+
+      const reset = await post(JSON.stringify({ include: null, exclude: null, redact: null }))
+      expect(reset.json).toMatchObject({ include: [], exclude: [], redact: "params" })
+    })
+
+    it("changes one setting without touching the others", async () => {
+      await post(JSON.stringify({ slowMs: 250 }))
+      await post(JSON.stringify({ redact: "off" }))
+      expect(get().json).toMatchObject({ slowMs: 250, redact: "off" })
+    })
+
+    it("refuses what it does not understand", async () => {
+      for (const body of [
+        { redact: "everything" }, { redact: 5 }, { include: "/api/**" }, { include: [1] },
+        { exclude: ["a".repeat(201)] }, { include: Array.from({ length: 51 }, () => "/x") }, { exclude: ["/a\nb"] },
+        {}, { unknown: true }, []
+      ]) {
+        expect((await post(JSON.stringify(body))).statusCode, JSON.stringify(body).slice(0, 40)).toBe(400)
+      }
+      expect(inspector.redact).toBe("params")
+      expect(inspector.filters).toEqual({ include: [], exclude: [] })
+    })
   })
 })

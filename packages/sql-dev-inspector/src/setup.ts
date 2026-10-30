@@ -54,12 +54,15 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
   if (options.redact) {
     inspector.redact = options.redact
     inspector.store.redact = options.redact
+    inspector.defaults.redact = options.redact
   }
   if (options.include) {
     inspector.filters.include = parsePatterns(options.include)
+    inspector.defaults.filters.include = [...inspector.filters.include]
   }
   if (options.exclude) {
     inspector.filters.exclude = parsePatterns(options.exclude)
+    inspector.defaults.filters.exclude = [...inspector.filters.exclude]
   }
   if (options.path) {
     inspector.mount = normalizeMount(options.path)

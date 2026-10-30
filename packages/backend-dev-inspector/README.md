@@ -335,6 +335,8 @@ Every `SQL_INSPECTOR_*` variable below is read from the environment through an a
 
 ### Hiding values
 
+You can also change it while the app runs: the **gear** in the page's top bar opens the settings (hide values, routes to include or exclude, the page's address), the pill next to it always says whether values are hidden, and the floating panel's settings menu has the same "Hide values" switch. Changes apply to calls recorded from then on and are lost when the server restarts, which then starts from the environment again.
+
 The calls often carry personal data. By default the inspector keeps **the shape of a call, not its values**:
 
 | `SQL_INSPECTOR_REDACT` | Bind parameters | The statement |

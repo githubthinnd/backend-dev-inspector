@@ -53,7 +53,9 @@ export const CLIENT_SCRIPT = String.raw`
     globe: "<svg viewBox='0 0 24 24'><circle cx='12' cy='12' r='9'/><path d='M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3Z'/></svg>",
     check: "<svg viewBox='0 0 24 24'><path d='m5 12.5 4.5 4.5L19 7.5'/></svg>",
     inbox: "<svg viewBox='0 0 24 24'><path d='M3 13h5l1.5 3h5L16 13h5'/><path d='M5 5h14l2 8v6H3v-6l2-8Z'/></svg>",
-    timer: "<svg viewBox='0 0 24 24'><circle cx='12' cy='13' r='8'/><path d='M12 9v4l2.5 2M9 2h6'/></svg>"
+    timer: "<svg viewBox='0 0 24 24'><circle cx='12' cy='13' r='8'/><path d='M12 9v4l2.5 2M9 2h6'/></svg>",
+    shield: "<svg viewBox='0 0 24 24'><path d='M12 3 4.5 6v5.5c0 4.6 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.9 7.5-9.5V6L12 3Z'/><path d='m9 12 2.2 2.2L15.2 10'/></svg>",
+    gear: "<svg viewBox='0 0 24 24'><circle cx='12' cy='12' r='3'/><path d='M12 2.5v2.2M12 19.3v2.2M4.2 6.5l1.9 1.1M17.9 16.4l1.9 1.1M2.5 12h2.2M19.3 12h2.2M4.2 17.5l1.9-1.1M17.9 7.6l1.9-1.1'/></svg>"
   };
   function icon(name) { var s = document.createElement("span"); s.innerHTML = ICONS[name] || ""; return s.firstChild; }
 
@@ -390,6 +392,43 @@ export const CLIENT_SCRIPT = String.raw`
     input.value = custom ? String(serverSlow.slowMs) : "";
     input.placeholder = serverSlow ? String(serverSlow.defaultSlowMs) : "";
     $("slow-field").setAttribute("title", t("widget.slowMs") + " — " + t("widget.slowMs.hint", { ms: serverSlow ? serverSlow.defaultSlowMs : "…" }));
+    showPrivacy(serverSlow);
+  }
+  // ── privacy and the requests to follow: server settings, shown in a popover ──
+  function listOf(text) { return text.split(",").map(function (x) { return x.trim(); }).filter(Boolean); }
+  function showPrivacy(server) {
+    if (!server || !server.redact) { return; }
+    var mode = server.redact;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-redact]"), function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-redact") === mode ? "true" : "false"); });
+    $("redact-hint").textContent = t("settings.redact.hint." + mode);
+    $("privacy").setAttribute("data-mode", mode);
+    $("privacy-text").textContent = t(mode === "params" ? "status.hidden" : mode === "all" ? "status.masked" : "status.visible");
+    if (document.activeElement !== $("include-input")) { $("include-input").value = (server.include || []).join(", "); }
+    if (document.activeElement !== $("exclude-input")) { $("exclude-input").value = (server.exclude || []).join(", "); }
+    $("path-value").textContent = "/" + (server.mount || "__sql-inspector") + "/";
+  }
+  function pushSetting(body) {
+    return requestSlow({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  }
+  function setSettingsOpen(open, restoreFocus) {
+    var pop = $("settings-pop"), btn = $("settings");
+    pop.hidden = !open; btn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (!open && restoreFocus) { btn.focus(); }
+  }
+  function setupSettings() {
+    var pop = $("settings-pop");
+    $("settings").addEventListener("click", function () { setSettingsOpen(pop.hidden, false); });
+    $("privacy").addEventListener("click", function () { setSettingsOpen(pop.hidden, false); });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-redact]"), function (b) {
+      b.addEventListener("click", function () { pushSetting({ redact: b.getAttribute("data-redact") }); });
+    });
+    $("include-input").addEventListener("change", function () { pushSetting({ include: listOf($("include-input").value) }); });
+    $("exclude-input").addEventListener("change", function () { pushSetting({ exclude: listOf($("exclude-input").value) }); });
+    $("settings-reset").addEventListener("click", function () { pushSetting({ redact: null, include: null, exclude: null }); });
+    pop.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); setSettingsOpen(false, true); } });
+    document.addEventListener("click", function (e) {
+      if (!pop.hidden && !$("settings-dd").contains(e.target) && !$("privacy").contains(e.target)) { setSettingsOpen(false, false); }
+    });
   }
   function requestSlow(init) {
     return fetch("./api/settings", init).then(function (r) { return r.json(); }).then(function (d) {
@@ -484,6 +523,7 @@ export const CLIENT_SCRIPT = String.raw`
   // ── wiring ────────────────────────────────────────────────────────
   Array.prototype.forEach.call(document.querySelectorAll("[data-icon]"), function (el) { el.replaceWith(icon(el.getAttribute("data-icon"))); });
   setupLangMenu();
+  setupSettings();
   $("theme").addEventListener("click", function () {
     state.theme = state.theme === "auto" ? "light" : state.theme === "light" ? "dark" : "auto";
     storage.set(KEY_THEME, state.theme); applyTheme();

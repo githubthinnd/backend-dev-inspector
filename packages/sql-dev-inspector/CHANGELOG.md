@@ -8,6 +8,7 @@
 - **Route filters**: `SQL_INSPECTOR_INCLUDE` and `SQL_INSPECTOR_EXCLUDE` (or the `include` / `exclude` options): comma-separated path patterns with `*` and `**`. A request that is left out is dropped, its statements are not listed under "(outside request)". Works in the Node, web-standard and Nitro adapters; `task()` is never filtered.
 - **Custom path**: `SQL_INSPECTOR_PATH` (or the `path` option) serves the page from another path than `/__sql-inspector/`; the floating panel takes a `path` option and the Nuxt module passes it on.
 - **Nuxt module options** (`redact`, `include`, `exclude`, `path`), inline in `modules` or under a top-level `sqlInspector` key.
+- **Settings in the interface**: the gear in the page's top bar opens a settings popover (hide values, routes to include and exclude, the page's address, reset to defaults), a pill next to it shows whether values are hidden, and the floating panel's settings menu has the "Hide values" switch. The settings API (`GET` / `POST /api/settings`) now also carries `redact`, `include`, `exclude`, `defaults` and `mount`; English, Vietnamese and Japanese texts.
 - Exports: `parseRedactMode`, `redactParams`, `redactValue`, `matchRoute`, `isTracked`, `parsePatterns`, `runIgnored`, `normalizeMount`, `applyToEnv`, `DEFAULT_MOUNT`, and the `RedactMode` and `RouteFilters` types.
 
 ### Changed

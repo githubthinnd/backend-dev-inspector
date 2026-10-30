@@ -35,6 +35,8 @@ interface ServerSettings {
   defaultSlowMs: number
   /** What the server's package calls the UI; null for the default "SQL Inspector". */
   brand?: { title: string, short: string } | null
+  /** `params`, `all` or `off`: what the server keeps of values. */
+  redact?: string
 }
 
 interface RequestSummary {
@@ -158,6 +160,11 @@ kbd { font: 600 10.5px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 .menu .action { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; padding: 0 8px; border-radius: 6px; font-size: 12.5px; }
 .menu .action:hover { background: var(--surface-2); }
 .menu .action.danger { color: var(--err); }
+.segment { display: flex; gap: 2px; margin: 2px 8px 6px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.segment button { flex: 1; height: 26px; padding: 0 6px; border-radius: 6px; color: var(--text-2); font-size: 12px; font-weight: 600; cursor: pointer; }
+.segment button:hover { color: var(--text); }
+.segment button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+.segment button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .menu .hint { padding: 0 8px 6px; color: var(--text-3); font-size: 11.5px; }
 @media (prefers-reduced-motion: reduce) { .root * { transition: none !important; } }
 `
@@ -228,6 +235,13 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
           <div class="options" role="listbox" data-lang-options hidden></div>
           <label class="row"><span class="label" data-t="widget.slowMs"></span><span class="num"><input type="number" inputmode="numeric" min="${SLOW_MS_MIN}" max="${SLOW_MS_MAX}" step="1" data-slow-input>ms</span></label>
           <div class="hint" data-slow-hint></div>
+          <div class="section" data-t="settings.redact"></div>
+          <div class="segment" role="group" data-redact-seg>
+            <button type="button" aria-pressed="false" data-redact="params" data-t="settings.redact.params"></button>
+            <button type="button" aria-pressed="false" data-redact="all" data-t="settings.redact.all"></button>
+            <button type="button" aria-pressed="false" data-redact="off" data-t="settings.redact.off"></button>
+          </div>
+          <div class="hint" data-redact-hint></div>
           <div class="sep"></div>
           <div class="section" data-t="widget.shortcuts"></div>
           <div class="row"><span class="label" data-t="widget.shortcut.toggle"></span><span class="keys">${keyChips(HOTKEYS.togglePanel)}</span></div>
@@ -253,6 +267,8 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
   const langOptions = $<HTMLElement>("[data-lang-options]")
   const slowInput = $<HTMLInputElement>("[data-slow-input]")
   const slowHint = $<HTMLElement>("[data-slow-hint]")
+  const redactHint = $<HTMLElement>("[data-redact-hint]")
+  const redactButtons = Array.from(root.querySelectorAll<HTMLElement>("[data-redact]"))
 
   // A custom listbox, not a <select>: the browser/OS draws a native select's popup, which no CSS can restyle.
   const langChoices: { value: WidgetSettings["lang"], code: string }[] = [{ value: "auto", code: "" }, ...LOCALES.map(l => ({ value: l.code, code: l.code }))]
@@ -299,11 +315,19 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
     slowInput.placeholder = serverSlow ? String(serverSlow.defaultSlowMs) : ""
     slowHint.textContent = t("widget.slowMs.hint", { ms: serverSlow?.defaultSlowMs ?? "…" })
   }
+  const showRedact = (server: ServerSettings) => {
+    const mode = server.redact === "all" || server.redact === "off" ? server.redact : "params"
+    for (const choice of redactButtons) {
+      choice.setAttribute("aria-pressed", String(choice.dataset.redact === mode))
+    }
+    redactHint.textContent = t(`settings.redact.hint.${mode}` as MessageKey)
+  }
   const requestSlow = async (init?: RequestInit) => {
     try {
       const data: unknown = await (await win.fetch(`${inspectorUrl}api/settings`, init)).json()
       if (isServerSettings(data)) {
         showSlow(data)
+        showRedact(data)
         const brand = data.brand ?? null
         if (brand?.title !== serverBrand?.title || brand?.short !== serverBrand?.short) {
           serverBrand = brand
@@ -332,6 +356,11 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
     void pushSlow(value)
   }
   slowInput.addEventListener("change", commitSlow)
+  for (const choice of redactButtons) {
+    choice.addEventListener("click", () => {
+      void requestSlow({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ redact: choice.dataset.redact }) })
+    })
+  }
 
   const applyTexts = () => {
     for (const el of Array.from(root.querySelectorAll<HTMLElement>("[data-t]"))) {

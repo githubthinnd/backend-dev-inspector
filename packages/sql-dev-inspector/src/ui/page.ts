@@ -45,6 +45,35 @@ export function renderPage(localeHint: Locale | null = null, title: string | nul
       <input id="slow" class="input" type="number" min="1" max="600000" step="1" inputmode="numeric" data-i18n-aria="widget.slowMs">
       <span class="unit" aria-hidden="true">ms</span>
     </label>
+    <button type="button" class="pill" id="privacy" data-mode="params" data-i18n-title="status.title" data-i18n-aria="status.title"><span data-icon="shield"></span><span id="privacy-text"></span></button>
+    <span class="dd" id="settings-dd">
+      <button type="button" class="btn icon ghost" id="settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings-pop" data-i18n-aria="settings.title" data-i18n-title="settings.title"><span data-icon="gear"></span></button>
+      <div class="pop" id="settings-pop" role="dialog" aria-labelledby="settings-title" hidden>
+        <h2 class="pop-title" id="settings-title" data-i18n="settings.title"></h2>
+        <section class="pop-sec">
+          <h3 data-i18n="settings.redact"></h3>
+          <span class="seg wide" role="group" id="redact-seg">
+            <button type="button" data-redact="params" aria-pressed="true" data-i18n="settings.redact.params"></button>
+            <button type="button" data-redact="all" aria-pressed="false" data-i18n="settings.redact.all"></button>
+            <button type="button" data-redact="off" aria-pressed="false" data-i18n="settings.redact.off"></button>
+          </span>
+          <p class="pop-hint" id="redact-hint"></p>
+          <p class="pop-hint dim" data-i18n="settings.redact.note"></p>
+        </section>
+        <section class="pop-sec">
+          <h3 data-i18n="settings.filters"></h3>
+          <label class="pop-row"><span data-i18n="settings.include"></span><input id="include-input" class="pop-input" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.filters.placeholder"></label>
+          <label class="pop-row"><span data-i18n="settings.exclude"></span><input id="exclude-input" class="pop-input" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.filters.placeholder"></label>
+          <p class="pop-hint" data-i18n="settings.filters.hint"></p>
+        </section>
+        <section class="pop-sec">
+          <h3 data-i18n="settings.path"></h3>
+          <code class="pop-code" id="path-value"></code>
+          <p class="pop-hint" data-i18n="settings.path.hint"></p>
+        </section>
+        <button type="button" class="btn sm" id="settings-reset" data-i18n="settings.reset"></button>
+      </div>
+    </span>
     <span class="dd" id="lang-dd">
       <button type="button" class="dd-btn" id="lang" aria-haspopup="listbox" aria-expanded="false" data-i18n-aria="lang.label" data-i18n-title="lang.label"><span data-icon="globe"></span><span id="lang-label"></span><span data-icon="down"></span></button>
       <ul class="dd-menu" id="lang-menu" role="listbox" tabindex="-1" hidden></ul>
