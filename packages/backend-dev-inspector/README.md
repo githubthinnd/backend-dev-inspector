@@ -300,16 +300,16 @@ Every technology is a *driver*: its calls are described as the SQL statement the
 
 | Technology | Library (peer range) | How it is observed | Verified |
 |---|---|---|---|
-| **PostgreSQL** | `pg` ≥ 8 | patches `Client#query`; pool-aware | ✅ Real client, `pg` 8 + protocol mock |
-| **MySQL, MariaDB server** | `mysql2` ≥ 3 | patches `Connection#query` / `execute` (via `sql-dev-inspector`) | ✅ Real client, `mysql2` 3 + protocol mock |
-| **PostgreSQL** (postgres.js) | `postgres` ≥ 3 | 4: subscribes to its tracing channel. 3: `instrumentPostgres(sql)` wrapper | ✅ Real client, `postgres` 4 and 3 + protocol mock |
+| **PostgreSQL** | `pg` ≥ 8 (tested from 8.11) | patches `Client#query`; pool-aware | ✅ Real client, `pg` 8 + protocol mock |
+| **MySQL, MariaDB server** | `mysql2` ≥ 3 (tested from 3.9) | patches `Connection#query` / `execute` (via `sql-dev-inspector`) | ✅ Real client, `mysql2` 3 + protocol mock |
+| **PostgreSQL** (postgres.js) | `postgres` ≥ 3.4 | 4: subscribes to its tracing channel. 3: `instrumentPostgres(sql)` wrapper | ✅ Real client, `postgres` 4 and 3 + protocol mock |
 | **SQLite** | `better-sqlite3` ≥ 9 | patches statements and `exec`; `db.transaction()` shows as a transaction | ✅ Real client, v13 |
 | | `node:sqlite` (built in) | the same; **opt-in** | ✅ Real, Node 22+ |
-| **libSQL, Turso** | `@libsql/client` ≥ 0.14 | patches the client and transaction classes of the local, HTTP and WebSocket clients (the ESM and the CommonJS copy) | ✅ Real client, in-memory database; remote client on a refused connection |
+| **libSQL, Turso** | `@libsql/client` ≥ 0.14 (on 0.14 a failed batch marks all its statements, since the client does not say which one failed) | patches the client and transaction classes of the local, HTTP and WebSocket clients (the ESM and the CommonJS copy) | ✅ Real client, in-memory database; remote client on a refused connection |
 | **db0** (Nitro `useDatabase()`, NuxtHub) | `db0` | through the driver under the connector (`better-sqlite3`, libSQL, `pg`, `mysql2`): nothing to set up. Other connectors (PGlite, Neon, D1…): `withTracing(db)` from `db0/tracing` | ✅ over `better-sqlite3` and libSQL; 🧪 the tracing channel, with a stand-in connector |
-| **MongoDB** | `mongodb` ≥ 5 (and Mongoose) | switches on the driver's command monitoring | ✅ Real client, `mongodb` 7 + protocol mock |
+| **MongoDB** | `mongodb` ≥ 6.5 (and Mongoose); older versions fail the tests (concurrent requests are mixed up, or the mock server is not served) and are not supported | switches on the driver's command monitoring | ✅ Real client, `mongodb` 7 + protocol mock |
 | **Redis** | `ioredis` 6, `redis` 6 (node-redis) | subscribes to the clients' own tracing channels | ✅ Real clients |
-| | `ioredis` 5 | small patch on `sendCommand` | ✅ Real client, patch path forced |
+| | `ioredis` ≥ 5.4.2 | small patch on `sendCommand` (older 5.x fails the tests: not supported) | ✅ Real client, 5.4.2 |
 | **HTTP out** | `node:http`, `node:https`, global `fetch`, `undici` | subscribes to Node's `diagnostics_channel` | ✅ Real client code over in-memory sockets |
 | **MariaDB connector** | `mariadb` 3 | `instrumentMariadb(module)` helper | 🧪 Documented API |
 | **AWS SDK v3** | any `@aws-sdk/client-*` | `instrumentAws(client)`: a middleware that runs before the SDK's retries, so one call per command with its attempts | ✅ Real `@aws-sdk/client-sqs` with a stand-in transport |

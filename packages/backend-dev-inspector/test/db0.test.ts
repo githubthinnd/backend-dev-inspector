@@ -56,7 +56,8 @@ describe("db0 (Nitro useDatabase, NuxtHub)", () => {
   })
 
   it("over libSQL: recorded once, at the libSQL driver", async () => {
-    const db = createDatabase(libsql({ url: ":memory:" }))
+    // `lib` hands db0 the copy this test resolves, so a client installed next to this package (not at the root) is found too.
+    const db = createDatabase(libsql({ url: ":memory:", lib: createRequire(import.meta.url)("@libsql/client") }))
     await db.exec("create table users (id integer primary key)")
     const trace = request("/libsql")
     await runInRequest(trace, async () => await db.sql`select * from users`)

@@ -57,7 +57,7 @@ jobs:
       - name: Install the libraries at ${{ matrix.set }}
         run: |
           if [ "${{ matrix.set }}" = "oldest" ]; then
-            npm install --no-save --ignore-scripts -w backend-dev-inspector pg@8.11.0 mysql2@3.9.0 mongodb@5.9.0 ioredis@5.3.0 postgres@3.4.0 @libsql/client@0.14.0
+            npm install --no-save --ignore-scripts -w backend-dev-inspector pg@8.11.0 mysql2@3.9.0 mongodb@6.5.0 ioredis@5.4.2 postgres@4.0.0 postgres3@npm:postgres@3.4.0 @libsql/client@0.14.0
           else
             npm install --no-save --ignore-scripts -w backend-dev-inspector pg@latest mysql2@latest mongodb@latest ioredis@latest postgres@latest @libsql/client@latest
           fi

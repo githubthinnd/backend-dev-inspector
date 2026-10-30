@@ -62,7 +62,10 @@ afterEach(() => {
   resetInspectorForTests()
 })
 
-describe("ioredis (tracing channel)", () => {
+// ioredis 6 publishes its commands; a 5.x copy (the oldest the CI job installs) goes through the patch tested below.
+const publishes = typeof (ioredis.default as unknown as { prototype: Record<string, unknown> }).prototype._buildCommandContext === "function"
+
+describe.skipIf(!publishes)("ioredis (tracing channel)", () => {
   beforeEach(() => {
     uninstall = ioredisDriver.install(recorder())
   })

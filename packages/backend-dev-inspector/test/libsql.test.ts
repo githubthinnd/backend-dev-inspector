@@ -68,11 +68,13 @@ describe("libsql driver", () => {
     expect(calls(trace).map(c => [c.kind, c.api, c.affected])).toEqual([["insert", "batch", 1], ["insert", "batch", 1]])
 
     const failing = request("/batch-fail")
-    await expect(runInRequest(failing, () => client.batch([
+    const error = await runInRequest(failing, () => client.batch([
       "insert into users (id, name) values (20, 'a')",
       "insert into users (id, name) values (20, 'dup')"
-    ], "write"))).rejects.toThrow()
-    expect(calls(failing).map(c => c.error !== null)).toEqual([false, true])
+    ], "write")).then(() => null, (reason: unknown) => reason as { statementIndex?: number })
+    expect(error).not.toBeNull()
+    // A client that says which statement failed gets it alone marked; one that does not (0.14) gets the whole batch marked, since all of it was rolled back.
+    expect(calls(failing).map(c => c.error !== null)).toEqual(typeof error?.statementIndex === "number" ? [false, true] : [true, true])
   })
 
   it("shows a transaction: BEGIN, its statements and COMMIT, grouped", async () => {

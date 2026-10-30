@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Supported versions of the watched libraries, from the tests that run at the oldest version the table allows.** `mongodb` is 6.5 and newer (older releases mixed up the calls of concurrent requests), `ioredis` 5 is 5.4.2 and newer, `postgres` 3 is 3.4 and newer. On `@libsql/client` 0.14 a failed batch marks all its statements, because that client does not say which one failed.
+- The CI job that installs the oldest libraries now installs the oldest of each supported line, and the tests that only apply to a newer release (ioredis 6's tracing channel) skip on an older one.
+
 ## [1.1.0] - 2026-10-30
 
 ### Added
