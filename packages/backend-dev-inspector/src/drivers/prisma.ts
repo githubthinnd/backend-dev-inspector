@@ -1,5 +1,5 @@
 import type { DriverAdapter, OperationEnd, Recorder, StatementKind } from "sql-dev-inspector"
-import { describeOperation } from "sql-dev-inspector"
+import { describeOperation, runInOperation } from "sql-dev-inspector"
 
 /**
  * Prisma, through a client extension. Prisma runs queries in a native engine that gives the
@@ -9,9 +9,12 @@ import { describeOperation } from "sql-dev-inspector"
  *   import { prismaExtension } from "backend-dev-inspector/prisma"
  *   const prisma = new PrismaClient().$extends(prismaExtension())
  *
- * Operations are described by model and operation (`User.findMany {"where":…}`), because the SQL
- * Prisma generates is not available at this point. Outside development (no inspector running)
- * the extension passes every call through untouched.
+ * An operation is listed by model and operation (`User.findMany {"where":…}`), which is what the code says and
+ * where the stack points. The SQL Prisma generates for it is not available at this point, but it is run through a
+ * database driver the inspector watches (`@prisma/adapter-pg`, `-libsql`, `-better-sqlite3`… sit on `pg`, libSQL,
+ * better-sqlite3): whatever those report while the operation runs is kept on the operation as `statements`, so the
+ * page shows the real SQL under it, and it is not counted a second time. Outside development (no inspector
+ * running) the extension passes every call through untouched.
  */
 
 let active: Recorder | null = null
@@ -92,7 +95,7 @@ async function record({ model, operation, args, query }: OperationParams): Promi
     analysis: describeOperation({ kind: kindOf(operation), label: operation.replace(/^\$/, "").toUpperCase(), targets: model ? [model] : [], text })
   })
   try {
-    const result = await query(args)
+    const result = await (handle ? runInOperation(handle.event, () => query(args)) : query(args))
     handle?.end(outcomeOf(result))
     return result
   } catch (error) {

@@ -57,6 +57,11 @@ export interface QueryEvent {
   analysis: SqlAnalysis
   /** Where in the application the call was made; absent when it is not looked for or the call came from a library alone. */
   caller?: { file: string, line: number, column: number, fn?: string }
+  /**
+   * What a library ran to carry out this call, for a call that is a layer over another watched driver: the SQL Prisma sent
+   * to the database for `User.findMany {...}`. They are not counted as calls of their own.
+   */
+  statements?: QueryEvent[]
 }
 
 export interface RequestTrace {

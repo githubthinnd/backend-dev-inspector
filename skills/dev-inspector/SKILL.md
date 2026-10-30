@@ -38,7 +38,7 @@ Use the app's own port and base path. If the page was moved with `SQL_INSPECTOR_
 1. If the user names an endpoint, make sure it has been called (ask them to, or call it yourself in development), then `list_requests` to find its id. Otherwise run `find_problems`.
 2. `get_request` for the worst one. Read the `insights` first: each has a `type` (`n-plus-one`, `duplicate`, `slow`, `error`, `many-queries`), a `hint`, and `calledFrom` (`file:line`).
 3. Open `calledFrom` in the repository and change the code the way the hint says (a join, an `IN` list, an eager-loading option, `MGET`, a batch endpoint, a cache for the request).
-4. Ask for the endpoint to be called again, then `get_request` on the new request and compare the call count and timing with before. State the numbers.
+4. Ask for the endpoint to be called again, then `compare_requests` with the old and the new request id (or `get_request` on the new one) and report the change in calls and timing. State the numbers.
 
 ## Rules
 

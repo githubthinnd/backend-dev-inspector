@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { buildReport, createRecorder, getInspector, type RequestTrace, resetInspectorForTests, runInRequest, startInspector } from "sql-dev-inspector"
+import { analyzeSql, buildReport, createRecorder, getInspector, type RequestTrace, resetInspectorForTests, runInRequest, startInspector } from "sql-dev-inspector"
 import { prismaDriver, prismaExtension } from "../src/drivers/prisma"
 
 /**
@@ -81,6 +81,43 @@ describe("prisma extension", () => {
       }
     })
     expect(buildReport(trace).insights.find(i => i.type === "n-plus-one")?.params.sql).toBe(`Post.findUnique {"where":{"id":?}}`)
+  })
+
+  it("keeps the SQL Prisma sent to the database on the operation, and does not count it again", async () => {
+    const trace = request("/real-sql")
+    const recorder = createRecorder(getInspector().store)
+    const sent = (text: string, rows: number) => async () => {
+      recorder.begin({ driver: "pg", api: "query", text, params: [7], connectionId: 5, analysis: analyzeSql(text, "postgres") })?.end({ rowCount: rows })
+      return rows === 0 ? null : { id: 7 }
+    }
+    await runInRequest(trace, async () => {
+      await extension.query.$allOperations({ model: "User", operation: "findUnique", args: { where: { id: 7 }, include: { posts: true } }, query: async () => {
+        await sent('SELECT "User"."id" FROM "User" WHERE "User"."id" = $1 LIMIT $2', 1)()
+        return await sent('SELECT "Post"."id" FROM "Post" WHERE "Post"."userId" IN ($1)', 3)()
+      } })
+      // a call made outside any Prisma operation is still listed on its own
+      await sent("select 1", 1)()
+    })
+    expect(trace.queries.map(q => [q.driver, q.sql])).toEqual([["prisma", `User.findUnique {"where":{"id":7},"include":{"posts":true}}`], ["pg", "select 1"]])
+    const [operation] = trace.queries
+    expect(operation!.statements?.map(q => [q.driver, q.sql, q.rowCount, q.durationMs !== null])).toEqual([
+      ["pg", 'SELECT "User"."id" FROM "User" WHERE "User"."id" = $1 LIMIT $2', 1, true],
+      ["pg", 'SELECT "Post"."id" FROM "Post" WHERE "Post"."userId" IN ($1)', 3, true]
+    ])
+    expect(operation!.statements![0]!.params).toEqual(["<number>"])
+    expect(buildReport(trace).totals.queryCount).toBe(2)
+  })
+
+  it("keeps the SQL of overlapping operations with the operation that ran it", async () => {
+    const trace = request("/parallel")
+    const recorder = createRecorder(getInspector().store)
+    const op = (name: string, text: string, ms: number) => extension.query.$allOperations({ model: name, operation: "findMany", args: {}, query: async () => {
+      await new Promise(resolve => setTimeout(resolve, ms))
+      recorder.begin({ driver: "pg", api: "query", text, connectionId: 1, analysis: analyzeSql(text, "postgres") })?.end()
+      return []
+    } })
+    await runInRequest(trace, () => Promise.all([op("A", "select a", 20), op("B", "select b", 5)]))
+    expect(trace.queries.map(q => [q.sql, q.statements?.map(s => s.sql)])).toEqual([["A.findMany {}", ["select a"]], ["B.findMany {}", ["select b"]]])
   })
 
   it("keeps overlapping requests apart", async () => {

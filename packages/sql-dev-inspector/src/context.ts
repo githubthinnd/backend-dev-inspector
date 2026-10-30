@@ -1,4 +1,4 @@
-import type { RequestTrace } from "./types.js"
+import type { QueryEvent, RequestTrace } from "./types.js"
 import { AsyncLocalStorage } from "node:async_hooks"
 
 /**
@@ -15,6 +15,26 @@ function scope(): AsyncLocalStorage<RequestTrace> {
 /** Everything awaited inside `fn` is attributed to `trace`, however deep the call goes. */
 export function runInRequest<T>(trace: RequestTrace, fn: () => T): T {
   return scope().run(trace, fn)
+}
+
+const OPERATION = Symbol.for("sqlDevInspector.operationScope")
+
+function operations(): AsyncLocalStorage<QueryEvent> {
+  const holder = globalThis as unknown as Record<symbol, AsyncLocalStorage<QueryEvent> | undefined>
+  return (holder[OPERATION] ??= new AsyncLocalStorage<QueryEvent>())
+}
+
+/**
+ * Everything the watched drivers run while `fn` is awaited is the work of `event`, a call of a library that sits on top of
+ * them (Prisma): it is kept on `event.statements` instead of being listed as calls of its own.
+ */
+export function runInOperation<T>(event: QueryEvent, fn: () => T): T {
+  return operations().run(event, fn)
+}
+
+/** The layered call the current code is running for, if any. */
+export function currentOperation(): QueryEvent | undefined {
+  return operations().getStore()
 }
 
 /** Id of the stand-in trace for work the route filters leave out; nothing run under it is recorded. */

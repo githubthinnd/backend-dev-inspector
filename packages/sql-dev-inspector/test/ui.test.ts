@@ -43,7 +43,7 @@ function trace(id: string, url: string, queries: QueryEvent[], method = "GET", l
 }
 
 const nPlusOne = [1, 2, 3].map(i => query(`select \`id\` from \`order_items\` where \`order_id\` = ${i}`, { caller: WHERE }))
-function buildTraces() {
+function buildTraces(layered = false) {
   return [
     trace("a", "/api/order-detail/1", [
       ...nPlusOne,
@@ -52,7 +52,7 @@ function buildTraces() {
       query("insert into `<img src=x onerror=window.__pwned=1>` values (1)", { rowCount: null, affectedRows: 1 }),
       query("commit")
     ], "GET", [{ level: "warn", at: 1020, message: "cache miss for order 1\nsecond line", caller: WHERE }, { level: "log", at: 1030, message: "done" }]),
-    trace("b", "/api/customers", [query("select 1 from `customers`")], "POST"),
+    trace("b", "/api/customers", [query("select 1 from `customers`", layered ? { driver: "prisma", statements: [query("select `id` from `customers` limit 1", { driver: "libsql", rowCount: 1 })] } : {})], "POST"),
     trace("c", "/api/broken", [query("select boom", { error: "You have an error in your SQL syntax" })])
   ]
 }
@@ -65,12 +65,13 @@ interface Options {
   clipboard?: (text: string) => Promise<void>
   /** What the server says about the slow-query threshold. */
   slow?: { slowMs: number, defaultSlowMs: number }
+  layered?: boolean
 }
 
 interface Source { onopen: (() => void) | null, onmessage: ((event: { data: string }) => void) | null, onerror: (() => void) | null }
 
 function render(options: Options = {}) {
-  const traces = buildTraces()
+  const traces = buildTraces(options.layered)
   const reports = new Map(traces.map(t => [t.id, buildReport(t)]))
   const window = createWindow({ url: "http://localhost/__sql-inspector/", width: options.width ?? 1280, height: 800 })
   Object.defineProperty(window.navigator, "languages", { value: options.languages ?? ["en-US"], configurable: true })
@@ -661,6 +662,19 @@ describe("page document", () => {
 })
 
 vi.setConfig({ testTimeout: 10000 })
+
+describe("the SQL a library sent", () => {
+  it("is listed under the call when it is opened", async () => {
+    const { document } = render({ layered: true })
+    await settle()
+    await selectRequest(document, 1)
+    click(document.querySelector(".q-head"))
+    const text = document.querySelector(".q-body")?.textContent ?? ""
+    expect(text).toContain("Sent to the database (1)")
+    expect(text).toContain("libsql")
+    expect(document.querySelectorAll(".sent pre").length).toBe(1)
+  })
+})
 
 describe("time breakdown", () => {
   it("shows a bar and a legend for the request", async () => {

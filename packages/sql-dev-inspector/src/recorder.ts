@@ -1,6 +1,6 @@
 import type { TraceStore } from "./store.js"
 import type { QueryEvent, SqlAnalysis } from "./types.js"
-import { currentTrace, IGNORED_ID } from "./context.js"
+import { currentOperation, currentTrace, IGNORED_ID } from "./context.js"
 import { rememberCallKey } from "./call-key.js"
 import { findCaller } from "./caller.js"
 import { redactParams } from "./redact.js"
@@ -41,6 +41,8 @@ export interface Recorder {
   /** Starts timing a call and attaches it to the current request. Returns null if it could not be recorded. */
   begin: (operation: OperationStart) => OperationHandle | null
 }
+
+const MAX_STATEMENTS = 20
 
 const SEQ = Symbol.for("sqlDevInspector.seq")
 
@@ -96,7 +98,16 @@ export function createRecorder(store: TraceStore): Recorder {
             event.caller = caller
           }
         }
-        store.record(trace, event)
+        const parent = currentOperation()
+        if (parent && parent.requestId === trace.id) {
+          // the work of a layered call (Prisma): kept with it, not counted again
+          ;(parent.statements ??= []).push(event)
+          if (parent.statements.length > MAX_STATEMENTS) {
+            parent.statements.shift()
+          }
+        } else {
+          store.record(trace, event)
+        }
 
         let done = false
         return {

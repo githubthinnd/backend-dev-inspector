@@ -170,6 +170,8 @@ svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; s
 .compare-table td.code { font-family: var(--mono); word-break: break-word; }
 .compare-table small { opacity: .8; }
 .compare-sub { margin: 14px 0 2px; font-size: 12px; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; }
+.sent-title { margin: 12px 0 4px; font-size: 12px; font-weight: 650; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; }
+.sent { margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--accent); }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .kpi { padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .kpi-label { color: var(--text-3); font-size: 11.5px; font-weight: 600; }

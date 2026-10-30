@@ -273,7 +273,7 @@ These sit on a driver above, so they are watched through it. Statements are the 
 | ORM / builder | Runs on | Verified |
 |---|---|---|
 | Drizzle ORM | `pg`, `postgres`, `mysql2`, `better-sqlite3`, `@libsql/client` | ✅ with `better-sqlite3` and `mysql2` |
-| Prisma | its own engine | ✅ through `prismaExtension()` (calls shown by model and operation) |
+| Prisma | its own engine and the watched drivers under its adapters | ✅ through `prismaExtension()` (listed by model and operation, with the real SQL under it when the adapter's driver is watched) |
 | Mongoose | `mongodb` | 🟡 |
 | Kysely, Knex, Sequelize, TypeORM | `pg`, `postgres`, `mysql2`, `better-sqlite3` | 🟡 |
 
@@ -456,6 +456,26 @@ Each warning says what to do about it, in the language of the page and the termi
 
 `SQL_INSPECTOR_LOGS=1` (or the switch in the settings) lists what your application prints while it handles a request (`console.log`, `info`, `warn`, `error`, `debug`) under that request, with its level, time and calling line. It is **off by default**, because a log line can hold a token or a person's data. At most 200 lines of 2000 characters per request. Your console keeps printing as before, and is not touched until you switch this on.
 
+### Where the time went
+
+Every request shows its time split into **database**, **cache**, **outbound HTTP** and **application and waiting**, as a bar. Calls that ran at the same time (`Promise.all`) are counted once, so the parts never add up to more than the request took. It is also in the Markdown export, the JSON export and the `get_request` tool.
+
+### Compare two requests
+
+Pick another request under **Compare** in the request detail (the ones for the same route come first) to see which is faster and by how much, the calls that are new, gone, run more often or slower, the time split side by side, and the warnings that appeared or went away. Calls are matched by what they are (driver and statement with its values masked), not by order, so the same call with other values is one. Use it before and after a fix: `GET /api/compare/<before>/<after>` and the MCP tool `compare_requests` do the same.
+
+### Copy or export a request
+
+**Copy for a report** puts one request in your clipboard as Markdown (findings with where they were called from and how to fix them, the calls in a table, the console, the tree), ready for a bug report or a chat with an assistant. **Download JSON** (`GET /api/requests/<id>/export`) saves it as a versioned document (`format: "sql-dev-inspector/request"`, `version: 1`) for scripts and CI artifacts. Both are as redacted as the inspector is set to redact.
+
+### Budgets per route
+
+```bash
+SQL_INSPECTOR_BUDGETS="/api/**=calls:20,ms:300; GET /api/orders=calls:5,callMs:80"
+```
+
+`calls` is the number of calls, `ms` the time of the request, `callMs` the time spent in calls; the path takes the same `*` and `**` as the route filters, and the first budget that matches applies. A request over its limit gets a warning that names the route, the limit and the actual value, with advice. Also a `budgets` option (`startInspector`, the Nuxt module) and a field in the settings. In tests, [`toBeWithinBudget`](https://www.npmjs.com/package/backend-dev-inspector#query-budgets-in-tests) does the same for a `capture()`.
+
 ### Check your setup
 
 When nothing shows up, ask the inspector. In the page, the settings have a **Check the setup** button and a list of the drivers that are watching. From the terminal:
@@ -482,7 +502,7 @@ it("lists the orders without an N+1", async () => {
 })
 ```
 
-`capture(fn)` runs `fn` and returns what it did (SQL, Redis, MongoDB, HTTP) as the inspector sees it; it needs nothing from your application, and switches the inspector on even under `NODE_ENV=test`. The matchers are `toHaveNoNPlusOne`, `toHaveNoDuplicates`, `toHaveNoSlowQueries`, `toHaveNoErrors`, `toHaveNoInsights`, `toHaveMaxQueries(n)` and `toRunQueries(n)`. A failure lists what was found, where it was called from and how to fix it. For types in Vitest:
+`capture(fn)` runs `fn` and returns what it did (SQL, Redis, MongoDB, HTTP) as the inspector sees it; it needs nothing from your application, and switches the inspector on even under `NODE_ENV=test`. The matchers are `toHaveNoNPlusOne`, `toHaveNoDuplicates`, `toHaveNoSlowQueries`, `toHaveNoErrors`, `toHaveNoInsights`, `toHaveMaxQueries(n)`, `toRunQueries(n)` and `toBeWithinBudget({ calls, ms, callMs })`. A failure lists what was found, where it was called from and how to fix it. For types in Vitest:
 
 ```ts
 import type { InspectorMatchers } from "backend-dev-inspector/testing"
@@ -499,7 +519,7 @@ The inspector serves a read-only [Model Context Protocol](https://modelcontextpr
 claude mcp add --transport http dev-inspector http://localhost:3000/__sql-inspector/mcp
 ```
 
-For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "http://localhost:3000/__sql-inspector/mcp" } } }` to their `mcp.json`. Five tools, none of which can change anything: `find_problems`, `list_requests`, `get_request`, `get_settings`, `diagnose`. Values are redacted as you configured, and the same guards as the page apply (local `Host` only). [`skills/dev-inspector`](https://github.com/githubthinnd/backend-dev-inspector/tree/main/skills/dev-inspector) is an agent skill that teaches the workflow: find the problem, read the line it came from, fix it, call the endpoint again and compare.
+For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "http://localhost:3000/__sql-inspector/mcp" } } }` to their `mcp.json`. Six tools, none of which can change anything: `find_problems`, `list_requests`, `get_request`, `compare_requests`, `get_settings`, `diagnose`. Values are redacted as you configured, and the same guards as the page apply (local `Host` only). [`skills/dev-inspector`](https://github.com/githubthinnd/backend-dev-inspector/tree/main/skills/dev-inspector) is an agent skill that teaches the workflow: find the problem, read the line it came from, fix it, call the endpoint again and compare.
 
 ## What it records and what it hides
 
@@ -514,7 +534,7 @@ For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "
 - **Connection pools**: PostgreSQL and MongoDB statements are attributed to the request that issued them even when the pool is saturated (tested). Other libraries are attributed to the async context in which their event fires, which is the caller's for everything listed above.
 - **`mariadb` connector** cannot be patched from outside, hence `instrumentMariadb()`. Knex, Sequelize and TypeORM load the connector themselves; for them use `mysql2`, which also talks to MariaDB servers.
 - **Redis** needs a client that publishes its commands (`ioredis` 6 or `redis` 6); `ioredis` 5 is patched instead. A `MULTI` in node-redis is one call, because the client does not publish its commands individually; in ioredis `MULTI … EXEC` shows as a transaction.
-- **Prisma** shows calls by model and operation (the SQL Prisma generates is not available at that point), and has no savepoints.
+- **Prisma** is listed by model and operation (what your code says, and where the line of code points). The SQL it generates is shown under the operation **when Prisma runs it through a driver the inspector watches** (the `pg`, libSQL and better-sqlite3 adapters do), and is not counted a second time; with another adapter you see the operation alone. Prisma has no savepoints.
 - **SQLite** errors raised while *preparing* a statement (a missing table, a syntax error) are not recorded; errors raised when it runs are.
 - **postgres.js 3** has to be wrapped (`instrumentPostgres`), because the copy an application imports cannot be patched from outside; version 4 needs nothing. A statement built with helpers (`sql(columns)`) is shown with placeholders.
 - **libSQL**: a transaction is listed as BEGIN … COMMIT with its statements; the client's internal statements are not.

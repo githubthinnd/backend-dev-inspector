@@ -34,7 +34,8 @@ function describeQuery(query: QueryEvent, locale: Locale, root?: string): string
   const failed = query.error ? red(` ✖ ${query.error}`) : ""
   const driver = query.driver && query.driver !== "mysql2" ? ` ${dim(`[${query.driver}]`)}` : ""
   const caller = query.caller ? `\n↳ ${shortLocation(query.caller, root)}` : ""
-  return `${bold((analysis.label ?? analysis.kind).toUpperCase())}${driver}${where}${nested} ${stats}${failed}\n${oneLine(query.sql)}${caller}`
+  const sent = (query.statements ?? []).map(statement => `\n⇒ ${oneLine(statement.sql, 120)}`).join("")
+  return `${bold((analysis.label ?? analysis.kind).toUpperCase())}${driver}${where}${nested} ${stats}${failed}\n${oneLine(query.sql)}${caller}${sent}`
 }
 
 function renderNodes(nodes: TraceNode[], prefix: string, lines: string[], locale: Locale, root?: string) {

@@ -119,6 +119,7 @@ function getRequest(inspector: Inspector, args: Record<string, unknown>) {
       rows: query.rowCount ?? query.affectedRows ?? undefined,
       ...(query.error ? { error: query.error } : {}),
       ...(query.caller ? { calledFrom: where(query.caller) } : {}),
+      ...(query.statements?.length ? { sentToDatabase: query.statements.map(s => ({ sql: s.sql.length > MAX_SQL ? `${s.sql.slice(0, MAX_SQL)}…` : s.sql, durationMs: s.durationMs === null ? null : Math.round(s.durationMs * 100) / 100 })) } : {}),
       connection: query.connectionId
     })),
     ...(trace.queries.length > MAX_STATEMENTS ? { truncated: `${trace.queries.length - MAX_STATEMENTS} more calls not listed` } : {})

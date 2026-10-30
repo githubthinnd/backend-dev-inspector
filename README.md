@@ -51,6 +51,7 @@ A slow endpoint is rarely one slow query. It is the same query run forty times, 
 - **Three views**: a tree in the terminal, a live page at `/__sql-inspector/`, and a floating panel inside your app.
 - **No change to your code paths**: they observe the libraries your app already uses (`pg`, `postgres.js`, `mysql2`, `libSQL`, `mongodb`, `ioredis`, `fetch`…).
 - **Finds the line of code** that made each call, opens it in your editor, and says how to fix each warning.
+- **Shows where the time went** (database, cache, HTTP, your own code), **compares two requests** before and after a fix, **exports a request** as Markdown or JSON, and holds routes to **budgets** (calls, time).
 - **Works with your tools**: a read-only **MCP server** for coding agents (Claude Code, Cursor…), and **query budgets for tests** that fail a pull request adding an N+1.
 - **Dev only**: nothing runs when `NODE_ENV=production`.
 - **Under your control**: hide values, follow only the routes you choose, and serve the page from a path you pick.

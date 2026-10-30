@@ -48,7 +48,7 @@ export function exportMarkdown(report: RequestReport, root?: string, locale: Loc
   if (calls.length > 0) {
     lines.push("### Calls", "", "| # | Driver | Call | ms | Rows | From |", "|---|---|---|---|---|---|")
     calls.slice(0, MAX_ROWS).forEach((query, index) => {
-      lines.push(`| ${index + 1} | ${query.driver ?? ""} | ${cell(query.sql)}${query.error ? ` ✖ ${cell(query.error, 60)}` : ""} | ${query.durationMs === null ? "…" : Math.round(query.durationMs * 100) / 100} | ${query.rowCount ?? query.affectedRows ?? ""} | ${query.caller ? shortLocation(query.caller, root) : ""} |`)
+      lines.push(`| ${index + 1} | ${query.driver ?? ""} | ${cell(query.sql)}${(query.statements ?? []).map(statement => ` <br>⇒ \`${cell(statement.sql, 90)}\``).join("")}${query.error ? ` ✖ ${cell(query.error, 60)}` : ""} | ${query.durationMs === null ? "…" : Math.round(query.durationMs * 100) / 100} | ${query.rowCount ?? query.affectedRows ?? ""} | ${query.caller ? shortLocation(query.caller, root) : ""} |`)
     })
     if (calls.length > MAX_ROWS) {
       lines.push(`| … | | ${calls.length - MAX_ROWS} more calls not listed | | | |`)
@@ -81,6 +81,8 @@ export interface RequestExport {
   calls: Array<{
     seq: number, driver: string | null, kind: string, label?: string, text: string, params: unknown[] | null, tables: string[]
     startedAt: string, durationMs: number | null, rows: number | null, affectedRows: number | null, error: string | null, from?: string, connection: number
+    /** What a library ran to carry out this call (the SQL Prisma sent to the database). */
+    sent?: Array<{ driver: string | null, text: string, params: unknown[] | null, durationMs: number | null, rows: number | null, error: string | null }>
   }>
   console: Array<{ level: string, atMs: number, message: string, from?: string }>
 }
@@ -113,7 +115,8 @@ export function exportJson(report: RequestReport, options: { root?: string, reda
       return {
         seq: query.seq, driver: query.driver ?? null, kind: query.analysis.kind, ...(query.analysis.label ? { label: query.analysis.label } : {}),
         text: query.sql, params: query.params, tables: query.analysis.tables, startedAt: new Date(query.startedAt).toISOString(),
-        durationMs: query.durationMs, rows: query.rowCount, affectedRows: query.affectedRows, error: query.error, ...(from ? { from } : {}), connection: query.connectionId
+        durationMs: query.durationMs, rows: query.rowCount, affectedRows: query.affectedRows, error: query.error, ...(from ? { from } : {}), connection: query.connectionId,
+        ...(query.statements?.length ? { sent: query.statements.map(s => ({ driver: s.driver ?? null, text: s.sql, params: s.params, durationMs: s.durationMs, rows: s.rowCount, error: s.error })) } : {})
       }
     }),
     console: (trace.logs ?? []).map((entry) => {

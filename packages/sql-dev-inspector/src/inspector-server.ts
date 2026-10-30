@@ -301,7 +301,7 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
     const report = cachedReport(store, trace, inspector.report)
     sendJson(res, {
       ...report,
-      formattedSql: Object.fromEntries(trace.queries.map(q => [q.seq, formattedSql(q)]))
+      formattedSql: Object.fromEntries(trace.queries.flatMap(q => [q, ...(q.statements ?? [])]).map(q => [q.seq, formattedSql(q)]))
     })
     return
   }

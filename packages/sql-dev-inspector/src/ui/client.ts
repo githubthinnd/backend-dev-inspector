@@ -424,6 +424,20 @@ export const CLIENT_SCRIPT = String.raw`
       ]));
       body.appendChild(pre);
       if (q.params && q.params.length) { body.appendChild(h("div", { class: "params", text: t("sql.params") + ": " + JSON.stringify(q.params) })); }
+      if (q.statements && q.statements.length) {
+        body.appendChild(h("div", { class: "sent-title", text: t("sql.sent", { count: q.statements.length }) }));
+        q.statements.forEach(function (s) {
+          var sentPre = h("pre", { class: "sql sent" });
+          sentPre.appendChild(highlight(raw ? s.sql : (ctx.rep.formattedSql[s.seq] || s.sql)));
+          body.appendChild(h("div", { class: "sent" }, [
+            h("div", { class: "q-tools" }, [h("span", { text: (s.driver || "") + " · " + fmtMs(s.durationMs) + (s.rowCount !== null && s.rowCount !== undefined ? " · " + t("term.rows", { count: s.rowCount }) : "") }), h("span", { class: "spacer" }),
+              h("button", { class: "btn sm", onclick: function () { copy(s.sql); } }, [icon("copy"), h("span", { text: t("sql.copy") })])]),
+            sentPre,
+            s.params && s.params.length ? h("div", { class: "params", text: t("sql.params") + ": " + JSON.stringify(s.params) }) : null,
+            s.error ? h("div", { class: "error-box", text: s.error }) : null
+          ]));
+        });
+      }
       if (q.error) { body.appendChild(h("div", { class: "error-box", text: q.error })); }
     }
     if (isOpen) { fillBody(); }
