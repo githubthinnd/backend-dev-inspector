@@ -3,6 +3,7 @@ import type { QueryEvent, RequestTrace } from "../src/types"
 import { createWindow } from "./dom"
 import { describe, expect, it, vi } from "vitest"
 import { compareReports } from "../src/compare"
+import { buildOverview } from "../src/overview"
 import { buildReport } from "../src/report"
 import { analyzeSql, formatSql } from "../src/sql-analyzer"
 import { renderPage } from "../src/ui/page"
@@ -674,6 +675,23 @@ describe("the SQL a library sent", () => {
     expect(text).toContain("libsql")
     expect(document.querySelectorAll(".sent pre").length).toBe(1)
     expect(document.querySelector(".http-details")?.textContent).toBe("status 200 · sent 7 B · received 2 KB · application/json")
+  })
+})
+
+describe("the overview", () => {
+  it("opens from the top bar, shows the routes and opens the slowest request of one", async () => {
+    const { document, window } = render()
+    await settle()
+    const traces = buildTraces()
+    const data = buildOverview(traces.map(t => buildReport(t)))
+    Object.assign(window, { fetch: (url: string) => Promise.resolve({ json: () => Promise.resolve(String(url).includes("overview") ? data : {}), text: () => Promise.resolve("") }) })
+    click(document.querySelector("#overview"))
+    await settle()
+    const text = document.querySelector("#detail")?.textContent ?? ""
+    expect(text).toContain("Routes, by what they cost in all")
+    expect(text).toContain("GET /api/order-detail/:id")
+    expect(document.querySelectorAll(".ov-table tr.clickable").length).toBe(data.routes.length)
+    expect(document.querySelector("#overview")?.getAttribute("aria-pressed")).toBe("true")
   })
 })
 

@@ -172,6 +172,14 @@ svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; s
 .compare-sub { margin: 14px 0 2px; font-size: 12px; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; }
 .sent-title { margin: 12px 0 4px; font-size: 12px; font-weight: 650; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; }
 .sent { margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--accent); }
+.ov-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ov-table th { text-align: left; font-weight: 600; color: var(--text-2); padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.ov-table td { padding: 8px 12px; border-top: 1px solid var(--border); vertical-align: top; }
+.ov-table td.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
+.ov-table td.code { font-family: var(--mono); word-break: break-word; }
+.ov-table tr.clickable { cursor: pointer; } .ov-table tr.clickable:hover { background: var(--accent-weak); }
+.ov-issue { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
+#overview[aria-pressed="true"] { background: var(--accent-weak); color: var(--accent); }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .kpi { padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .kpi-label { color: var(--text-3); font-size: 11.5px; font-weight: 600; }

@@ -1,6 +1,7 @@
 export { describeOperation, genericFingerprint, type OperationDescription } from "./analysis.js"
 export { bindToRequest, currentOperation, currentTrace, runIgnored, runInOperation, runInRequest } from "./context.js"
 export type { DriverAdapter, InstallContext } from "./driver.js"
+export { buildOverview, routeOf, type Overview } from "./overview.js"
 export { compareReports, type Comparison, type GroupDiff } from "./compare.js"
 export { EXPORT_FORMAT, EXPORT_VERSION, exportJson, exportMarkdown, type RequestExport } from "./export.js"
 export { setLogCapture, withoutCapture } from "./log-capture.js"

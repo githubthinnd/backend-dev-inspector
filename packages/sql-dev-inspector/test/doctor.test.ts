@@ -77,6 +77,7 @@ describe("the setup check", () => {
     expect(json.type).toContain("application/json")
     expect(JSON.parse(json.body)).toMatchObject({ format: "sql-dev-inspector/request", version: 1, calls: [{ text: "select 1" }] })
     expect(get("/api/requests/nope/export").status).toBe(404)
+    expect(JSON.parse(get("/api/overview").body)).toMatchObject({ requests: 1, routes: [{ route: "GET /api/x" }] })
     const other = store.startRequest("GET", "/api/y")
     runInRequest(other, () => createRecorder(store).begin({ driver: "t", api: "q", text: "select 2", connectionId: 1, analysis: analyzeSql("select 2") })?.end())
     const compared = JSON.parse(get(`/api/compare/${trace.id}/${other.id}`).body)

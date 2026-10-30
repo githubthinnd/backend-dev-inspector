@@ -386,6 +386,10 @@ Each warning says what to do about it, in the language of the page and the termi
 
 `SQL_INSPECTOR_LOGS=1` (or the switch in the settings) lists what your application prints while it handles a request (`console.log`, `info`, `warn`, `error`, `debug`) under that request, with its level, time and calling line. It is **off by default**, because a log line can hold a token or a person's data. At most 200 lines of 2000 characters per request. Your console keeps printing as before, and is not touched until you switch this on.
 
+### Overview
+
+The **Overview** button in the top bar adds the recent requests up: the routes that cost the most in all (requests, average and 95th-percentile time, calls per request, which findings they raise; ids in a path are folded, so `/orders/1` and `/orders/2` are one route), the calls that cost the most across routes, and the findings that keep coming back. A row opens the slowest request of its route. `GET /api/overview` and the MCP tool `get_overview` give the same data.
+
 ### Where the time went
 
 Every request shows its time split into **database**, **cache**, **outbound HTTP** and **application and waiting**, as a bar. Calls that ran at the same time (`Promise.all`) are counted once, so the parts never add up to more than the request took. It is also in the Markdown export, the JSON export and the `get_request` tool.
@@ -424,7 +428,7 @@ The inspector serves a read-only [Model Context Protocol](https://modelcontextpr
 claude mcp add --transport http dev-inspector http://localhost:3000/__sql-inspector/mcp
 ```
 
-For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "http://localhost:3000/__sql-inspector/mcp" } } }` to their `mcp.json`. Six tools, none of which can change anything: `find_problems`, `list_requests`, `get_request`, `compare_requests`, `get_settings`, `diagnose`. Values are redacted as you configured, and the same guards as the page apply (local `Host` only). [`skills/dev-inspector`](https://github.com/githubthinnd/backend-dev-inspector/tree/main/skills/dev-inspector) is an agent skill that teaches the workflow: find the problem, read the line it came from, fix it, call the endpoint again and compare.
+For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "http://localhost:3000/__sql-inspector/mcp" } } }` to their `mcp.json`. Seven tools, none of which can change anything: `find_problems`, `get_overview`, `list_requests`, `get_request`, `compare_requests`, `get_settings`, `diagnose`. Values are redacted as you configured, and the same guards as the page apply (local `Host` only). [`skills/dev-inspector`](https://github.com/githubthinnd/backend-dev-inspector/tree/main/skills/dev-inspector) is an agent skill that teaches the workflow: find the problem, read the line it came from, fix it, call the endpoint again and compare.
 
 ## Security & privacy
 
@@ -473,7 +477,7 @@ For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "
 ```bash
 npm install
 npm run typecheck
-npm test            # 440 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
+npm test            # 447 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
 npm run build
 ```
 

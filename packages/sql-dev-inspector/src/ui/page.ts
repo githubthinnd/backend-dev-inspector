@@ -47,7 +47,8 @@ export function renderPage(localeHint: Locale | null = null, title: string | nul
     </label>
     <button type="button" class="pill" id="privacy" data-mode="params" data-i18n-title="status.title" data-i18n-aria="status.title"><span data-icon="shield"></span><span id="privacy-text"></span></button>
     <span class="dd" id="settings-dd">
-      <button type="button" class="btn icon ghost" id="settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings-pop" data-i18n-aria="settings.title" data-i18n-title="settings.title"><span data-icon="gear"></span></button>
+      <button type="button" class="btn ghost" id="overview" aria-pressed="false" data-i18n-title="overview.title"><span data-icon="chart"></span><span class="label" data-i18n="overview.title"></span></button>
+    <button type="button" class="btn icon ghost" id="settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings-pop" data-i18n-aria="settings.title" data-i18n-title="settings.title"><span data-icon="gear"></span></button>
       <div class="pop" id="settings-pop" role="dialog" aria-labelledby="settings-title" hidden>
         <h2 class="pop-title" id="settings-title" data-i18n="settings.title"></h2>
         <section class="pop-sec">

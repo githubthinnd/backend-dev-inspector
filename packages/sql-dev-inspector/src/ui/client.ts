@@ -55,6 +55,7 @@ export const CLIENT_SCRIPT = String.raw`
     inbox: "<svg viewBox='0 0 24 24'><path d='M3 13h5l1.5 3h5L16 13h5'/><path d='M5 5h14l2 8v6H3v-6l2-8Z'/></svg>",
     timer: "<svg viewBox='0 0 24 24'><circle cx='12' cy='13' r='8'/><path d='M12 9v4l2.5 2M9 2h6'/></svg>",
     shield: "<svg viewBox='0 0 24 24'><path d='M12 3 4.5 6v5.5c0 4.6 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.9 7.5-9.5V6L12 3Z'/><path d='m9 12 2.2 2.2L15.2 10'/></svg>",
+    chart: "<svg viewBox='0 0 24 24'><path d='M4 20V10M10 20V4M16 20v-7M22 20H2'/></svg>",
     gear: "<svg viewBox='0 0 24 24'><circle cx='12' cy='12' r='3'/><path d='M12 2.5v2.2M12 19.3v2.2M4.2 6.5l1.9 1.1M17.9 16.4l1.9 1.1M2.5 12h2.2M19.3 12h2.2M4.2 17.5l1.9-1.1M17.9 7.6l1.9-1.1'/></svg>"
   };
   function icon(name) { var s = document.createElement("span"); s.innerHTML = ICONS[name] || ""; return s.firstChild; }
@@ -94,7 +95,7 @@ export const CLIENT_SCRIPT = String.raw`
   var state = {
     requests: [], selectedId: null, report: null, term: "", mode: "all",
     follow: location.hash === "#latest" || storage.get(KEY_FOLLOW) === "1",
-    open: {}, collapsed: {}, highlight: [], expandAll: false, rawSql: {}, compare: null,
+    open: {}, collapsed: {}, highlight: [], expandAll: false, rawSql: {}, compare: null, view: "request",
     theme: storage.get(KEY_THEME) || "auto", live: false, loadToken: 0
   };
   var appEl = $("app"), listBody = $("list-body"), detailEl = $("detail");
@@ -252,9 +253,64 @@ export const CLIENT_SCRIPT = String.raw`
     }
     return h("section", { class: "section" }, [h("div", { class: "section-head" }, [h("h2", { text: t("compare.heading") })]), box]);
   }
+  function ovTable(headers, rows, cls) {
+    var head = h("tr", {}, headers.map(function (x) { return h("th", { text: x }); }));
+    return h("table", { class: "ov-table " + (cls || "") }, [head].concat(rows));
+  }
+  function renderOverview(o) {
+    var inner = h("div", { class: "detail-inner" });
+    inner.appendChild(h("div", { class: "detail-head" }, [
+      h("button", { class: "btn sm back", onclick: function () { appEl.setAttribute("data-view", "list"); } }, [icon("back"), h("span", { text: t("detail.back") })]),
+      h("h1", { text: t("overview.title") })
+    ]));
+    if (!o || !o.requests) {
+      inner.appendChild(h("div", { class: "empty" }, [icon("inbox"), h("h3", { text: t("requests.empty.title") }), h("p", { text: t("requests.empty.body") })]));
+      detailEl.appendChild(inner); return;
+    }
+    var bd = o.totals.breakdown;
+    inner.appendChild(h("div", { class: "kpis" }, [
+      kpi(t("overview.requests"), String(o.requests)),
+      kpi(t("overview.calls"), String(o.totals.calls), t("overview.callsPer", { n: num(o.totals.calls / o.requests, 1) })),
+      kpi(t("kpi.sqlTime"), fmtMs(o.totals.callMs)),
+      kpi(t("breakdown.database"), bd.total ? Math.round(bd.database / bd.total * 100) + "%" : "0%", t("breakdown.app") + " " + (bd.total ? Math.round(bd.app / bd.total * 100) : 0) + "%")
+    ]));
+    var routeRows = o.routes.map(function (r) {
+      var kinds = Object.keys(r.issues).map(function (k) { return h("span", { class: "chip warn", text: t("insight.title." + k) + " ×" + r.issues[k] }); });
+      return h("tr", { class: "clickable", tabindex: "0", onclick: function () { state.view = "request"; select(r.worstId); } }, [
+        h("td", { class: "code", text: r.route }), h("td", { class: "num", text: String(r.requests) }),
+        h("td", { class: "num", text: fmtMs(r.avgMs) }), h("td", { class: "num", text: fmtMs(r.p95Ms) }),
+        h("td", { class: "num", text: num(r.avgCalls, 1) + " / " + r.maxCalls }), h("td", {}, kinds)
+      ]);
+    });
+    inner.appendChild(h("section", { class: "section" }, [
+      h("div", { class: "section-head" }, [h("h2", { text: t("overview.routes") })]),
+      h("div", { class: "card" }, [ovTable([t("overview.route"), t("overview.requests"), t("overview.avg"), "p95", t("overview.callsAvgMax"), t("overview.findings")], routeRows)]),
+      h("div", { class: "dim", text: t("overview.routes.hint") })
+    ]));
+    var callRows = o.calls.map(function (c) {
+      return h("tr", {}, [h("td", { class: "code", text: (c.driver ? c.driver + " · " : "") + c.text }), h("td", { class: "num", text: String(c.count) }), h("td", { class: "num", text: fmtMs(c.totalMs) }), h("td", { class: "num", text: fmtMs(c.maxMs) }), h("td", { class: "num", text: String(c.routes) })]);
+    });
+    inner.appendChild(h("section", { class: "section" }, [
+      h("div", { class: "section-head" }, [h("h2", { text: t("overview.callsTitle") })]),
+      h("div", { class: "card" }, [ovTable([t("overview.call"), t("overview.times"), t("overview.total"), t("overview.max"), t("overview.inRoutes")], callRows)])
+    ]));
+    if (o.issues.length) {
+      inner.appendChild(h("section", { class: "section" }, [
+        h("div", { class: "section-head" }, [h("h2", { text: t("overview.issues") })]),
+        h("div", { class: "card", style: "padding: 8px 16px" }, o.issues.map(function (i) {
+          return h("div", { class: "ov-issue" }, [h("strong", { text: t("insight.title." + i.type) }), h("span", { class: "dim", text: t("overview.issueCount", { requests: i.requests, routes: i.routes }) })]);
+        }))
+      ]));
+    }
+    detailEl.appendChild(inner);
+  }
+  function loadOverview() {
+    return api("overview").then(function (o) { if (state.view === "overview") { detailEl.textContent = ""; renderOverview(o); } }).catch(function () { });
+  }
   function renderDetail() {
     var keep = detailEl.scrollTop;
     detailEl.textContent = "";
+    if (state.view === "overview") { loadOverview(); return; }
     var rep = state.report;
     if (!rep) {
       detailEl.appendChild(h("div", { class: "empty" }, [icon("layers"), h("h3", { text: t("detail.empty.title") }), h("p", { text: t("detail.empty.body") })]));
@@ -647,6 +703,7 @@ export const CLIENT_SCRIPT = String.raw`
     }).catch(function () { /* server restarting; the next change event retries */ });
   }
   function select(id) {
+    state.view = "request"; $("overview").setAttribute("aria-pressed", "false");
     state.selectedId = id; state.highlight = []; state.open = {}; state.expandAll = false;
     appEl.setAttribute("data-view", "detail");
     renderList(); return loadDetail(id);
@@ -654,6 +711,7 @@ export const CLIENT_SCRIPT = String.raw`
   function refresh() {
     return api("requests").then(function (list) {
       state.requests = list; renderList();
+      if (state.view === "overview") { return loadOverview(); }
       if (state.follow && list.length && list[0].id !== state.selectedId) { return select(list[0].id); }
       if (state.selectedId && list.some(function (r) { return r.id === state.selectedId; })) { return loadDetail(state.selectedId); }
       if (state.selectedId) { state.selectedId = null; state.report = null; renderDetail(); }
@@ -696,6 +754,12 @@ export const CLIENT_SCRIPT = String.raw`
   Array.prototype.forEach.call(document.querySelectorAll("[data-icon]"), function (el) { el.replaceWith(icon(el.getAttribute("data-icon"))); });
   setupLangMenu();
   setupSettings();
+  $("overview").addEventListener("click", function () {
+    var on = state.view !== "overview";
+    state.view = on ? "overview" : "request"; $("overview").setAttribute("aria-pressed", on ? "true" : "false");
+    appEl.setAttribute("data-view", "detail");
+    if (!on && state.selectedId) { loadDetail(state.selectedId); } else { renderDetail(); }
+  });
   $("theme").addEventListener("click", function () {
     state.theme = state.theme === "auto" ? "light" : state.theme === "light" ? "dark" : "auto";
     storage.set(KEY_THEME, state.theme); applyTheme();

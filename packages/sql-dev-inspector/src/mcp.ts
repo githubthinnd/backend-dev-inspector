@@ -1,6 +1,7 @@
 import type { Inspector } from "./runtime.js"
 import { shortLocation } from "./caller.js"
 import { compareReports } from "./compare.js"
+import { buildOverview } from "./overview.js"
 import { diagnose } from "./doctor.js"
 import { cachedReport } from "./report-cache.js"
 import { pathnameOf } from "./route-filter.js"
@@ -8,7 +9,7 @@ import { installedDrivers } from "./setup.js"
 
 /**
  * A Model Context Protocol server over HTTP (`POST <page>/mcp`), so a coding agent can ask the running application what
- * it did: "which request is slow?", "where does this N+1 come from?". It is read-only: six tools, no way to change a
+ * it did: "which request is slow?", "where does this N+1 come from?". It is read-only: seven tools, no way to change a
  * setting, clear the history or run anything. It answers with what the inspector already holds, with values redacted
  * as the inspector is set to redact them, and the same guards as the page apply (local `Host` only).
  *
@@ -49,6 +50,11 @@ const TOOLS = [
     name: "compare_requests",
     description: "What changed between two requests (for example the same endpoint before and after a fix): calls that are new, gone, repeated more or fewer times or slower, the time split, and warnings that appeared or went away. `before` and `after` are request ids from list_requests.",
     inputSchema: { type: "object", properties: { before: { type: "string" }, after: { type: "string" } }, required: ["before", "after"] }
+  },
+  {
+    name: "get_overview",
+    description: "The recent requests added up: the routes that cost the most (requests, average and 95th percentile time, calls, warnings), the calls that cost the most in all across routes, and the findings that keep coming back. The place to start when asked what to optimise first.",
+    inputSchema: { type: "object", properties: {} }
   },
   {
     name: "find_problems",
@@ -170,6 +176,8 @@ function callTool(inspector: Inspector, name: string, args: Record<string, unkno
       return getRequest(inspector, args)
     case "compare_requests":
       return compareRequests(inspector, args)
+    case "get_overview":
+      return text(buildOverview(inspector.store.list().map(trace => cachedReport(inspector.store, trace, inspector.report))))
     case "find_problems":
       return findProblems(inspector)
     case "get_settings":

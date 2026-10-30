@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
 import { diagnose } from "./doctor.js"
 import { validBudgetList } from "./budget.js"
+import { buildOverview } from "./overview.js"
 import { compareReports } from "./compare.js"
 import { exportJson, exportMarkdown } from "./export.js"
 import { setLogCapture } from "./log-capture.js"
@@ -247,6 +248,11 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
         errors: insights.filter(i => i.severity === "error").length
       }
     }))
+    return
+  }
+
+  if (req.method === "GET" && path === "/api/overview") {
+    sendJson(res, buildOverview(store.list().map(trace => cachedReport(store, trace, inspector.report))))
     return
   }
 

@@ -80,7 +80,7 @@ describe("MCP over HTTP", () => {
 
   it("lists five read-only tools, each with a description and an input schema", async () => {
     const { result } = (await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" })).json
-    expect(result.tools.map((tool: { name: string }) => tool.name)).toEqual(["list_requests", "get_request", "compare_requests", "find_problems", "get_settings", "diagnose"])
+    expect(result.tools.map((tool: { name: string }) => tool.name)).toEqual(["list_requests", "get_request", "compare_requests", "get_overview", "find_problems", "get_settings", "diagnose"])
     for (const tool of result.tools) {
       expect(tool.description.length).toBeGreaterThan(20)
       expect(tool.inputSchema.type).toBe("object")
