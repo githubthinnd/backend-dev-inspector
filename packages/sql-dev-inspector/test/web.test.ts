@@ -128,3 +128,44 @@ describe("web inspector", () => {
     expect(getInspector().store.list()[0]).toMatchObject({ url: "/boom", status: 500 })
   })
 })
+
+describe("web inspector: a unit of work that has no Request (run)", () => {
+  const recordOne = (text: string) => createRecorder(getInspector().store).begin({ driver: "t", api: "q", text, connectionId: 1, analysis: analyzeSql(text) })?.end()
+  const traces = () => getInspector().store.list().filter(trace => trace.id !== "background")
+
+  it("is one request of its own, with the calls made inside it, and ends 200 or with the status the caller maps", async () => {
+    const web = createWebInspector()
+    expect(await web.run("ACTION", "createOrder", async () => { recordOne("insert 1"); return 42 })).toBe(42)
+    await web.run("GET", "/orders", async () => { recordOne("select 1") }, () => 307)
+    expect(traces().map(t => [t.method, t.url, t.status, t.queries.length])).toEqual([["GET", "/orders", 307, 1], ["ACTION", "createOrder", 200, 1]])
+  })
+
+  it("ends 500 when it throws, passes the error on, and lets a mapper turn it into another status", async () => {
+    const web = createWebInspector()
+    // (a request that made no call is never kept, so each one makes a call before it fails)
+    await expect(web.run("ACTION", "boom", async () => { recordOne("select 1"); throw new Error("no") })).rejects.toThrow("no")
+    await expect(web.run("ACTION", "gone", async () => { recordOne("select 2"); throw new Error("nf") }, ({ error }) => error ? 404 : 200)).rejects.toThrow("nf")
+    expect(traces().map(t => [t.url, t.status])).toEqual([["gone", 404], ["boom", 500]])
+  })
+
+  it("joins the request that is already traced, and leaves a filtered label alone", async () => {
+    const web = createWebInspector()
+    await web.track(new Request(`${URL_BASE}/api/x`), async () => {
+      await web.run("ACTION", "inner", async () => { recordOne("select inner") })
+      return new Response("ok")
+    })
+    expect(traces().map(t => [t.url, t.queries.length])).toEqual([["/api/x", 1]])
+    getInspector().filters.exclude = ["/skipped"]
+    try {
+      await web.run("ACTION", "skipped", async () => { recordOne("select skipped") })
+      expect(traces().some(t => t.url === "skipped")).toBe(false)
+    } finally {
+      getInspector().filters.exclude = []
+    }
+  })
+
+  it("passes the work through when the inspector is off", async () => {
+    vi.stubEnv("SQL_INSPECTOR", "0")
+    expect(await createWebInspector().run("ACTION", "x", async () => "result")).toBe("result")
+  })
+})

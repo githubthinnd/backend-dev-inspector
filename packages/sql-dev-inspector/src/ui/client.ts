@@ -141,7 +141,6 @@ export const CLIENT_SCRIPT = String.raw`
   }
 
   // ── derived data ──────────────────────────────────────────────────
-  function isControl(kind) { return /^(tx-|savepoint)/.test(kind); }
   function countNodes(nodes, type) {
     var n = 0;
     nodes.forEach(function (node) { if (node.type === type) { n++; } if (node.children) { n += countNodes(node.children, type); } });

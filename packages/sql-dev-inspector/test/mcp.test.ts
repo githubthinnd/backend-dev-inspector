@@ -167,3 +167,57 @@ describe("a batch with a bad item", () => {
     ])
   })
 })
+
+describe("the tools that read a request", () => {
+  beforeEach(() => {
+    startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0" }, { drivers: [] })
+  })
+  afterEach(() => {
+    getInspector().store.clear()
+    resetInspectorForTests()
+  })
+
+  it("compare_requests says what changed between two requests, and refuses an id that is gone", async () => {
+    const store = getInspector().store
+    const make = (url: string, calls: number) => {
+      const trace = store.startRequest("GET", url)
+      runInRequest(trace, () => {
+        for (let i = 0; i < calls; i++) {
+          createRecorder(store).begin({ driver: "t", api: "q", text: `select * from t where id = ${i}`, connectionId: 1, analysis: analyzeSql(`select * from t where id = ${i}`) })?.end()
+        }
+      })
+      store.finishRequest(trace, 200)
+      return trace
+    }
+    const before = make("/a", 5)
+    const after = make("/a", 1)
+    const answer = payload(await call("compare_requests", { before: before.id, after: after.id }))
+    expect(answer.totals.calls).toEqual({ a: 5, b: 1, delta: -4 })
+    expect(answer.findings.some((f: { type: string }) => f.type === "n-plus-one")).toBe(true)
+    const missing = await call("compare_requests", { before: before.id, after: "nope" })
+    expect(missing.json.result.isError).toBe(true)
+    expect((await call("compare_requests", {})).json.result.isError).toBe(true)
+  })
+
+  it("get_request carries the trace id, the details of a call and what a library sent for it", async () => {
+    const store = getInspector().store
+    const trace = store.startRequest("GET", "/layered", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+    const { runInOperation } = await import("../src/context")
+    runInRequest(trace, () => {
+      const rec = createRecorder(store)
+      const outer = rec.begin({ driver: "prisma", api: "findMany", text: "User.findMany {}", connectionId: 0, analysis: analyzeSql("select 1 from User") })!
+      runInOperation(outer.event, () => rec.begin({ driver: "pg", api: "q", text: "select 1", connectionId: 1, analysis: analyzeSql("select 1") })?.end())
+      outer.end({ details: { status: 200 } })
+    })
+    store.finishRequest(trace, 200)
+    const answer = payload(await call("get_request", { id: trace.id }))
+    expect(answer).toMatchObject({ traceId: "4bf92f3577b34da6a3ce929d0e0e4736", parentSpanId: "00f067aa0ba902b7" })
+    expect(answer.statements[0]).toMatchObject({ details: { status: 200 }, sentToDatabase: [{ sql: "select 1" }] })
+    expect(answer.totals.breakdown.total).toBeGreaterThanOrEqual(0)
+  })
+
+  it("get_overview and get_settings answer", async () => {
+    expect(payload(await call("get_overview")).requests).toBe(0)
+    expect(payload(await call("get_settings"))).toMatchObject({ page: "/__sql-inspector/" })
+  })
+})

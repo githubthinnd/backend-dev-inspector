@@ -203,6 +203,56 @@ describe("Neon over HTTP", () => {
   })
 })
 
+describe("Neon: transactions", () => {
+  const { neon, neonConfig } = load("@neondatabase/serverless") as typeof import("@neondatabase/serverless")
+
+  it("lists a transaction as one call with how many queries it carried, and does not list the queries it was built from", async () => {
+    neonConfig.fetchFunction = async () => new Response(JSON.stringify({ results: [
+      { fields: [{ name: "a", dataTypeID: 23 }], rows: [[1]], command: "SELECT", rowCount: 1, rowAsArray: true },
+      { fields: [{ name: "b", dataTypeID: 23 }], rows: [[2]], command: "SELECT", rowCount: 1, rowAsArray: true }
+    ] }), { status: 200, headers: { "content-type": "application/json" } })
+    uninstalls.push(neonDriver.install(rec())!)
+    const db = instrumentNeon(neon("postgres://u:p@ep-test.neon.tech/db"))
+    const trace = request("/neon-tx")
+    const out = await runInRequest(trace, async () => await db.transaction([db`select 1 as a`, db`select 2 as b`]))
+    expect(out).toHaveLength(2)
+    expect(trace.queries.map(q => q.sql)).toEqual(["BEGIN; -- neon transaction of 2 queries; COMMIT"])
+  })
+
+  it("records a failing transaction with its error", async () => {
+    neonConfig.fetchFunction = async () => new Response(JSON.stringify({ message: "deadlock detected", code: "40P01" }), { status: 400, headers: { "content-type": "application/json" } })
+    uninstalls.push(neonDriver.install(rec())!)
+    const db = instrumentNeon(neon("postgres://u:p@ep-test.neon.tech/db"))
+    const trace = request("/neon-tx-fail")
+    await runInRequest(trace, async () => {
+      await expect(db.transaction([db`select 1`])).rejects.toThrow()
+    })
+    expect(trace.queries[0]!.error).toMatch(/deadlock/)
+  })
+})
+
+describe("Cloudflare D1: failures", () => {
+  const failing = () => {
+    const boom = async () => { throw new Error("D1_ERROR: no such table: nope") }
+    const statement = (sql: string): Record<string, unknown> => ({ bind: () => statement(sql), first: boom, all: boom, run: boom, raw: boom })
+    return { prepare: statement, batch: boom, exec: boom }
+  }
+
+  it("records a statement, a batch and an exec that fail, with the error, and rethrows it unchanged", async () => {
+    uninstalls.push(d1Driver.install(rec())!)
+    const db = instrumentD1(failing()) as unknown as { prepare: (s: string) => { bind: (...v: unknown[]) => { all: () => Promise<unknown> }, run: () => Promise<unknown> }, batch: (s: unknown[]) => Promise<unknown>, exec: (s: string) => Promise<unknown> }
+    const trace = request("/d1-fail")
+    await runInRequest(trace, async () => {
+      await expect(db.prepare("select * from nope").bind(1).all()).rejects.toThrow("no such table")
+      await expect(db.prepare("delete from nope").run()).rejects.toThrow("no such table")
+      await expect(db.batch([db.prepare("select 1").bind(), db.prepare("select 2").bind()])).rejects.toThrow("no such table")
+      await expect(db.exec("drop table nope")).rejects.toThrow("no such table")
+    })
+    expect(trace.queries.map(q => q.error?.includes("no such table"))).toEqual([true, true, true, true, true])
+    expect(trace.queries.every(q => q.durationMs !== null)).toBe(true)
+  })
+})
+
 describe("Cloudflare D1", () => {
   /** The documented shape of a D1 binding: prepare → bind → first / all / run / raw, batch, exec. */
   function fakeD1(rows: unknown[] = [{ id: 1 }, { id: 2 }]) {

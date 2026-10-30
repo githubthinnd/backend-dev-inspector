@@ -34,8 +34,6 @@ interface LibsqlModule {
   WsTransaction?: ClassLike
 }
 
-type AnyFunction = (...args: any[]) => any // eslint-disable-line ts/no-explicit-any
-
 interface Statement {
   text: string
   params: unknown[] | null
