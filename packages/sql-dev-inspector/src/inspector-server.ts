@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
 import { diagnose } from "./doctor.js"
+import { exportMarkdown } from "./export.js"
 import { setLogCapture } from "./log-capture.js"
 import { handleMcp } from "./mcp.js"
 import { installedDrivers } from "./setup.js"
@@ -15,6 +16,7 @@ const TRAILING_SLASHES = /\/+$/
 const REDACT_MODES = new Set(["params", "all", "off"])
 const QUERY_OR_HASH = /[?#]/
 const REQUEST_DETAIL = /^\/api\/requests\/([\w-]+)$/
+const REQUEST_MARKDOWN = /^\/api\/requests\/([\w-]+)\/markdown$/
 
 export { DEFAULT_MOUNT as INSPECTOR_PATH } from "./runtime.js"
 
@@ -232,6 +234,18 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
         errors: insights.filter(i => i.severity === "error").length
       }
     }))
+    return
+  }
+
+  const markdown = REQUEST_MARKDOWN.exec(path)
+  if (req.method === "GET" && markdown) {
+    const trace = store.get(markdown[1]!)
+    if (!trace) {
+      sendJson(res, { message: "Request not found (evicted or cleared)" }, 404)
+      return
+    }
+    res.writeHead(200, { "content-type": "text/markdown; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" })
+    res.end(exportMarkdown(cachedReport(store, trace, inspector.report), inspector.root, inspector.locale))
     return
   }
 

@@ -212,7 +212,10 @@ export const CLIENT_SCRIPT = String.raw`
       h("button", { class: "btn sm back", onclick: function () { appEl.setAttribute("data-view", "list"); } }, [icon("back"), h("span", { text: t("detail.back") })]),
       h("span", { class: "method " + tr.method, text: tr.method }),
       h("h1", { text: tr.id === "background" ? t("requests.background") : tr.url }),
-      statusEl(tr.status)
+      statusEl(tr.status),
+      h("button", { class: "btn sm export", title: t("detail.copyMarkdown.title"), onclick: function () {
+        fetch("./api/requests/" + encodeURIComponent(tr.id) + "/markdown").then(function (r) { return r.text(); }).then(copy).catch(function () { toast(t("toast.copyFailed")); });
+      } }, [icon("copy"), h("span", { text: t("detail.copyMarkdown") })])
     ]));
     inner.appendChild(h("div", { class: "kpis" }, [
       kpi(t("kpi.total"), fmtMs(tr.durationMs)),

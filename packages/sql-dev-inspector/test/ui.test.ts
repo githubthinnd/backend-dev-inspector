@@ -661,6 +661,21 @@ describe("page document", () => {
 
 vi.setConfig({ testTimeout: 10000 })
 
+describe("copying a request for a report", () => {
+  it("fetches the Markdown of the request and copies it", async () => {
+    const copied: string[] = []
+    const { document, window } = render({ clipboard: (text) => { copied.push(text); return Promise.resolve() } })
+    await settle()
+    await selectRequest(document)
+    const urls: string[] = []
+    Object.assign(window, { fetch: (url: string) => { urls.push(String(url)); return Promise.resolve({ text: () => Promise.resolve("## GET /api/order-detail/1\n"), json: () => Promise.resolve({}) }) } })
+    click(document.querySelector(".detail-head .export"))
+    await settle()
+    expect(urls).toEqual(["./api/requests/a/markdown"])
+    expect(copied).toEqual(["## GET /api/order-detail/1\n"])
+  })
+})
+
 describe("console output of a request", () => {
   it("lists what the application printed under its request, with level, time and calling line, as text", async () => {
     const { document, sources } = render({ slow: { slowMs: 100, defaultSlowMs: 100, root: "/proj", editor: { name: "vscode", template: "vscode://file/{path}:{line}:{column}" } } as never })

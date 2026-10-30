@@ -58,6 +58,23 @@ describe("the setup check", () => {
     expect(diagnose(null, { NODE_ENV: "production" }).some(c => c.id === "extra")).toBe(true)
   })
 
+  it("serves a request as Markdown, and 404s for one that is gone", () => {
+    startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0" }, { drivers: [mysql2Driver] })
+    const store = getInspector().store
+    const trace = store.startRequest("GET", "/api/x")
+    runInRequest(trace, () => createRecorder(store).begin({ driver: "t", api: "q", text: "select 1", connectionId: 1, analysis: analyzeSql("select 1") })?.end())
+    const get = (path: string) => {
+      const req = Object.assign(new EventEmitter(), { url: `/__sql-inspector${path}`, method: "GET", headers: {} }) as unknown as IncomingMessage
+      const out = { status: 200, type: "", body: "" }
+      handleInspectorRequest(req, { writeHead(code: number, headers: Record<string, string> = {}) { out.status = code; out.type = headers["content-type"] ?? ""; return this }, write: (c: string) => (out.body += c), end: (c?: string) => { out.body += c ?? "" } } as never, path, getInspector())
+      return out
+    }
+    const ok = get(`/api/requests/${trace.id}/markdown`)
+    expect(ok.type).toContain("text/markdown")
+    expect(ok.body).toContain("## GET /api/x")
+    expect(get("/api/requests/nope/markdown").status).toBe(404)
+  })
+
   it("is served by the inspector as JSON, and the settings list the drivers", () => {
     startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0" }, { drivers: [mysql2Driver] })
     const answer = (path: string) => {
