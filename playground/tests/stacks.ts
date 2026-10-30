@@ -80,6 +80,9 @@ export const stacks: Stack[] = [
       const inspector = createInspector()
       const repo = createPrismaRepository(join(tmpdir(), `playground-prisma-${process.pid}.sqlite`))
       const context = { mockApiUrl: DEFAULT_MOCK_API_URL }
+      // The first Prisma call loads its query compiler and takes far longer than the slow-query threshold, and
+      // a cold start is not what these tests are about: warm it up outside any request.
+      await repo.orderHeaders(1)
       return viaInject((request: IncomingMessage, response: ServerResponse) => {
         if (inspector.handle(request, response)) {
           return
