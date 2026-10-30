@@ -225,6 +225,18 @@ export const CLIENT_SCRIPT = String.raw`
       kpi(t("kpi.depth"), String(tot.maxSubqueryDepth))
     ]));
 
+    var bd = tot.breakdown;
+    if (bd && bd.total > 0) {
+      var parts = ["database", "cache", "http", "app"].filter(function (k) { return bd[k] > 0; });
+      inner.appendChild(h("section", { class: "section" }, [
+        h("div", { class: "section-head" }, [h("h2", { text: t("breakdown.title") })]),
+        h("div", { class: "card", style: "padding: 4px 16px 14px", title: t("breakdown.note") }, [
+          h("div", { class: "split" }, parts.map(function (k) { return h("i", { class: k, style: "width:" + (bd[k] / bd.total * 100) + "%", title: t("breakdown." + k) + " " + fmtMs(bd[k]) }); })),
+          h("div", { class: "legend" }, parts.map(function (k) { return h("span", {}, [h("span", { class: "dot " + k }), document.createTextNode(t("breakdown." + k) + " "), h("b", { text: fmtMs(bd[k]) + " · " + Math.round(bd[k] / bd.total * 100) + "%" })]); }))
+        ])
+      ]));
+    }
+
     // insights
     var slowSeqs = {};
     rep.insights.forEach(function (i) { if (i.type === "slow") { i.seqs.forEach(function (s) { slowSeqs[s] = true; }); } });

@@ -28,6 +28,11 @@ export function exportMarkdown(report: RequestReport, root?: string, locale: Loc
     `${totals.queryCount} calls, ${Math.round(totals.sqlTimeMs * 100) / 100} ms in calls${trace.durationMs !== null ? `, ${Math.round(trace.durationMs * 100) / 100} ms in all` : ""}.`,
     ""
   ]
+  const { breakdown } = totals
+  if (breakdown.total > 0) {
+    const part = (label: string, ms: number) => ms > 0 ? `${label} ${Math.round(ms)} ms (${Math.round(ms / breakdown.total * 100)}%)` : null
+    lines.push(`Time: ${[part("database", breakdown.database), part("cache", breakdown.cache), part("outbound HTTP", breakdown.http), part("application and waiting", breakdown.app)].filter(Boolean).join(", ")}.`, "")
+  }
   if (insights.length > 0) {
     lines.push("### Findings", "")
     for (const insight of insights) {

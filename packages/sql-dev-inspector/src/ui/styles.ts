@@ -151,6 +151,13 @@ svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; s
 .detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 .detail-head h1 { margin: 0; font: 600 15px/1.4 var(--mono); word-break: break-all; flex: 1; min-width: 200px; }
 .back { display: none; }
+.split { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--surface-2, var(--border)); margin: 10px 0 8px; }
+.split > i { display: block; height: 100%; min-width: 2px; }
+.split .database { background: var(--accent); } .split .cache { background: var(--warn); } .split .http { background: var(--ok); } .split .app { background: var(--text-3, #8b949e); opacity: .55; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--text-2); }
+.legend b { font-family: var(--mono); font-weight: 650; color: var(--text); }
+.legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.legend .dot.database { background: var(--accent); } .legend .dot.cache { background: var(--warn); } .legend .dot.http { background: var(--ok); } .legend .dot.app { background: var(--text-3, #8b949e); opacity: .55; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .kpi { padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .kpi-label { color: var(--text-3); font-size: 11.5px; font-weight: 600; }

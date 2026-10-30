@@ -1,5 +1,5 @@
 import { rememberedCallKey } from "./call-key.js"
-import type { Insight, QueryEvent, RequestReport, RequestTrace, TraceNode, TransactionNode } from "./types.js"
+import type { Insight, QueryEvent, RequestReport, RequestTrace, TimeBreakdown, TraceNode, TransactionNode } from "./types.js"
 import { DEFAULT_LOCALE, isMessageKey, type Locale, type MessageKey, translate } from "./i18n/index.js"
 import { isControlStatement, isWriteStatement } from "./sql-analyzer.js"
 
@@ -251,6 +251,36 @@ function findInsights(tree: TraceNode[], queries: QueryEvent[], options: ReportO
   return insights
 }
 
+const CACHE_DRIVERS = new Set(["redis", "ioredis"])
+const HTTP_DRIVERS = new Set(["http", "fetch"])
+
+/** Length of the union of the calls' time spans: overlapping calls are counted once. */
+function busyMs(queries: QueryEvent[], now: number): number {
+  const spans = queries
+    .map(q => [q.startedAt, q.startedAt + (q.durationMs ?? Math.max(0, now - q.startedAt))] as const)
+    .sort((a, b) => a[0] - b[0])
+  let total = 0
+  let from = -Infinity
+  for (const [start, end] of spans) {
+    if (end <= from) {
+      continue
+    }
+    total += end - Math.max(start, from)
+    from = end
+  }
+  return total
+}
+
+export function timeBreakdown(trace: RequestTrace, statements: QueryEvent[]): TimeBreakdown {
+  const now = Date.now()
+  const last = Math.max(trace.startedAt, ...statements.map(q => q.startedAt + (q.durationMs ?? 0)))
+  const total = trace.durationMs ?? last - trace.startedAt
+  const database = busyMs(statements.filter(q => !CACHE_DRIVERS.has(q.driver ?? "") && !HTTP_DRIVERS.has(q.driver ?? "")), now)
+  const cache = busyMs(statements.filter(q => CACHE_DRIVERS.has(q.driver ?? "")), now)
+  const http = busyMs(statements.filter(q => HTTP_DRIVERS.has(q.driver ?? "")), now)
+  return { database, cache, http, app: Math.max(0, total - busyMs(statements, now)), total: Math.max(total, 0) }
+}
+
 export function buildReport(trace: RequestTrace, options: ReportOptions = DEFAULT_REPORT_OPTIONS): RequestReport {
   const tree = buildTree(trace.queries)
   const statements = trace.queries.filter(q => !isControlStatement(q.analysis.kind))
@@ -270,7 +300,8 @@ export function buildReport(trace: RequestTrace, options: ReportOptions = DEFAUL
     totals: {
       queryCount: statements.length,
       sqlTimeMs: sumMs(statements),
-      maxSubqueryDepth: Math.max(0, ...statements.map(q => q.analysis.subqueryDepth))
+      maxSubqueryDepth: Math.max(0, ...statements.map(q => q.analysis.subqueryDepth)),
+      breakdown: timeBreakdown(trace, statements)
     }
   }
 }

@@ -130,5 +130,20 @@ export interface RequestReport {
     sqlTimeMs: number
     /** Deepest `(SELECT ...)` nesting across the request's statements. */
     maxSubqueryDepth: number
+    /** Where the request's time went. */
+    breakdown: TimeBreakdown
   }
+}
+
+/**
+ * Milliseconds of wall-clock time per kind of call. Calls that ran at the same time (Promise.all) are counted once,
+ * so the parts never add up to more than `total`; `app` is what is left: the application's own work and waiting.
+ */
+export interface TimeBreakdown {
+  database: number
+  cache: number
+  http: number
+  app: number
+  /** The request's duration, or until its last call ended while it is still running. */
+  total: number
 }

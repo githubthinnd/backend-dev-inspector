@@ -661,6 +661,16 @@ describe("page document", () => {
 
 vi.setConfig({ testTimeout: 10000 })
 
+describe("time breakdown", () => {
+  it("shows a bar and a legend for the request", async () => {
+    const { document } = render()
+    await settle()
+    await selectRequest(document)
+    expect(document.querySelector(".split")).not.toBeNull()
+    expect(document.querySelector(".legend")?.textContent).toMatch(/Database .*%/)
+  })
+})
+
 describe("copying a request for a report", () => {
   it("fetches the Markdown of the request and copies it", async () => {
     const copied: string[] = []
