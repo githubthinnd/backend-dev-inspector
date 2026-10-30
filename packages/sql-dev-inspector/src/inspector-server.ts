@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
 import { diagnose } from "./doctor.js"
+import { compareReports } from "./compare.js"
 import { exportJson, exportMarkdown } from "./export.js"
 import { setLogCapture } from "./log-capture.js"
 import { handleMcp } from "./mcp.js"
@@ -16,6 +17,7 @@ const TRAILING_SLASHES = /\/+$/
 const REDACT_MODES = new Set(["params", "all", "off"])
 const QUERY_OR_HASH = /[?#]/
 const REQUEST_DETAIL = /^\/api\/requests\/([\w-]+)$/
+const REQUEST_COMPARE = /^\/api\/compare\/([\w-]+)\/([\w-]+)$/
 const REQUEST_EXPORT = /^\/api\/requests\/([\w-]+)\/export$/
 const REQUEST_MARKDOWN = /^\/api\/requests\/([\w-]+)\/markdown$/
 
@@ -235,6 +237,18 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
         errors: insights.filter(i => i.severity === "error").length
       }
     }))
+    return
+  }
+
+  const compare = REQUEST_COMPARE.exec(path)
+  if (req.method === "GET" && compare) {
+    const first = store.get(compare[1]!)
+    const second = store.get(compare[2]!)
+    if (!first || !second) {
+      sendJson(res, { message: "Request not found (evicted or cleared)" }, 404)
+      return
+    }
+    sendJson(res, compareReports(cachedReport(store, first, inspector.report), cachedReport(store, second, inspector.report)))
     return
   }
 

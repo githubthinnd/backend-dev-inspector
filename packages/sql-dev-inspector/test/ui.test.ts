@@ -2,6 +2,7 @@ import type { Locale } from "../src/i18n"
 import type { QueryEvent, RequestTrace } from "../src/types"
 import { createWindow } from "./dom"
 import { describe, expect, it, vi } from "vitest"
+import { compareReports } from "../src/compare"
 import { buildReport } from "../src/report"
 import { analyzeSql, formatSql } from "../src/sql-analyzer"
 import { renderPage } from "../src/ui/page"
@@ -683,6 +684,28 @@ describe("copying a request for a report", () => {
     await settle()
     expect(urls).toEqual(["./api/requests/a/markdown"])
     expect(copied).toEqual(["## GET /api/order-detail/1\n"])
+  })
+})
+
+describe("comparing two requests", () => {
+  it("offers the other requests, fetches the comparison and shows what differs", async () => {
+    const { document, window } = render()
+    await settle()
+    await selectRequest(document)
+    const select = document.querySelector(".compare-select") as HTMLSelectElement
+    expect(select.options).toHaveLength(3) // the prompt and the two other requests
+    const traces = buildTraces()
+    const data = compareReports(buildReport(traces[1]!), buildReport(traces[0]!))
+    const urls: string[] = []
+    Object.assign(window, { fetch: (url: string) => { urls.push(String(url)); return Promise.resolve({ json: () => Promise.resolve(data), text: () => Promise.resolve("") }) } })
+    select.value = "b"
+    select.dispatchEvent(new window.Event("change"))
+    await settle()
+    expect(urls).toEqual(["./api/compare/b/a"])
+    const text = document.querySelector(".compare-result")?.textContent ?? ""
+    expect(text).toContain("About as fast as the other request")
+    expect(text).toContain("order_items")
+    expect(text).toMatch(/new/)
   })
 })
 

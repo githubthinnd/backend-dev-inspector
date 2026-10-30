@@ -77,6 +77,11 @@ describe("the setup check", () => {
     expect(json.type).toContain("application/json")
     expect(JSON.parse(json.body)).toMatchObject({ format: "sql-dev-inspector/request", version: 1, calls: [{ text: "select 1" }] })
     expect(get("/api/requests/nope/export").status).toBe(404)
+    const other = store.startRequest("GET", "/api/y")
+    runInRequest(other, () => createRecorder(store).begin({ driver: "t", api: "q", text: "select 2", connectionId: 1, analysis: analyzeSql("select 2") })?.end())
+    const compared = JSON.parse(get(`/api/compare/${trace.id}/${other.id}`).body)
+    expect(compared).toMatchObject({ a: { id: trace.id }, b: { id: other.id }, verdict: expect.any(String) })
+    expect(get(`/api/compare/${trace.id}/nope`).status).toBe(404)
   })
 
   it("is served by the inspector as JSON, and the settings list the drivers", () => {

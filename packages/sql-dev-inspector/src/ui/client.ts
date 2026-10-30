@@ -94,7 +94,7 @@ export const CLIENT_SCRIPT = String.raw`
   var state = {
     requests: [], selectedId: null, report: null, term: "", mode: "all",
     follow: location.hash === "#latest" || storage.get(KEY_FOLLOW) === "1",
-    open: {}, collapsed: {}, highlight: [], expandAll: false, rawSql: {},
+    open: {}, collapsed: {}, highlight: [], expandAll: false, rawSql: {}, compare: null,
     theme: storage.get(KEY_THEME) || "auto", live: false, loadToken: 0
   };
   var appEl = $("app"), listBody = $("list-body"), detailEl = $("detail");
@@ -196,6 +196,62 @@ export const CLIENT_SCRIPT = String.raw`
   function kpi(label, value, sub) {
     return h("div", { class: "kpi" }, [h("div", { class: "kpi-label", text: label }), h("div", { class: "kpi-value", text: value }), sub ? h("div", { class: "kpi-sub", text: sub }) : null]);
   }
+  function signed(v, unit) { return (v > 0 ? "+" : v < 0 ? "−" : "") + (unit === "ms" ? fmtMs(Math.abs(v)) : String(Math.abs(v))); }
+  function pairCell(p, unit) {
+    var cls = p.delta > 0 ? "up" : p.delta < 0 ? "down" : "";
+    return h("td", { class: "num " + cls }, [document.createTextNode((unit === "ms" ? fmtMs(p.a) : p.a) + " → " + (unit === "ms" ? fmtMs(p.b) : p.b)), h("small", { text: p.delta ? " (" + signed(p.delta, unit) + ")" : "" })]);
+  }
+  function compareSection(tr) {
+    var others = state.requests.filter(function (r) { return r.id !== tr.id; });
+    var route = function (u) { return String(u).split("?")[0]; };
+    others.sort(function (x, y) {
+      var sx = x.method === tr.method && route(x.url) === route(tr.url) ? 0 : 1, sy = y.method === tr.method && route(y.url) === route(tr.url) ? 0 : 1;
+      return sx - sy;
+    });
+    var box = h("div", { class: "card", style: "padding: 12px 16px" });
+    if (!others.length) { return h("div", {}); }
+    var select = h("select", { class: "pop-input compare-select", "aria-label": t("compare.title") }, [h("option", { value: "", text: t("compare.pick") })].concat(others.map(function (r) {
+      return h("option", { value: r.id, text: r.method + " " + urlLabel(r) + " · " + fmtTime(r.startedAt) + " · " + t("term.queries", { count: r.queryCount }) });
+    })));
+    var result = h("div", { class: "compare-result" });
+    function show(data) {
+      result.textContent = "";
+      var verdict = data.verdict === "same" ? t("compare.same") : t("compare." + data.verdict, { ms: fmtMs(Math.abs(data.totals.totalMs.delta)) });
+      result.appendChild(h("div", { class: "compare-verdict " + data.verdict, text: verdict }));
+      var rows = [["compare.calls", data.totals.calls, "n"], ["compare.callTime", data.totals.callMs, "ms"], ["compare.total", data.totals.totalMs, "ms"], ["compare.database", data.totals.database, "ms"], ["compare.cache", data.totals.cache, "ms"], ["compare.http", data.totals.http, "ms"], ["compare.app", data.totals.app, "ms"]]
+        .filter(function (r) { return r[1].a || r[1].b; })
+        .map(function (r) { return h("tr", {}, [h("th", { text: t(r[0]) }), pairCell(r[1], r[2])]); });
+      result.appendChild(h("table", { class: "compare-table" }, rows));
+      if (data.groups.length) {
+        result.appendChild(h("h3", { class: "compare-sub", text: t("compare.calls.changed") }));
+        result.appendChild(h("table", { class: "compare-table groups" }, data.groups.map(function (g) {
+          return h("tr", {}, [
+            h("td", {}, [h("span", { class: "chip " + (g.change === "added" || g.change === "more" || g.change === "slower" ? "warn" : "ok"), text: t("compare.change." + g.change) })]),
+            h("td", { class: "code", text: (g.driver ? g.driver + " · " : "") + g.text }),
+            pairCell(g.count, "n"), pairCell(g.ms, "ms")
+          ]);
+        })));
+      } else { result.appendChild(h("div", { class: "dim", text: t("compare.noCalls") })); }
+      if (data.findings.length) {
+        result.appendChild(h("h3", { class: "compare-sub", text: t("compare.findings") }));
+        result.appendChild(h("table", { class: "compare-table" }, data.findings.map(function (f) { return h("tr", {}, [h("th", { text: t("insight.title." + f.type) }), pairCell({ a: f.a, b: f.b, delta: f.b - f.a }, "n")]); })));
+      }
+    }
+    select.addEventListener("change", function () {
+      var other = select.value;
+      state.compare = other ? { for: tr.id, against: other } : null;
+      result.textContent = "";
+      if (!other) { return; }
+      fetch("./api/compare/" + encodeURIComponent(other) + "/" + encodeURIComponent(tr.id)).then(function (r) { return r.json(); }).then(show).catch(function () { toast(t("toast.copyFailed")); });
+    });
+    box.appendChild(h("div", { class: "compare-bar" }, [h("strong", { text: t("compare.title") }), select]));
+    box.appendChild(result);
+    if (state.compare && state.compare.for === tr.id) {
+      select.value = state.compare.against;
+      if (select.value) { select.dispatchEvent(new Event("change")); }
+    }
+    return h("section", { class: "section" }, [h("div", { class: "section-head" }, [h("h2", { text: t("compare.heading") })]), box]);
+  }
   function renderDetail() {
     var keep = detailEl.scrollTop;
     detailEl.textContent = "";
@@ -244,6 +300,8 @@ export const CLIENT_SCRIPT = String.raw`
         ])
       ]));
     }
+
+    inner.appendChild(compareSection(tr));
 
     // insights
     var slowSeqs = {};
