@@ -2,6 +2,7 @@ import { type InspectorEnv, pickEnv } from "./env.js"
 import { parseAllowedHosts } from "./guard.js"
 import { chosenLocale, DEFAULT_LOCALE, type Locale } from "./i18n/index.js"
 import { resolveEditor } from "./caller.js"
+import { parseBudgets } from "./budget.js"
 import { parseRedactMode, type RedactMode } from "./redact.js"
 import { DEFAULT_REPORT_OPTIONS, type ReportOptions } from "./report.js"
 import { parsePatterns, type RouteFilters } from "./route-filter.js"
@@ -40,7 +41,9 @@ export interface Inspector {
   /** Which requests are traced (`SQL_INSPECTOR_INCLUDE` / `SQL_INSPECTOR_EXCLUDE`). */
   filters: RouteFilters
   /** What the UI resets the settings to: what the environment and the options of the process said. */
-  defaults: { redact: RedactMode, filters: RouteFilters, logs: boolean, stack: boolean, editor: { name: string, template: string } }
+  /** The budgets as written, for the settings; `report.budgets` holds them parsed. */
+  budgets: string[]
+  defaults: { budgets: string[], redact: RedactMode, filters: RouteFilters, logs: boolean, stack: boolean, editor: { name: string, template: string } }
   /** Whether what the application prints is listed under its request (`SQL_INSPECTOR_LOGS`, default off). */
   logs: boolean
   /** Whether calls record where in the application they were made (`SQL_INSPECTOR_STACK`, default on). */
@@ -110,12 +113,14 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
         ...DEFAULT_REPORT_OPTIONS,
         slowMs,
         transactionConvention: env.SQL_INSPECTOR_TX_CONVENTION === "1",
+        budgets: parseBudgets(env.SQL_INSPECTOR_BUDGETS),
         locale: hint ?? DEFAULT_LOCALE
       },
       logToTerminal: env.SQL_INSPECTOR_LOG !== "0",
       redact,
       filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) },
-      defaults: { redact, filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) }, logs: ["1", "on", "true", "yes"].includes((env.SQL_INSPECTOR_LOGS ?? "").trim().toLowerCase()), stack, editor: resolveEditor(env.SQL_INSPECTOR_EDITOR) },
+      budgets: textOfBudgets(env.SQL_INSPECTOR_BUDGETS),
+      defaults: { budgets: textOfBudgets(env.SQL_INSPECTOR_BUDGETS), redact, filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) }, logs: ["1", "on", "true", "yes"].includes((env.SQL_INSPECTOR_LOGS ?? "").trim().toLowerCase()), stack, editor: resolveEditor(env.SQL_INSPECTOR_EDITOR) },
       logs: ["1", "on", "true", "yes"].includes((env.SQL_INSPECTOR_LOGS ?? "").trim().toLowerCase()),
       stack,
       editor: resolveEditor(env.SQL_INSPECTOR_EDITOR),
@@ -124,4 +129,17 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
     }
   }
   return holder[KEY]
+}
+
+/** The valid budgets of a setting, as the strings they were written as. */
+export function textOfBudgets(raw: string | readonly string[] | undefined): string[] {
+  const items = typeof raw === "string" ? raw.split(";") : (raw ?? []).flatMap(item => item.split(";"))
+  const valid = parseBudgets(items)
+  return items.map(item => item.trim()).filter(Boolean).filter(item => parseBudgets([item]).length === 1).slice(0, valid.length)
+}
+
+/** Replaces the budgets, keeping the written form and the parsed form in step. */
+export function setBudgets(inspector: Inspector, list: readonly string[]) {
+  inspector.budgets = textOfBudgets(list)
+  inspector.report.budgets = parseBudgets(inspector.budgets)
 }

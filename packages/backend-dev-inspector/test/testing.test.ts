@@ -59,6 +59,18 @@ describe.skipIf(!built)("query budgets in tests", () => {
     expect(run).not.toHaveNoNPlusOne()
   })
 
+  it("checks a budget for calls, time in all and time in calls", async () => {
+    const db = database()
+    const run = await capture(async () => {
+      for (const id of [1, 2, 3]) {
+        db.prepare("select * from users where id = ?").get(id)
+      }
+    })
+    expect(run).toBeWithinBudget({ calls: 3, ms: 5000, callMs: 5000 })
+    expect(run).not.toBeWithinBudget({ calls: 2 })
+    expect(() => expect(run).toBeWithinBudget({ calls: 1, ms: 0 })).toThrow(/calls: 3 against a budget of 1/)
+  })
+
   it("passes a loop that does not repeat the same shape", async () => {
     const db = database()
     const run = await capture(() => db.prepare("select * from users where id in (1, 2, 3, 4)").all())

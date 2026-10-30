@@ -1,6 +1,7 @@
 import { rememberedCallKey } from "./call-key.js"
-import type { Insight, QueryEvent, RequestReport, RequestTrace, TimeBreakdown, TraceNode, TransactionNode } from "./types.js"
+import type { Insight, InsightType, QueryEvent, RequestReport, RequestTrace, TimeBreakdown, TraceNode, TransactionNode } from "./types.js"
 import { DEFAULT_LOCALE, isMessageKey, type Locale, type MessageKey, translate } from "./i18n/index.js"
+import { type Budget, budgetFor } from "./budget.js"
 import { isControlStatement, isWriteStatement } from "./sql-analyzer.js"
 
 export interface ReportOptions {
@@ -14,6 +15,8 @@ export interface ReportOptions {
   transactionConvention: boolean
   /** Language of `Insight.message`. The structured fields are language-neutral. */
   locale: Locale
+  /** Limits per route; a request over its limit gets a warning. */
+  budgets: Budget[]
 }
 
 export const DEFAULT_REPORT_OPTIONS: ReportOptions = {
@@ -21,7 +24,8 @@ export const DEFAULT_REPORT_OPTIONS: ReportOptions = {
   nPlusOneThreshold: 3,
   manyQueriesThreshold: 30,
   transactionConvention: false,
-  locale: DEFAULT_LOCALE
+  locale: DEFAULT_LOCALE,
+  budgets: []
 }
 
 const endOf = (query: QueryEvent) => query.startedAt + (query.durationMs ?? 0)
@@ -186,7 +190,7 @@ function callerOf(queries: QueryEvent[]): { caller: string } | Record<string, ne
 }
 
 /** Findings as data (type + params), so any front end can phrase them in its own language. */
-function findInsights(tree: TraceNode[], queries: QueryEvent[], options: ReportOptions): InsightDraft[] {
+function findInsights(trace: RequestTrace, tree: TraceNode[], queries: QueryEvent[], options: ReportOptions): InsightDraft[] {
   const insights: InsightDraft[] = []
   const statements = queries.filter(q => !isControlStatement(q.analysis.kind))
   const flagged = new Set<number>()
@@ -245,6 +249,19 @@ function findInsights(tree: TraceNode[], queries: QueryEvent[], options: ReportO
     insights.push({ type: "write-outside-transaction", severity: "info", params: { count: writesOutside.length }, seqs: writesOutside.map(p => p.query.seq) })
   }
 
+  const budget = budgetFor(options.budgets ?? [], trace.method, trace.url)
+  if (budget && trace.id !== "background") {
+    const route = `${budget.method ? `${budget.method} ` : ""}${budget.route}`
+    const over = (type: InsightType, actual: number, max: number | null, format: (n: number) => string) => {
+      if (max !== null && actual > max) {
+        insights.push({ type, severity: "warn", params: { route, actual: format(actual), max: format(max) }, seqs: [] })
+      }
+    }
+    over("budget-calls", statements.length, budget.calls, String)
+    over("budget-time", trace.durationMs ?? 0, budget.ms, formatMs)
+    over("budget-call-time", sumMs(statements), budget.callMs, formatMs)
+  }
+
   if (statements.length >= options.manyQueriesThreshold) {
     insights.push({ type: "many-queries", severity: "warn", params: { count: statements.length }, seqs: [] })
   }
@@ -287,7 +304,7 @@ export function buildReport(trace: RequestTrace, options: ReportOptions = DEFAUL
   return {
     trace,
     tree,
-    insights: findInsights(tree, trace.queries, options).map((insight) => {
+    insights: findInsights(trace, tree, trace.queries, options).map((insight) => {
       const family = familyOf(insight, trace.queries)
       const key = hintKey(insight.type, family)
       return {

@@ -67,6 +67,11 @@ export function renderPage(localeHint: Locale | null = null, title: string | nul
           <p class="pop-hint" data-i18n="settings.filters.hint"></p>
         </section>
         <section class="pop-sec">
+          <h3 data-i18n="settings.budgets"></h3>
+          <label class="pop-row"><input id="budgets-input" class="pop-input" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.budgets.placeholder"></label>
+          <p class="pop-hint" data-i18n="settings.budgets.hint"></p>
+        </section>
+        <section class="pop-sec">
           <h3 data-i18n="settings.status"></h3>
           <p class="pop-hint dim" data-i18n="settings.drivers"></p>
           <div class="chips" id="drivers"></div>

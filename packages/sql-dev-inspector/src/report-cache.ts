@@ -1,6 +1,7 @@
 import type { ReportOptions } from "./report.js"
 import type { TraceStore } from "./store.js"
 import type { QueryEvent, RequestReport, RequestTrace } from "./types.js"
+import { budgetKey } from "./budget.js"
 import { buildReport } from "./report.js"
 import { formatSql } from "./sql-analyzer.js"
 
@@ -13,7 +14,7 @@ const reports = new WeakMap<RequestTrace, { key: string, report: RequestReport }
 const formatted = new WeakMap<QueryEvent, string>()
 
 export function cachedReport(store: TraceStore, trace: RequestTrace, options: ReportOptions): RequestReport {
-  const key = `${store.versionOf(trace)}|${options.slowMs}|${options.nPlusOneThreshold}|${options.manyQueriesThreshold}|${options.transactionConvention}|${options.locale}`
+  const key = `${store.versionOf(trace)}|${options.slowMs}|${options.nPlusOneThreshold}|${options.manyQueriesThreshold}|${options.transactionConvention}|${options.locale}|${budgetKey(options.budgets ?? [])}`
   const hit = reports.get(trace)
   if (hit?.key === key) {
     return hit.report

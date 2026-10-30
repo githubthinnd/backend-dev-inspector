@@ -8,6 +8,8 @@ export interface NuxtModuleOptions {
   /** What is kept of values: `params` (default), `all` or `off`. */
   redact?: RedactMode
   /** Only requests matching these paths are traced (`/api/**`). */
+  /** Limits per route, as `[METHOD ]/path=calls:10,ms:200,callMs:80`. */
+  budgets?: string[]
   include?: string[]
   /** Requests matching these paths are never traced. */
   exclude?: string[]
@@ -47,6 +49,7 @@ export function createNuxtModule(options: { nitroPlugin?: string } = {}) {
     const settings = { ...nuxt.options.sqlInspector, ...inline }
     applyToEnv({
       SQL_INSPECTOR_REDACT: settings.redact,
+      SQL_INSPECTOR_BUDGETS: settings.budgets?.join(";"),
       SQL_INSPECTOR_INCLUDE: settings.include?.join(","),
       SQL_INSPECTOR_EXCLUDE: settings.exclude?.join(","),
       SQL_INSPECTOR_PATH: settings.path

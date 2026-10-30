@@ -526,6 +526,7 @@ export const CLIENT_SCRIPT = String.raw`
     $("privacy-text").textContent = t(mode === "params" ? "status.hidden" : mode === "all" ? "status.masked" : "status.visible");
     if (document.activeElement !== $("include-input")) { $("include-input").value = (server.include || []).join(", "); }
     if (document.activeElement !== $("exclude-input")) { $("exclude-input").value = (server.exclude || []).join(", "); }
+    if (document.activeElement !== $("budgets-input")) { $("budgets-input").value = (server.budgets || []).join("; "); }
     $("path-value").textContent = "/" + (server.mount || "__sql-inspector") + "/";
     $("stack-switch").setAttribute("aria-checked", server.stack === false ? "false" : "true");
     $("logs-switch").setAttribute("aria-checked", server.logs === true ? "true" : "false");
@@ -552,6 +553,10 @@ export const CLIENT_SCRIPT = String.raw`
     });
     $("include-input").addEventListener("change", function () { pushSetting({ include: listOf($("include-input").value) }); });
     $("exclude-input").addEventListener("change", function () { pushSetting({ exclude: listOf($("exclude-input").value) }); });
+    $("budgets-input").addEventListener("change", function () {
+      var items = $("budgets-input").value.split(";").map(function (s) { return s.trim(); }).filter(Boolean);
+      pushSetting({ budgets: items });
+    });
     $("check").addEventListener("click", function () {
       var list = $("checks"), btn = $("check");
       btn.textContent = t("settings.check.running"); list.hidden = false; list.textContent = "";
@@ -565,7 +570,7 @@ export const CLIENT_SCRIPT = String.raw`
     Array.prototype.forEach.call(document.querySelectorAll("[data-editor]"), function (b) {
       b.addEventListener("click", function () { pushSetting({ editor: b.getAttribute("data-editor") }); });
     });
-    $("settings-reset").addEventListener("click", function () { pushSetting({ redact: null, include: null, exclude: null, stack: null, logs: null, editor: null }); });
+    $("settings-reset").addEventListener("click", function () { pushSetting({ redact: null, include: null, exclude: null, budgets: null, stack: null, logs: null, editor: null }); });
     pop.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); setSettingsOpen(false, true); } });
     document.addEventListener("click", function (e) {
       if (!pop.hidden && !$("settings-dd").contains(e.target) && !$("privacy").contains(e.target)) { setSettingsOpen(false, false); }

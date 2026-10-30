@@ -7,7 +7,7 @@ import { translate } from "./i18n/index.js"
 import { setLogCapture, withoutCapture } from "./log-capture.js"
 import { createRecorder } from "./recorder.js"
 import { buildReport } from "./report.js"
-import { type Brand, getInspector, type Inspector, isInspectorEnabled, normalizeMount } from "./runtime.js"
+import { type Brand, getInspector, type Inspector, isInspectorEnabled, normalizeMount, setBudgets } from "./runtime.js"
 import { hasVisibleStatements, renderReport } from "./terminal.js"
 import { mysql2Driver } from "./tracer.js"
 
@@ -24,6 +24,8 @@ export interface StartOptions {
   /** What is kept of values: `params` (default), `all` or `off`. Overrides `SQL_INSPECTOR_REDACT`. */
   redact?: RedactMode
   /** Only requests matching these paths are traced (`/api/**`). Overrides `SQL_INSPECTOR_INCLUDE`. */
+  /** Limits per route, as `[METHOD ]/path=calls:10,ms:200,callMs:80`: a request over its limit gets a warning. */
+  budgets?: string[]
   include?: string[]
   /** Requests matching these paths are never traced. Overrides `SQL_INSPECTOR_EXCLUDE`. */
   exclude?: string[]
@@ -63,6 +65,10 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
     inspector.redact = options.redact
     inspector.store.redact = options.redact
     inspector.defaults.redact = options.redact
+  }
+  if (options.budgets) {
+    setBudgets(inspector, options.budgets)
+    inspector.defaults.budgets = [...inspector.budgets]
   }
   if (options.include) {
     inspector.filters.include = parsePatterns(options.include)

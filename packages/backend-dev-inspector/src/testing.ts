@@ -111,6 +111,20 @@ export const matchers = {
         : `expected at most ${max} calls, but there were ${count}:\n${run.queries.slice(0, 15).map(query => `  - ${query.sql.replace(/\s+/g, " ").slice(0, 110)}`).join("\n")}${count > 15 ? `\n  … and ${count - 15} more` : ""}`
     }
   },
+  /** Within a budget: `{ calls: 5, ms: 200, callMs: 80 }` (any of them): calls made, time in all, time in calls. */
+  toBeWithinBudget: (received: unknown, budget: { calls?: number, ms?: number, callMs?: number }): MatcherResult => {
+    const run = ofCapture(received, "toBeWithinBudget")
+    const over: string[] = []
+    const check = (name: string, actual: number, max: number | undefined, unit: string) => {
+      if (max !== undefined && actual > max) {
+        over.push(`${name}: ${Math.round(actual * 100) / 100}${unit} against a budget of ${max}${unit}`)
+      }
+    }
+    check("calls", run.queries.length, budget.calls, "")
+    check("time", run.trace.durationMs ?? 0, budget.ms, " ms")
+    check("time in calls", run.report.totals.sqlTimeMs, budget.callMs, " ms")
+    return { pass: over.length === 0, message: () => over.length === 0 ? "expected the run to go over its budget, but it stayed within" : `expected the run to stay within its budget, but:\n${over.map(line => `  - ${line}`).join("\n")}` }
+  },
   toRunQueries: (received: unknown, expected: number): MatcherResult => {
     const run = ofCapture(received, "toRunQueries")
     return { pass: run.queries.length === expected, message: () => `expected ${expected} calls, but there were ${run.queries.length}` }

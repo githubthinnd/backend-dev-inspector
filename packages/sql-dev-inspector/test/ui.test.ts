@@ -456,7 +456,7 @@ describe("settings: hiding values and the requests to follow", () => {
     expect(byId(document, "path-value").textContent).toBe("/_dev/sql/")
     byId(document, "settings-reset").click()
     await settle()
-    expect(posts(calls)).toEqual([{ redact: null, include: null, exclude: null, stack: null, logs: null, editor: null }])
+    expect(posts(calls)).toEqual([{ redact: null, include: null, exclude: null, budgets: null, stack: null, logs: null, editor: null }])
     expect(byId(document, "privacy").getAttribute("data-mode")).toBe("params")
   })
 })

@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
 import { diagnose } from "./doctor.js"
+import { validBudgetList } from "./budget.js"
 import { compareReports } from "./compare.js"
 import { exportJson, exportMarkdown } from "./export.js"
 import { setLogCapture } from "./log-capture.js"
@@ -8,7 +9,7 @@ import { handleMcp } from "./mcp.js"
 import { installedDrivers } from "./setup.js"
 import { parsePatterns } from "./route-filter.js"
 import type { RedactMode } from "./redact.js"
-import { DEFAULT_MOUNT, type Inspector } from "./runtime.js"
+import { DEFAULT_MOUNT, type Inspector, setBudgets } from "./runtime.js"
 import { rejectReason } from "./guard.js"
 import { cachedReport, formattedSql } from "./report-cache.js"
 import { renderPage } from "./ui/page.js"
@@ -62,12 +63,13 @@ function settingsOf(inspector: Inspector) {
     redact: inspector.redact,
     include: inspector.filters.include,
     exclude: inspector.filters.exclude,
+    budgets: inspector.budgets,
     stack: inspector.stack,
     logs: inspector.logs,
     drivers: installedDrivers(),
     editor: inspector.editor,
     root: inspector.root,
-    defaults: { redact: inspector.defaults.redact, include: inspector.defaults.filters.include, exclude: inspector.defaults.filters.exclude, stack: inspector.defaults.stack, logs: inspector.defaults.logs, editor: inspector.defaults.editor.name },
+    defaults: { budgets: inspector.defaults.budgets, redact: inspector.defaults.redact, include: inspector.defaults.filters.include, exclude: inspector.defaults.filters.exclude, stack: inspector.defaults.stack, logs: inspector.defaults.logs, editor: inspector.defaults.editor.name },
     mount: inspector.mount
   }
 }
@@ -139,6 +141,7 @@ interface SettingsChange {
   redact?: RedactMode | null
   include?: string[] | null
   exclude?: string[] | null
+  budgets?: string[] | null
   stack?: boolean | null
   logs?: boolean | null
   editor?: string | null
@@ -190,6 +193,13 @@ function parseSettingsBody(body: unknown): SettingsChange | string {
       }
       change[key] = list
     }
+  }
+  if ("budgets" in input) {
+    const list = input.budgets === null ? null : Array.isArray(input.budgets) ? validBudgetList(input.budgets) : undefined
+    if (list === undefined) {
+      return "budgets must be a list of budgets like \"/api/**=calls:20,ms:300\", or null"
+    }
+    change.budgets = list
   }
   return Object.keys(change).length > 0 ? change : "Nothing to change"
 }
@@ -375,6 +385,9 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
       }
       if ("editor" in change) {
         inspector.editor = change.editor === null || change.editor === undefined ? { ...inspector.defaults.editor } : resolveEditor(change.editor)
+      }
+      if ("budgets" in change) {
+        setBudgets(inspector, change.budgets ?? inspector.defaults.budgets)
       }
       if ("include" in change) {
         inspector.filters.include = change.include ?? [...inspector.defaults.filters.include]

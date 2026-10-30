@@ -17,7 +17,7 @@ function report(driver: string, calls: string[], options: { slowMs?: number } = 
       : analyzeSql(text)
     createRecorder(store).begin({ driver, api: "q", text, connectionId: 1, analysis })?.end()
   }))
-  return buildReport(trace, options.slowMs ? { ...{ slowMs: 100, nPlusOneThreshold: 3, manyQueriesThreshold: 30, transactionConvention: false, locale: "en" as const }, slowMs: options.slowMs } : undefined)
+  return buildReport(trace, options.slowMs ? { ...{ slowMs: 100, nPlusOneThreshold: 3, manyQueriesThreshold: 30, transactionConvention: false, locale: "en" as const, budgets: [] }, slowMs: options.slowMs } : undefined)
 }
 
 describe("advice on insights", () => {

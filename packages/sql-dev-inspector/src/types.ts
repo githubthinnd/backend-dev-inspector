@@ -106,6 +106,9 @@ export type InsightType
     | "deep-subquery"
     | "error"
     | "many-queries"
+    | "budget-calls"
+    | "budget-time"
+    | "budget-call-time"
 
 export interface Insight {
   type: InsightType

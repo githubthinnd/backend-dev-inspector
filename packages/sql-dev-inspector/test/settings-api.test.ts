@@ -2,7 +2,7 @@ import type { Inspector } from "../src/runtime"
 import { EventEmitter } from "node:events"
 import { afterEach, describe, expect, it } from "vitest"
 import { handleInspectorRequest, SLOW_MS_RANGE } from "../src/inspector-server"
-import { getInspector } from "../src/runtime"
+import { getInspector, setBudgets } from "../src/runtime"
 import { analyzeSql } from "../src/sql-analyzer"
 import type { StoreChange } from "../src/store"
 
@@ -54,6 +54,7 @@ afterEach(() => {
   inspector.store.redact = inspector.defaults.redact
   inspector.filters.include = [...inspector.defaults.filters.include]
   inspector.filters.exclude = [...inspector.defaults.filters.exclude]
+  setBudgets(inspector, inspector.defaults.budgets)
   inspector.stack = inspector.defaults.stack
   inspector.logs = inspector.defaults.logs
   inspector.store.captureCaller = inspector.defaults.stack
@@ -70,12 +71,13 @@ describe("settings API", () => {
       redact: "params",
       include: [],
       exclude: [],
+      budgets: [],
       stack: true,
       logs: false,
       drivers: expect.any(Array),
       editor: { name: "vscode", template: "vscode://file/{path}:{line}:{column}" },
       root: expect.any(String),
-      defaults: { redact: "params", include: [], exclude: [], stack: true, logs: false, editor: "vscode" },
+      defaults: { budgets: [], redact: "params", include: [], exclude: [], stack: true, logs: false, editor: "vscode" },
       mount: "__sql-inspector"
     })
   })
@@ -167,6 +169,19 @@ describe("request list counts", () => {
 
       const reset = await post(JSON.stringify({ include: null, exclude: null, redact: null }))
       expect(reset.json).toMatchObject({ include: [], exclude: [], redact: "params" })
+    })
+
+    it("sets budgets, refuses ones it cannot read, and null goes back to the defaults", async () => {
+      const set = await post(JSON.stringify({ budgets: ["/api/**=calls:20,ms:300", " GET api/orders = calls:5 "] }))
+      expect(set.json).toMatchObject({ budgets: ["/api/**=calls:20,ms:300", "GET api/orders = calls:5"] })
+      expect(inspector.report.budgets).toEqual([
+        { method: null, route: "/api/**", calls: 20, ms: 300, callMs: null },
+        { method: "GET", route: "/api/orders", calls: 5, ms: null, callMs: null }
+      ])
+      expect((await post(JSON.stringify({ budgets: ["/api/**=speed:3"] }))).statusCode).toBe(400)
+      expect((await post(JSON.stringify({ budgets: "/api/**=calls:3" }))).statusCode).toBe(400)
+      expect((await post(JSON.stringify({ budgets: null }))).json).toMatchObject({ budgets: [] })
+      expect(inspector.report.budgets).toEqual([])
     })
 
     it("changes one setting without touching the others", async () => {
