@@ -2,6 +2,7 @@ export { describeOperation, genericFingerprint, type OperationDescription } from
 export { bindToRequest, currentOperation, currentTrace, runIgnored, runInOperation, runInRequest } from "./context.js"
 export type { DriverAdapter, InstallContext } from "./driver.js"
 export { formatTraceparent, newSpanId, newTraceId, parseTraceparent } from "./traceparent.js"
+export { exportHistory, HISTORY_FORMAT, importHistory } from "./history.js"
 export { exportOtlp, type OtlpDocument, type OtlpSpan } from "./otlp.js"
 export { buildOverview, routeOf, type Overview } from "./overview.js"
 export { compareReports, type Comparison, type GroupDiff } from "./compare.js"

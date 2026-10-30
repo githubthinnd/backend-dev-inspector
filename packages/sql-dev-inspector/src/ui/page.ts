@@ -68,6 +68,11 @@ export function renderPage(localeHint: Locale | null = null, title: string | nul
           <p class="pop-hint" data-i18n="settings.filters.hint"></p>
         </section>
         <section class="pop-sec">
+          <h3 data-i18n="settings.history"></h3>
+          <div class="pop-row"><button type="button" class="btn sm" id="history-save" data-i18n="settings.history.save"></button><button type="button" class="btn sm" id="history-load" data-i18n="settings.history.load"></button><input type="file" id="history-file" accept="application/json,.json" hidden></div>
+          <p class="pop-hint" data-i18n="settings.history.hint"></p>
+        </section>
+        <section class="pop-sec">
           <h3 data-i18n="settings.budgets"></h3>
           <label class="pop-row"><input id="budgets-input" class="pop-input" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.budgets.placeholder"></label>
           <p class="pop-hint" data-i18n="settings.budgets.hint"></p>

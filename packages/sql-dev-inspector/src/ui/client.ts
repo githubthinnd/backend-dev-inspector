@@ -637,6 +637,25 @@ export const CLIENT_SCRIPT = String.raw`
     });
     $("include-input").addEventListener("change", function () { pushSetting({ include: listOf($("include-input").value) }); });
     $("exclude-input").addEventListener("change", function () { pushSetting({ exclude: listOf($("exclude-input").value) }); });
+    $("history-save").addEventListener("click", function () {
+      fetch("./api/history").then(function (r) { return r.text(); }).then(function (body) {
+        var link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([body], { type: "application/json" }));
+        link.download = "inspector-history.json";
+        document.body.appendChild(link); link.click(); link.remove();
+      }).catch(function () { toast(t("toast.copyFailed")); });
+    });
+    $("history-load").addEventListener("click", function () { $("history-file").click(); });
+    $("history-file").addEventListener("change", function () {
+      var file = $("history-file").files && $("history-file").files[0];
+      if (!file) { return; }
+      file.text().then(function (body) {
+        return fetch("./api/history", { method: "POST", headers: { "content-type": "application/json" }, body: body }).then(function (r) { return r.json(); });
+      }).then(function (result) {
+        toast(result && typeof result.loaded === "number" ? t("settings.history.loaded", { count: result.loaded }) : t("settings.history.failed"));
+        $("history-file").value = ""; refresh();
+      }).catch(function () { toast(t("settings.history.failed")); });
+    });
     $("budgets-input").addEventListener("change", function () {
       var items = $("budgets-input").value.split(";").map(function (s) { return s.trim(); }).filter(Boolean);
       pushSetting({ budgets: items });

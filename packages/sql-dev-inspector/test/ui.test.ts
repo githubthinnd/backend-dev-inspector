@@ -678,6 +678,27 @@ describe("the SQL a library sent", () => {
   })
 })
 
+describe("saving and loading history", () => {
+  it("downloads the saved requests and posts a chosen file back", async () => {
+    const { document, window } = render()
+    await settle()
+    const calls: Array<[string, RequestInit | undefined]> = []
+    Object.assign(window, { fetch: (url: string, init?: RequestInit) => { calls.push([String(url), init]); return Promise.resolve({ text: () => Promise.resolve("{}"), json: () => Promise.resolve({ loaded: 2 }) }) } })
+    Object.assign(window.URL, { createObjectURL: () => "blob:x" })
+    click(document.querySelector("#history-save"))
+    await settle()
+    expect(calls[0]![0]).toBe("./api/history")
+    const input = document.querySelector("#history-file") as HTMLInputElement
+    Object.defineProperty(input, "files", { value: [{ text: () => Promise.resolve("{\"format\":\"x\"}") }], configurable: true })
+    input.dispatchEvent(new window.Event("change"))
+    await settle()
+    const post = calls.find(([, init]) => init?.method === "POST")
+    expect(post![0]).toBe("./api/history")
+    expect(post![1]!.body).toBe("{\"format\":\"x\"}")
+    expect(document.querySelector("#toast, .toast")?.textContent ?? "").toContain("Loaded 2 requests")
+  })
+})
+
 describe("the overview", () => {
   it("opens from the top bar, shows the routes and opens the slowest request of one", async () => {
     const { document, window } = render()

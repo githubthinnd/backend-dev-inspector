@@ -80,6 +80,8 @@ describe("the setup check", () => {
     expect(JSON.parse(get(`/api/requests/${trace.id}/otlp`).body).resourceSpans[0].scopeSpans[0].spans[0]).toMatchObject({ name: "GET /api/x", kind: 2 })
     expect(JSON.parse(get("/api/otlp").body).resourceSpans[0].resource.attributes[0].value.stringValue).toBe("dev-inspector")
     expect(get("/api/requests/nope/otlp").status).toBe(404)
+    const saved = JSON.parse(get("/api/history").body)
+    expect(saved).toMatchObject({ format: "sql-dev-inspector/history", version: 1 })
     expect(JSON.parse(get("/api/overview").body)).toMatchObject({ requests: 1, routes: [{ route: "GET /api/x" }] })
     const other = store.startRequest("GET", "/api/y")
     runInRequest(other, () => createRecorder(store).begin({ driver: "t", api: "q", text: "select 2", connectionId: 1, analysis: analyzeSql("select 2") })?.end())

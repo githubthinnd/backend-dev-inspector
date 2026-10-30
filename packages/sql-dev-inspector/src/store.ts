@@ -88,6 +88,18 @@ export class TraceStore {
     this.emit({ type: "query", requestId: trace.id })
   }
 
+  /** Adds requests loaded from a history file, oldest first; they take the place of the oldest ones once the ring is full. */
+  load(traces: RequestTrace[]) {
+    for (const trace of traces) {
+      this.traces.push(trace)
+      if (this.traces.length > this.options.maxRequests) {
+        this.traces.shift()
+      }
+      this.bump(trace)
+    }
+    this.emit({ type: "settings" })
+  }
+
   /** A statement finished after it was recorded; listeners only need to know the trace changed. */
   touch(trace: RequestTrace) {
     this.bump(trace)

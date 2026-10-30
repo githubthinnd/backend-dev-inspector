@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
 import { diagnose } from "./doctor.js"
 import { validBudgetList } from "./budget.js"
+import { exportHistory, importHistory, MAX_IMPORT_BYTES } from "./history.js"
 import { exportOtlp } from "./otlp.js"
 import { buildOverview } from "./overview.js"
 import { compareReports } from "./compare.js"
@@ -281,6 +282,28 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
       return
     }
     sendJson(res, compareReports(cachedReport(store, first, inspector.report), cachedReport(store, second, inspector.report)))
+    return
+  }
+
+  if (req.method === "GET" && path === "/api/history") {
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-disposition": `attachment; filename="inspector-history.json"`, "cache-control": "no-store", "x-content-type-options": "nosniff" })
+    res.end(JSON.stringify(exportHistory(store.list())))
+    return
+  }
+  if (req.method === "POST" && path === "/api/history") {
+    if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
+      sendJson(res, { message: "Expected application/json" }, 415)
+      return
+    }
+    readJsonBody(req, MAX_IMPORT_BYTES).then((body) => {
+      const traces = importHistory(body)
+      if (traces === null) {
+        sendJson(res, { message: "Not a history file saved by the inspector (format sql-dev-inspector/history, version 1)" }, 400)
+        return
+      }
+      store.load(traces)
+      sendJson(res, { loaded: traces.length })
+    }).catch(() => sendJson(res, { message: "Invalid or too large JSON body (at most 8 MB)" }, 400))
     return
   }
 
