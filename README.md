@@ -13,20 +13,17 @@
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
-```
-GET /api/orders/42 → 200  210ms total · 9 queries · 188ms in SQL
-├─ SELECT [pg] orders 3.2ms · 1 row
-├─ GET [redis] 0.4ms
-├─ FIND [mongodb] reviews 5.1ms · 12 rows
-├─ GET 200 [http] 142ms
-⚠ N+1 suspected: 4×, 7.1ms total — GET customer:?
-```
+<p align="center">
+  <img alt="The inspector's terminal output for a request with an N+1: the statements in order, then the warning" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/terminal-n-plus-one.svg" width="760">
+</p>
+
+<p align="center"><sub>Real output of the <a href="playground/apps/express-sqlite">express-sqlite playground app</a>, which you can run without a database.</sub></p>
 
 ## Why
 
 A slow endpoint is usually not one slow query: it is the same query run forty times, a cache that misses on every call, or a payment API called inside a loop. Logs do not show that, and an APM is overkill on your laptop. This tool puts it in front of you while you build:
 
-- **A tree per request**, in your terminal, on a live page (`/__sql-inspector/`) and in a floating panel inside your app.
+- **A tree per request**, in your terminal (as above), on a live page (`/__sql-inspector/`) and in a floating panel inside your app.
 - **Warnings that point at the cause**: N+1 loops, repeated calls, slow calls, SQL errors.
 - **Works across technologies**: PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis, outbound HTTP and Prisma, behind Express, Fastify, Koa, Hono, Nuxt / Nitro, Next.js, SvelteKit, Astro or plain Node.
 - **No change to your code paths**: it observes the libraries your app already uses.
@@ -65,6 +62,15 @@ Not sure which one? Use **`backend-dev-inspector`**. It exports everything `sql-
 - **Verifiable releases.** Published from GitHub Actions with npm provenance and trusted publishing. Check an install with `npm audit signatures`.
 
 Details and the reasoning behind scanner alerts: [SECURITY.md](SECURITY.md) and the "Dependencies and supply chain" sections of each package.
+
+## Try it without a database
+
+The [playground](playground) has a small app for each stack (Express, Fastify, Koa, Hono, Nuxt 3 with Drizzle or Prisma), all serving the same scenarios: a healthy request, an N+1, a slow query, an error, a transaction and outbound HTTP. They run on SQLite, so nothing else needs to be installed.
+
+```bash
+npm run playground:install
+npm run dev:express-sqlite --prefix playground   # then open /__sql-inspector/
+```
 
 ## Develop
 

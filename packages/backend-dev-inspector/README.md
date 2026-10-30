@@ -30,6 +30,15 @@ GET /api/orders/42 → 200  210ms total · 9 queries · 188ms in SQL
 ⚠ N+1 suspected: 4×, 7.1ms total — GET customer:?
 ```
 
+Real output, from the [playground](https://github.com/githubthinnd/backend-dev-inspector/tree/main/playground) apps (they run without a database):
+
+<p>
+  <img alt="Terminal output: an N+1 loop of more identical lookups, then the warning" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/terminal-n-plus-one.svg" width="760">
+</p>
+<p>
+  <img alt="Terminal output: a transaction that commits, with a savepoint that rolled back" src="https://raw.githubusercontent.com/githubthinnd/backend-dev-inspector/main/docs/media/terminal-transaction.svg" width="760">
+</p>
+
 ## What it sees
 
 | Technology | Library | How | Checked against |
