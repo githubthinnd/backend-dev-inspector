@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
 import { diagnose } from "./doctor.js"
+import { handleMcp } from "./mcp.js"
 import { installedDrivers } from "./setup.js"
 import { parsePatterns } from "./route-filter.js"
 import type { RedactMode } from "./redact.js"
@@ -44,6 +45,7 @@ export function inspectorSubPath(url: string | undefined, mount: string = DEFAUL
 /** Range the UI may set the slow-query threshold to, in milliseconds. */
 export const SLOW_MS_RANGE = { min: 1, max: 600_000 } as const
 const MAX_BODY_BYTES = 1024
+const MAX_MCP_BYTES = 64 * 1024
 
 function settingsOf(inspector: Inspector) {
   return {
@@ -68,14 +70,14 @@ function sendJson(res: ServerResponse, body: unknown, status = 200) {
   res.end(JSON.stringify(body))
 }
 
-function readJsonBody(req: IncomingMessage): Promise<unknown> {
+function readJsonBody(req: IncomingMessage, limit = MAX_BODY_BYTES): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let size = 0
     const chunks: Buffer[] = []
     req.on("data", (chunk: Buffer | string) => {
       const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk
       size += buffer.length
-      if (size > MAX_BODY_BYTES) {
+      if (size > limit) {
         reject(new Error("body too large"))
         return
       }
@@ -259,6 +261,24 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
         clearTimeout(timer)
       }
     })
+    return
+  }
+
+  if (path === "/mcp") {
+    if (req.method !== "POST") {
+      res.writeHead(405, { allow: "POST", "content-type": "application/json; charset=utf-8" })
+      res.end(JSON.stringify({ message: "The MCP endpoint takes POST (JSON-RPC)." }))
+      return
+    }
+    readJsonBody(req, MAX_MCP_BYTES).then((body) => {
+      const answer = handleMcp(inspector, body)
+      if (answer === null) {
+        res.writeHead(202, { "cache-control": "no-store" })
+        res.end()
+        return
+      }
+      sendJson(res, answer)
+    }).catch(() => sendJson(res, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, 400))
     return
   }
 
