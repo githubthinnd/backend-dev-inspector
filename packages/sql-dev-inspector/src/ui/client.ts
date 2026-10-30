@@ -240,6 +240,21 @@ export const CLIENT_SCRIPT = String.raw`
       h("div", { class: "section-head" }, [h("h2", { text: t("insights.title") }), h("span", { class: "count", text: String(rep.insights.length) })]),
       insightsCard
     ]));
+    if (tr.logs && tr.logs.length) {
+      var logCard = h("div", { class: "card logs" });
+      tr.logs.forEach(function (l) {
+        logCard.appendChild(h("div", { class: "log " + l.level }, [
+          h("span", { class: "lvl", text: l.level }),
+          h("span", { class: "t", text: "+" + fmtMs(Math.max(0, l.at - tr.startedAt)) }),
+          h("span", { class: "msg", text: l.message }),
+          l.caller ? callerEl(l.caller) : null
+        ]));
+      });
+      inner.appendChild(h("section", { class: "section" }, [
+        h("div", { class: "section-head" }, [h("h2", { text: t("logs.title") }), h("span", { class: "count", text: String(tr.logs.length) })]),
+        logCard
+      ]));
+    }
 
     // tree
     var span = Math.max(tr.durationMs || 0, 1);
@@ -432,6 +447,7 @@ export const CLIENT_SCRIPT = String.raw`
     if (document.activeElement !== $("exclude-input")) { $("exclude-input").value = (server.exclude || []).join(", "); }
     $("path-value").textContent = "/" + (server.mount || "__sql-inspector") + "/";
     $("stack-switch").setAttribute("aria-checked", server.stack === false ? "false" : "true");
+    $("logs-switch").setAttribute("aria-checked", server.logs === true ? "true" : "false");
     var box = $("drivers"); box.textContent = "";
     (server.drivers || []).forEach(function (name) { box.appendChild(h("span", { class: "chip driver", text: name })); });
     if (!(server.drivers || []).length) { box.appendChild(h("span", { class: "chip driver none", text: t("settings.drivers.none") })); }
@@ -463,11 +479,12 @@ export const CLIENT_SCRIPT = String.raw`
       }).catch(function () { list.appendChild(h("li", { class: "error" }, [h("span", { class: "dot" }), h("span", { text: t("settings.check.failed") })])); })
         .then(function () { btn.textContent = t("settings.check"); });
     });
+    $("logs-switch").addEventListener("click", function () { pushSetting({ logs: $("logs-switch").getAttribute("aria-checked") !== "true" }); });
     $("stack-switch").addEventListener("click", function () { pushSetting({ stack: $("stack-switch").getAttribute("aria-checked") !== "true" }); });
     Array.prototype.forEach.call(document.querySelectorAll("[data-editor]"), function (b) {
       b.addEventListener("click", function () { pushSetting({ editor: b.getAttribute("data-editor") }); });
     });
-    $("settings-reset").addEventListener("click", function () { pushSetting({ redact: null, include: null, exclude: null, stack: null, editor: null }); });
+    $("settings-reset").addEventListener("click", function () { pushSetting({ redact: null, include: null, exclude: null, stack: null, logs: null, editor: null }); });
     pop.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); setSettingsOpen(false, true); } });
     document.addEventListener("click", function (e) {
       if (!pop.hidden && !$("settings-dd").contains(e.target) && !$("privacy").contains(e.target)) { setSettingsOpen(false, false); }

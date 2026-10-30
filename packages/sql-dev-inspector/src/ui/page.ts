@@ -77,6 +77,8 @@ export function renderPage(localeHint: Locale | null = null, title: string | nul
           <h3 data-i18n="settings.source"></h3>
           <button type="button" class="switch row" id="stack-switch" role="switch" aria-checked="true"><span class="track"></span><span data-i18n="settings.stack"></span></button>
           <p class="pop-hint" data-i18n="settings.stack.hint"></p>
+          <button type="button" class="switch row" id="logs-switch" role="switch" aria-checked="false"><span class="track"></span><span data-i18n="settings.logs"></span></button>
+          <p class="pop-hint" data-i18n="settings.logs.hint"></p>
           <p class="pop-hint dim" data-i18n="settings.editor"></p>
           <span class="seg wide" role="group" id="editor-seg">
             <button type="button" data-editor="vscode" aria-pressed="true">VS Code</button>

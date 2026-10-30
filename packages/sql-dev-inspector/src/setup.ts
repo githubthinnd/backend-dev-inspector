@@ -4,6 +4,7 @@ import { resolveEditor } from "./caller.js"
 import type { RedactMode } from "./redact.js"
 import { parsePatterns } from "./route-filter.js"
 import { translate } from "./i18n/index.js"
+import { installLogCapture, withoutCapture } from "./log-capture.js"
 import { createRecorder } from "./recorder.js"
 import { buildReport } from "./report.js"
 import { type Brand, getInspector, type Inspector, isInspectorEnabled, normalizeMount } from "./runtime.js"
@@ -26,6 +27,8 @@ export interface StartOptions {
   include?: string[]
   /** Requests matching these paths are never traced. Overrides `SQL_INSPECTOR_EXCLUDE`. */
   exclude?: string[]
+  /** List what the application prints under its request (default false: logs can hold secrets). */
+  logs?: boolean
   /** Record where in the application each call was made (default true). */
   stack?: boolean
   /** The editor that location links open: `vscode`, `cursor`, `idea`, `webstorm`, `zed`, `none`, or a link template. */
@@ -69,6 +72,10 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
     inspector.filters.exclude = parsePatterns(options.exclude)
     inspector.defaults.filters.exclude = [...inspector.filters.exclude]
   }
+  if (options.logs !== undefined) {
+    inspector.logs = options.logs
+    inspector.defaults.logs = options.logs
+  }
   if (options.stack !== undefined) {
     inspector.stack = options.stack
     inspector.store.captureCaller = options.stack
@@ -107,6 +114,7 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
   }
 
   if (first) {
+    installLogCapture(inspector)
     if (inspector.logToTerminal) {
       store.subscribe((change) => {
         if (change.type !== "request-end") {
@@ -118,12 +126,12 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
         }
         const report = buildReport(trace, inspector.report)
         if (hasVisibleStatements(report)) {
-          console.log(`\n${renderReport(report, inspector.locale, inspector.root)}`)
+          withoutCapture(() => console.log(`\n${renderReport(report, inspector.locale, inspector.root)}`))
         }
       })
     }
     if (env.SQL_INSPECTOR_NOTICE !== "0" && !holder[SIBLING]) {
-      console.log(translate(inspector.locale, "term.notice"))
+      withoutCapture(() => console.log(translate(inspector.locale, "term.notice")))
     }
   }
   return inspector

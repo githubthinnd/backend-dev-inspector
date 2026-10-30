@@ -55,6 +55,7 @@ afterEach(() => {
   inspector.filters.include = [...inspector.defaults.filters.include]
   inspector.filters.exclude = [...inspector.defaults.filters.exclude]
   inspector.stack = inspector.defaults.stack
+  inspector.logs = inspector.defaults.logs
   inspector.store.captureCaller = inspector.defaults.stack
   inspector.editor = { ...inspector.defaults.editor }
 })
@@ -70,10 +71,11 @@ describe("settings API", () => {
       include: [],
       exclude: [],
       stack: true,
+      logs: false,
       drivers: expect.any(Array),
       editor: { name: "vscode", template: "vscode://file/{path}:{line}:{column}" },
       root: expect.any(String),
-      defaults: { redact: "params", include: [], exclude: [], stack: true, editor: "vscode" },
+      defaults: { redact: "params", include: [], exclude: [], stack: true, logs: false, editor: "vscode" },
       mount: "__sql-inspector"
     })
   })
@@ -183,6 +185,15 @@ describe("request list counts", () => {
       }
       expect(inspector.redact).toBe("params")
       expect(inspector.filters).toEqual({ include: [], exclude: [] })
+    })
+  })
+
+  describe("listing console output", () => {
+    it("switches it on and off, and null goes back to off", async () => {
+      expect((await post(JSON.stringify({ logs: true }))).json.logs).toBe(true)
+      expect(inspector.logs).toBe(true)
+      expect((await post(JSON.stringify({ logs: null }))).json.logs).toBe(false)
+      expect((await post(JSON.stringify({ logs: "yes" }))).statusCode).toBe(400)
     })
   })
 

@@ -27,8 +27,9 @@ function query(sql: string, extra: Partial<QueryEvent> = {}): QueryEvent {
 
 const WHERE = { file: "/proj/src/orders.ts", line: 42, column: 7, fn: "loadItems" }
 
-function trace(id: string, url: string, queries: QueryEvent[], method = "GET"): RequestTrace {
+function trace(id: string, url: string, queries: QueryEvent[], method = "GET", logs?: RequestTrace["logs"]): RequestTrace {
   return {
+    ...(logs ? { logs } : {}),
     id,
     method,
     url,
@@ -49,7 +50,7 @@ function buildTraces() {
       query("begin"),
       query("insert into `<img src=x onerror=window.__pwned=1>` values (1)", { rowCount: null, affectedRows: 1 }),
       query("commit")
-    ]),
+    ], "GET", [{ level: "warn", at: 1020, message: "cache miss for order 1\nsecond line", caller: WHERE }, { level: "log", at: 1030, message: "done" }]),
     trace("b", "/api/customers", [query("select 1 from `customers`")], "POST"),
     trace("c", "/api/broken", [query("select boom", { error: "You have an error in your SQL syntax" })])
   ]
@@ -82,7 +83,7 @@ function render(options: Options = {}) {
     calls.push({ path, init })
     if (path === "settings") {
       if (init?.method === "POST") {
-        const body = JSON.parse(String(init.body)) as { slowMs?: number | null, redact?: string | null, include?: string[] | null, exclude?: string[] | null, stack?: boolean | null, editor?: string | null }
+        const body = JSON.parse(String(init.body)) as { slowMs?: number | null, redact?: string | null, include?: string[] | null, exclude?: string[] | null, stack?: boolean | null, logs?: boolean | null, editor?: string | null }
         if ("slowMs" in body) {
           slow.slowMs = body.slowMs ?? slow.defaultSlowMs
         }
@@ -94,6 +95,9 @@ function render(options: Options = {}) {
         }
         if ("exclude" in body) {
           slow.exclude = body.exclude ?? []
+        }
+        if ("logs" in body) {
+          ;(slow as { logs?: boolean }).logs = body.logs ?? false
         }
         if ("stack" in body) {
           ;(slow as { stack?: boolean }).stack = body.stack ?? true
@@ -451,7 +455,7 @@ describe("settings: hiding values and the requests to follow", () => {
     expect(byId(document, "path-value").textContent).toBe("/_dev/sql/")
     byId(document, "settings-reset").click()
     await settle()
-    expect(posts(calls)).toEqual([{ redact: null, include: null, exclude: null, stack: null, editor: null }])
+    expect(posts(calls)).toEqual([{ redact: null, include: null, exclude: null, stack: null, logs: null, editor: null }])
     expect(byId(document, "privacy").getAttribute("data-mode")).toBe("params")
   })
 })
@@ -656,6 +660,31 @@ describe("page document", () => {
 })
 
 vi.setConfig({ testTimeout: 10000 })
+
+describe("console output of a request", () => {
+  it("lists what the application printed under its request, with level, time and calling line, as text", async () => {
+    const { document, sources } = render({ slow: { slowMs: 100, defaultSlowMs: 100, root: "/proj", editor: { name: "vscode", template: "vscode://file/{path}:{line}:{column}" } } as never })
+    sources[0]!.onopen!()
+    await settle()
+    await selectRequest(document)
+    const rows = Array.from(document.querySelectorAll(".log"))
+    expect(rows.map(row => row.querySelector(".lvl")!.textContent)).toEqual(["warn", "log"])
+    expect(rows[0]!.querySelector(".msg")!.textContent).toBe("cache miss for order 1\nsecond line")
+    expect(rows[0]!.querySelector("a.caller")!.textContent).toBe("src/orders.ts:42")
+    expect(document.body.textContent).toContain("Console output")
+  })
+
+  it("has no section for a request that printed nothing, and a switch in the settings", async () => {
+    const { document, calls, sources } = render()
+    sources[0]!.onopen!()
+    await settle()
+    await selectRequest(document, 1)
+    expect(document.querySelector(".log")).toBeNull()
+    ;(document.getElementById("logs-switch") as unknown as HTMLElement).click()
+    await settle()
+    expect(calls.filter(c => c.path === "settings" && c.init?.method === "POST").map(c => JSON.parse(String(c.init!.body)))).toEqual([{ logs: true }])
+  })
+})
 
 describe("status: the drivers, and the setup check", () => {
   it("lists the drivers that are watching, and says so when there are none", async () => {

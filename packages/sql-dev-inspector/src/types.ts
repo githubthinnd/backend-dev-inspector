@@ -69,6 +69,16 @@ export interface RequestTrace {
   queries: QueryEvent[]
   /** Statements dropped from the front of `queries` once the per-request cap was hit. */
   droppedQueries: number
+  /** What the application printed while handling the request, when that is switched on (`SQL_INSPECTOR_LOGS`). */
+  logs?: LogEntry[]
+}
+
+export interface LogEntry {
+  level: "log" | "info" | "warn" | "error" | "debug"
+  /** Wall-clock time, ms since epoch. */
+  at: number
+  message: string
+  caller?: { file: string, line: number, column: number, fn?: string }
 }
 
 export type TraceNode

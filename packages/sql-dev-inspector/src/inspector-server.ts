@@ -57,10 +57,11 @@ function settingsOf(inspector: Inspector) {
     include: inspector.filters.include,
     exclude: inspector.filters.exclude,
     stack: inspector.stack,
+    logs: inspector.logs,
     drivers: installedDrivers(),
     editor: inspector.editor,
     root: inspector.root,
-    defaults: { redact: inspector.defaults.redact, include: inspector.defaults.filters.include, exclude: inspector.defaults.filters.exclude, stack: inspector.defaults.stack, editor: inspector.defaults.editor.name },
+    defaults: { redact: inspector.defaults.redact, include: inspector.defaults.filters.include, exclude: inspector.defaults.filters.exclude, stack: inspector.defaults.stack, logs: inspector.defaults.logs, editor: inspector.defaults.editor.name },
     mount: inspector.mount
   }
 }
@@ -133,6 +134,7 @@ interface SettingsChange {
   include?: string[] | null
   exclude?: string[] | null
   stack?: boolean | null
+  logs?: boolean | null
   editor?: string | null
 }
 
@@ -161,6 +163,12 @@ function parseSettingsBody(body: unknown): SettingsChange | string {
       return "stack must be true, false or null"
     }
     change.stack = input.stack as boolean | null
+  }
+  if ("logs" in input) {
+    if (input.logs !== null && typeof input.logs !== "boolean") {
+      return "logs must be true, false or null"
+    }
+    change.logs = input.logs as boolean | null
   }
   if ("editor" in input) {
     if (input.editor !== null && (typeof input.editor !== "string" || input.editor.length > 300 || CONTROL_CHARACTERS.test(input.editor))) {
@@ -314,6 +322,9 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
       if ("stack" in change) {
         inspector.stack = change.stack ?? inspector.defaults.stack
         store.captureCaller = inspector.stack
+      }
+      if ("logs" in change) {
+        inspector.logs = change.logs ?? inspector.defaults.logs
       }
       if ("editor" in change) {
         inspector.editor = change.editor === null || change.editor === undefined ? { ...inspector.defaults.editor } : resolveEditor(change.editor)

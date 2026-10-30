@@ -102,6 +102,7 @@ function getRequest(inspector: Inspector, args: Record<string, unknown>) {
       ...(insight.params.caller ? { calledFrom: String(insight.params.caller).replace(`${inspector.root}/`, "") } : {}),
       statements: insight.seqs
     })),
+    ...(trace.logs && trace.logs.length > 0 ? { logs: trace.logs.slice(0, 100).map(entry => ({ level: entry.level, atMs: entry.at - trace.startedAt, message: entry.message, ...(entry.caller ? { calledFrom: where(entry.caller) } : {}) })) } : {}),
     statements: trace.queries.slice(0, MAX_STATEMENTS).map(query => ({
       seq: query.seq,
       driver: query.driver,

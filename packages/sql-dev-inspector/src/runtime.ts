@@ -40,7 +40,9 @@ export interface Inspector {
   /** Which requests are traced (`SQL_INSPECTOR_INCLUDE` / `SQL_INSPECTOR_EXCLUDE`). */
   filters: RouteFilters
   /** What the UI resets the settings to: what the environment and the options of the process said. */
-  defaults: { redact: RedactMode, filters: RouteFilters, stack: boolean, editor: { name: string, template: string } }
+  defaults: { redact: RedactMode, filters: RouteFilters, logs: boolean, stack: boolean, editor: { name: string, template: string } }
+  /** Whether what the application prints is listed under its request (`SQL_INSPECTOR_LOGS`, default off). */
+  logs: boolean
   /** Whether calls record where in the application they were made (`SQL_INSPECTOR_STACK`, default on). */
   stack: boolean
   /** How a file location becomes a link: a name (`vscode`, `cursor`, `idea`, `none`…) and its template. */
@@ -113,7 +115,8 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
       logToTerminal: env.SQL_INSPECTOR_LOG !== "0",
       redact,
       filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) },
-      defaults: { redact, filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) }, stack, editor: resolveEditor(env.SQL_INSPECTOR_EDITOR) },
+      defaults: { redact, filters: { include: parsePatterns(env.SQL_INSPECTOR_INCLUDE), exclude: parsePatterns(env.SQL_INSPECTOR_EXCLUDE) }, logs: ["1", "on", "true", "yes"].includes((env.SQL_INSPECTOR_LOGS ?? "").trim().toLowerCase()), stack, editor: resolveEditor(env.SQL_INSPECTOR_EDITOR) },
+      logs: ["1", "on", "true", "yes"].includes((env.SQL_INSPECTOR_LOGS ?? "").trim().toLowerCase()),
       stack,
       editor: resolveEditor(env.SQL_INSPECTOR_EDITOR),
       root: process.cwd(),

@@ -167,6 +167,12 @@ svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; s
 .insight.warn .ico { color: var(--warn); } .insight.error .ico { color: var(--err); } .insight.info .ico { color: var(--text-3); }
 .insight-title { font-weight: 650; }
 .insight-msg { color: var(--text-2); font-size: 12.5px; word-break: break-word; }
+.logs { padding: 4px 0; }
+.log { display: grid; grid-template-columns: 52px 68px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 5px 12px; font: 12px var(--mono); border-top: 1px solid var(--border); }
+.log:first-child { border-top: 0; }
+.log .lvl { color: var(--text-3); text-transform: uppercase; font-size: 10.5px; font-weight: 700; }
+.log.warn .lvl { color: var(--warn); } .log.error .lvl { color: var(--err); }
+.log .t { color: var(--text-3); } .log .msg { white-space: pre-wrap; word-break: break-word; color: var(--text); }
 .insight-hint { margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); font-size: 12px; line-height: 1.45; }
 .insight-hint strong { color: var(--text); }
 .insight-where { margin-top: 3px; color: var(--text-3); font: 12px var(--mono); }
