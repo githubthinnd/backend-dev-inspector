@@ -1,5 +1,5 @@
 import { type InspectorEnv, pickEnv } from "./env.js"
-import { parseAllowedHosts } from "./guard.js"
+import { parseAllowedHosts, parseToken } from "./guard.js"
 import { chosenLocale, DEFAULT_LOCALE, type Locale } from "./i18n/index.js"
 import { resolveEditor } from "./caller.js"
 import { parseBudgets } from "./budget.js"
@@ -33,6 +33,8 @@ export interface Inspector {
   defaultSlowMs: number
   /** Host names besides loopback and IP addresses that may open the inspector (`SQL_INSPECTOR_ALLOWED_HOSTS`). */
   allowedHosts: string[]
+  /** When set, the page, the API and MCP answer only to requests that carry it. */
+  token: string | null
   /** What the UI calls itself; a package built on this one sets it (`Backend Inspector`). Null keeps the default. */
   brand: Brand | null
   logToTerminal: boolean
@@ -107,6 +109,7 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
       localeHint: hint,
       defaultSlowMs: slowMs,
       allowedHosts: parseAllowedHosts(env.SQL_INSPECTOR_ALLOWED_HOSTS),
+      token: parseToken(env.SQL_INSPECTOR_TOKEN),
       brand: null,
       store,
       report: {

@@ -11,7 +11,7 @@ import { installedDrivers } from "./setup.js"
 import { parsePatterns } from "./route-filter.js"
 import type { RedactMode } from "./redact.js"
 import { DEFAULT_MOUNT, type Inspector, setBudgets } from "./runtime.js"
-import { rejectReason } from "./guard.js"
+import { checkToken, rejectReason } from "./guard.js"
 import { cachedReport, formattedSql } from "./report-cache.js"
 import { renderPage } from "./ui/page.js"
 
@@ -214,10 +214,23 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
   const { store } = inspector
   const path = subPath.replace(TRAILING_SLASHES, "")
 
-  const refusal = rejectReason(req, inspector.allowedHosts)
+  const refusal = rejectReason(req, inspector.allowedHosts, inspector.token !== null)
   if (refusal) {
     sendJson(res, { message: refusal }, 403)
     return
+  }
+  if (inspector.token !== null) {
+    const check = checkToken(req, inspector.token, inspector.mount)
+    if (!check.ok) {
+      res.writeHead(401, { "content-type": "application/json; charset=utf-8", "www-authenticate": "Bearer", "cache-control": "no-store" })
+      res.end(JSON.stringify({ message: "A token is required: open the address with ?token=<token>, or send Authorization: Bearer <token>. It is set by SQL_INSPECTOR_TOKEN." }))
+      return
+    }
+    if ("setCookie" in check) {
+      res.writeHead(302, { "set-cookie": check.setCookie, location: check.redirect, "cache-control": "no-store" })
+      res.end()
+      return
+    }
   }
 
   if (subPath === "") {

@@ -1,4 +1,5 @@
 import type { IncomingMessage } from "node:http"
+import { randomBytes, timingSafeEqual } from "node:crypto"
 
 /**
  * The inspector shows real SQL, so it must not answer a page that merely reached the dev
@@ -63,13 +64,75 @@ export function isSameOriginRequest(req: Pick<IncomingMessage, "headers">, allow
 }
 
 /** Why a request must be refused, or null when it may proceed. */
-export function rejectReason(req: Pick<IncomingMessage, "headers" | "method">, allowedHosts: readonly string[]): string | null {
+export function rejectReason(req: Pick<IncomingMessage, "headers" | "method">, allowedHosts: readonly string[], tokenSet = false): string | null {
   const host = req.headers?.host
-  if (!isAllowedHost(host, allowedHosts)) {
+  // A token makes DNS rebinding harmless (the page has no way to know it), and lets a container or a tunnel be opened by name.
+  if (!tokenSet && !isAllowedHost(host, allowedHosts)) {
     return `Host "${host}" is not allowed. If it is yours, start the app with SQL_INSPECTOR_ALLOWED_HOSTS=${hostnameOf(host ?? "")} (comma separated; "*.example.test" for subdomains).`
   }
   if (req.method === "POST" && !isSameOriginRequest(req, allowedHosts)) {
     return "Cross-origin requests are not allowed."
   }
   return null
+}
+
+// ── token ────────────────────────────────────────────────────────────────
+
+export const TOKEN_COOKIE = "sql_inspector_token"
+const MIN_TOKEN = 8
+
+/** `SQL_INSPECTOR_TOKEN`: a secret of at least 8 characters; `auto` makes a random one. Anything shorter is ignored. */
+export function parseToken(raw: string | undefined): string | null {
+  const value = (raw ?? "").trim()
+  if (value.toLowerCase() === "auto") {
+    return randomBytes(18).toString("base64url")
+  }
+  return value.length >= MIN_TOKEN ? value : null
+}
+
+function sameSecret(given: string | undefined, expected: string): boolean {
+  if (given === undefined) {
+    return false
+  }
+  const a = Buffer.from(given)
+  const b = Buffer.from(expected)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+function cookieOf(header: string | undefined, name: string): string | undefined {
+  for (const part of (header ?? "").split(";")) {
+    const [key, ...value] = part.trim().split("=")
+    if (key === name) {
+      return value.join("=")
+    }
+  }
+  return undefined
+}
+
+export type TokenCheck
+  = | { ok: true }
+    | { ok: true, setCookie: string, redirect: string }
+    | { ok: false }
+
+/**
+ * With a token set, every request must carry it: as `Authorization: Bearer <token>` (scripts, MCP clients), in the
+ * cookie a first visit sets, or once as `?token=` in the address, which sets the cookie and redirects to the address
+ * without it. The cookie is `HttpOnly` and `SameSite=Strict`, scoped to the inspector's path.
+ */
+export function checkToken(req: Pick<IncomingMessage, "headers" | "url" | "method">, token: string, mount: string): TokenCheck {
+  const headers = req.headers ?? {}
+  const bearer = /^Bearer (.+)$/i.exec(String(headers.authorization ?? ""))?.[1]
+  if (sameSecret(bearer, token) || sameSecret(cookieOf(headers.cookie, TOKEN_COOKIE), token)) {
+    return { ok: true }
+  }
+  const url = new URL(req.url ?? "/", "http://inspector.invalid")
+  if (req.method === "GET" && sameSecret(url.searchParams.get("token") ?? undefined, token)) {
+    url.searchParams.delete("token")
+    return {
+      ok: true,
+      setCookie: `${TOKEN_COOKIE}=${token}; Path=/${mount}; HttpOnly; SameSite=Strict`,
+      redirect: `${url.pathname}${url.search}`
+    }
+  }
+  return { ok: false }
 }
