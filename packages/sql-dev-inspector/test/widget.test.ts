@@ -300,6 +300,17 @@ describe("floating launcher", () => {
       return { ...view, fetchMock, input, commit, connect, saved: saved$ }
     }
 
+    it("says what to do when the server answers 401 because a token is set, and never shows the token", async () => {
+      const view = mount()
+      await settle() // the first badge refresh, made before the server is asked for anything, is over
+      ;(view.win as unknown as { fetch: unknown }).fetch = vi.fn(() => Promise.resolve({ status: 401, json: () => Promise.resolve({ message: "A token is required" }) }))
+      FakeEventSource.instances[0]!.onopen!()
+      await settle()
+      expect(view.q<HTMLElement>("[data-slow-hint]").textContent).toContain("needs its token")
+      expect(view.q<HTMLElement>("[data-slow-hint]").textContent).toContain("/__sql-inspector/?token=")
+      expect(view.q<HTMLElement>(".badge").textContent).toBe("!")
+    })
+
     it("starts empty with the server default as the placeholder", async () => {
       const { input, connect, q } = mountWithServer()
       await connect()

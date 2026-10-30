@@ -417,6 +417,23 @@ describe("tRPC", () => {
     ])
   })
 
+  it("tells the store about each line, so a listener (the page) hears of it and a cached report is rebuilt", async () => {
+    const web = (await import("sql-dev-inspector")).createWebInspector()
+    const heard: string[] = []
+    const stop = store().subscribe(change => heard.push(change.type))
+    await web.track(new Request(`${URL_BASE}/api/trpc/a.b`), async () => {
+      await procedure("a.b", "query", () => callDatabase("select b"))
+      const before = heard.length
+      await procedure("a.c", "query", () => callDatabase("select c"))
+      expect(heard.length).toBeGreaterThan(before)
+      return new Response("[]")
+    })
+    stop()
+    const trace = traceOf("/api/trpc/a.b")!
+    expect(trace.logs).toHaveLength(2)
+    expect(trace.logs![1]!.at).toBeGreaterThanOrEqual(trace.logs![0]!.at)
+  })
+
   it("is a request of its own where there is none, and a failure is a 500", async () => {
     await procedure("orders.list", "query", () => callDatabase("select alone"))
     expect(traceOf("orders.list")).toMatchObject({ method: "QUERY", status: 200 })

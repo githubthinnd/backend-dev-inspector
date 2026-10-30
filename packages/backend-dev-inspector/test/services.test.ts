@@ -346,3 +346,42 @@ describe("recorders shared between copies of the package", () => {
     expect(second.recorder()).toBeNull()
   })
 })
+
+describe("what is a read", () => {
+  it("counts multi-reads of Elasticsearch and DynamoDB as reads, so a loop of them is an N+1", async () => {
+    const { kindOfVerb } = await import("../src/drivers/verbs")
+    for (const name of ["mget", "msearch", "mtermvectors", "TransactGetItems", "GetObject", "BatchGetItem", "Scan", "ListObjectsV2"]) {
+      expect(kindOfVerb(name), name).toBe("select")
+    }
+    expect(kindOfVerb("PutItem")).toBe("update")
+    expect(kindOfVerb("SendMessage")).toBe("insert")
+    expect(kindOfVerb("DeleteObject")).toBe("delete")
+  })
+})
+
+describe("wrapped objects with accessors", () => {
+  it("are read with the object itself as `this`, as a platform object requires", () => {
+    class Native {
+      #secret = "inside"
+      get secret() {
+        return this.#secret // throws on any receiver that is not a real Native
+      }
+
+      prepare() {
+        return { first: async () => this.#secret }
+      }
+    }
+    const previous = process.env.NODE_ENV
+    process.env.NODE_ENV = "development" // the inspector is off under the test runner's own value, and a wrapper then returns the object untouched
+    try {
+      const raw = new Native()
+      const db = instrumentD1(raw as never) as unknown as Native
+      expect(db).not.toBe(raw)
+      expect(db.secret).toBe("inside")
+      const queue = instrumentBullmq(new Native() as never) as unknown as Native
+      expect(queue.secret).toBe("inside")
+    } finally {
+      process.env.NODE_ENV = previous
+    }
+  })
+})

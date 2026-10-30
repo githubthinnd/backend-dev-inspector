@@ -189,8 +189,9 @@ function wrap(recorder: Recorder, sql: SqlFunction, id: number): SqlFunction {
   }
   return new Proxy(sql, {
     apply: (target, thisArg, args) => instrument(Reflect.apply(target, thisArg, args)),
-    get(target, property, receiver) {
-      const value = Reflect.get(target, property, receiver) as unknown
+    get(target, property) {
+      // read with the target as the receiver: a getter of a native object must not run with the proxy as `this`
+      const value = Reflect.get(target, property) as unknown
       if (typeof value !== "function") {
         return value
       }

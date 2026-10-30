@@ -322,9 +322,28 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
     }
     redactHint.textContent = t(`settings.redact.hint.${mode}` as MessageKey)
   }
+  // With SQL_INSPECTOR_TOKEN the server answers 401 until the inspector page has been opened once (that sets the cookie).
+  // The token is never put in the panel: it would be readable by everyone who can load the app.
+  let locked = false
+  const showLocked = (status: number | undefined): boolean => {
+    const now = status === 401
+    if (now !== locked) {
+      locked = now
+      if (now) {
+        badge.textContent = "!"
+        badge.className = "badge err"
+        slowHint.textContent = t("widget.locked", { url: `${inspectorUrl}?token=…` })
+      }
+    }
+    return now
+  }
   const requestSlow = async (init?: RequestInit) => {
     try {
-      const data: unknown = await (await win.fetch(`${inspectorUrl}api/settings`, init)).json()
+      const response = await win.fetch(`${inspectorUrl}api/settings`, init)
+      if (showLocked(response.status)) {
+        return
+      }
+      const data: unknown = await response.json()
       if (isServerSettings(data)) {
         showSlow(data)
         showRedact(data)
@@ -616,7 +635,11 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
   // Badge: query count of the newest request, amber / red when it has warnings / errors.
   const refreshBadge = async () => {
     try {
-      const list = await (await win.fetch(`${inspectorUrl}api/requests`)).json() as RequestSummary[]
+      const response = await win.fetch(`${inspectorUrl}api/requests`)
+      if (showLocked(response.status)) {
+        return
+      }
+      const list = await response.json() as RequestSummary[]
       const latest = list[0]
       badge.textContent = latest ? String(latest.queryCount) : ""
       badge.className = `badge${latest?.errors ? " err" : latest?.warnings ? " warn" : ""}`

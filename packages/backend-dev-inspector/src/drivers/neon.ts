@@ -83,7 +83,7 @@ function follow(recorder: Recorder, id: number, text: string, params: unknown[] 
           )
         }
       }
-      const value = Reflect.get(target, property, receiver) as unknown
+      const value = Reflect.get(target, property) as unknown
       return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value
     }
   })
@@ -107,8 +107,8 @@ export function instrumentNeon<T extends (...args: never[]) => unknown>(sql: T, 
       }
       return result
     },
-    get(target, property, receiver) {
-      const value = Reflect.get(target, property, receiver) as unknown
+    get(target, property) {
+      const value = Reflect.get(target, property) as unknown
       if (typeof value !== "function") {
         return value
       }

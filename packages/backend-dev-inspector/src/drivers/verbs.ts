@@ -1,6 +1,6 @@
 import type { StatementKind } from "sql-dev-inspector"
 
-const READ = /^(get|list|describe|head|query|scan|batchget|select|search|receive|read|fetch|count|check|lookup|find|exists|view|poll|peek|wait)/i
+const READ = /^(get|mget|msearch|mtermvectors|transactget|multiget|list|describe|head|query|scan|batchget|select|search|receive|read|fetch|count|check|lookup|find|exists|view|poll|peek|wait)/i
 const DELETE = /^(delete|remove|purge|terminate|cancel|drain|clean|obliterate)/i
 const UPDATE = /^(update|modify|change|set|put|replace|upsert|rename|tag|untag|attach|detach|restore)/i
 const INSERT = /^(create|add|send|publish|post|write|insert|invoke|start|enqueue|register|copy|upload|batchwrite|index|bulk)/i

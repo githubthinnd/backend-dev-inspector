@@ -57,8 +57,8 @@ export function instrumentD1<T extends object>(db: T, recorder?: Recorder): T {
 
   const statement = (original: object, sql: string, params: unknown[] | null): object => {
     const proxy: object = new Proxy(original, {
-      get(target, property, receiver) {
-        const value = Reflect.get(target, property, receiver) as unknown
+      get(target, property) {
+        const value = Reflect.get(target, property) as unknown
         if (typeof value !== "function") {
           return value
         }
@@ -94,8 +94,8 @@ export function instrumentD1<T extends object>(db: T, recorder?: Recorder): T {
   }
 
   return new Proxy(db, {
-    get(target, property, receiver) {
-      const value = Reflect.get(target, property, receiver) as unknown
+    get(target, property) {
+      const value = Reflect.get(target, property) as unknown
       if (typeof value !== "function") {
         return value
       }

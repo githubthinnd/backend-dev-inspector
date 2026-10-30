@@ -39,8 +39,8 @@ export function instrumentBullmq<T extends object>(queue: T, recorder?: Recorder
   }
   const id = objectId(queue)
   return new Proxy(queue, {
-    get(target, property, receiver) {
-      const value = Reflect.get(target, property, receiver) as unknown
+    get(target, property) {
+      const value = Reflect.get(target, property) as unknown
       if (typeof property !== "string" || typeof value !== "function") {
         return value
       }

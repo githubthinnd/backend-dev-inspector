@@ -1,5 +1,5 @@
 import type { LogEntry, StartOptions } from "sql-dev-inspector"
-import { currentTrace } from "sql-dev-inspector"
+import { currentTrace, getInspector } from "sql-dev-inspector"
 import { createWebInspector } from "../start.js"
 
 /**
@@ -43,13 +43,14 @@ export function trpcInspector(options: StartOptions = {}) {
     if (!trace || trace.id === "ignored") {
       return await web.run(type.toUpperCase(), path, async () => await next(), ({ result, error }) => error !== undefined || failureOf(result) ? 500 : 200)
     }
-    const startedAt = Date.now()
     const t0 = performance.now()
     const note = (outcome: string) => {
-      const entry: LogEntry = { level: outcome === "ok" ? "info" : "error", at: startedAt, message: `tRPC ${type} ${path} · ${Math.round((performance.now() - t0) * 10) / 10} ms · ${outcome}` }
+      const entry: LogEntry = { level: outcome === "ok" ? "info" : "error", at: Date.now(), message: `tRPC ${type} ${path} · ${Math.round((performance.now() - t0) * 10) / 10} ms · ${outcome}` }
       const logs = (trace.logs ??= [])
       if (logs.length < MAX_LOGS) {
         logs.push(entry)
+        // the line is part of the request: tell the store, so the page refreshes and a cached report is rebuilt
+        getInspector().store.touch(trace)
       }
     }
     try {
