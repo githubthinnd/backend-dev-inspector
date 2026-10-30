@@ -160,6 +160,8 @@ svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; s
 .insight.warn .ico { color: var(--warn); } .insight.error .ico { color: var(--err); } .insight.info .ico { color: var(--text-3); }
 .insight-title { font-weight: 650; }
 .insight-msg { color: var(--text-2); font-size: 12.5px; word-break: break-word; }
+.insight-hint { margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); font-size: 12px; line-height: 1.45; }
+.insight-hint strong { color: var(--text); }
 .insight-where { margin-top: 3px; color: var(--text-3); font: 12px var(--mono); }
 .from { color: var(--text-3); }
 .caller { color: var(--accent); font: 12px var(--mono); text-decoration: none; }

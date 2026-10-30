@@ -106,6 +106,8 @@ export interface Insight {
   message: string
   /** `seq` of the statements the insight is about. */
   seqs: number[]
+  /** What to do about it, phrased in the server's locale; absent for an insight with nothing general to say (an error). */
+  hint?: string
 }
 
 export interface RequestReport {

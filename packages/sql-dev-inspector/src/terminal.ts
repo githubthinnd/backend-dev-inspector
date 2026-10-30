@@ -66,6 +66,9 @@ export function renderReport(report: RequestReport, locale: Locale = "en", root?
   for (const insight of report.insights) {
     const mark = insight.severity === "error" ? red("✖") : insight.severity === "warn" ? yellow("⚠") : dim("ℹ")
     lines.push(`${mark} ${insight.message}`)
+    if (insight.hint) {
+      lines.push(dim(`  ${translate(locale, "hint.title")}: ${insight.hint}`))
+    }
   }
   return lines.join("\n")
 }

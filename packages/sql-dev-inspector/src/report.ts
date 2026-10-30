@@ -1,6 +1,6 @@
 import { rememberedCallKey } from "./call-key.js"
 import type { Insight, QueryEvent, RequestReport, RequestTrace, TraceNode, TransactionNode } from "./types.js"
-import { DEFAULT_LOCALE, type Locale, translate } from "./i18n/index.js"
+import { DEFAULT_LOCALE, isMessageKey, type Locale, type MessageKey, translate } from "./i18n/index.js"
 import { isControlStatement, isWriteStatement } from "./sql-analyzer.js"
 
 export interface ReportOptions {
@@ -157,7 +157,27 @@ const shorten = (text: string, max = 90) => text.length > max ? `${text.slice(0,
 const sumMs = (queries: QueryEvent[]) => queries.reduce((total, q) => total + (q.durationMs ?? 0), 0)
 const formatMs = (value: number) => value < 1000 ? `${value.toFixed(value < 10 ? 2 : 1)}ms` : `${(value / 1000).toFixed(2)}s`
 
-type InsightDraft = Omit<Insight, "message">
+type InsightDraft = Omit<Insight, "message" | "hint">
+
+const FAMILIES: Record<string, string> = {
+  mongodb: "mongodb", redis: "redis", ioredis: "redis", http: "http", fetch: "http"
+}
+
+/** `sql`, `mongodb`, `redis` or `http`: what kind of call an insight is about, which decides what to advise. */
+function familyOf(insight: InsightDraft, queries: QueryEvent[]): string {
+  const first = queries.find(query => insight.seqs.includes(query.seq))
+  return FAMILIES[first?.driver ?? ""] ?? "sql"
+}
+
+/** The advice for an insight, from the most specific message that exists (`insight.hint.slow.http`, then `insight.hint.slow`). */
+export function hintKey(type: string, family: string): MessageKey | null {
+  for (const key of [`insight.hint.${type}.${family}`, `insight.hint.${type}`]) {
+    if (isMessageKey(key)) {
+      return key
+    }
+  }
+  return null
+}
 
 /** `file:line` of the first call in `queries` that knows where it was made. */
 function callerOf(queries: QueryEvent[]): { caller: string } | Record<string, never> {
@@ -237,10 +257,16 @@ export function buildReport(trace: RequestTrace, options: ReportOptions = DEFAUL
   return {
     trace,
     tree,
-    insights: findInsights(tree, trace.queries, options).map(insight => ({
-      ...insight,
-      message: translate(options.locale, `insight.msg.${insight.type}`, insight.params)
-    })),
+    insights: findInsights(tree, trace.queries, options).map((insight) => {
+      const family = familyOf(insight, trace.queries)
+      const key = hintKey(insight.type, family)
+      return {
+        ...insight,
+        params: { ...insight.params, family },
+        message: translate(options.locale, `insight.msg.${insight.type}`, insight.params),
+        ...(key ? { hint: translate(options.locale, key) } : {})
+      }
+    }),
     totals: {
       queryCount: statements.length,
       sqlTimeMs: sumMs(statements),

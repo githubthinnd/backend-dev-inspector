@@ -232,7 +232,8 @@ export const CLIENT_SCRIPT = String.raw`
       insightsCard.appendChild(h("button", { class: "insight " + i.severity, onclick: function () { focusSeqs(i.seqs); } }, [
         h("span", { class: "ico" }, [icon(ico)]),
         h("div", {}, [h("div", { class: "insight-title", text: t("insight.title." + i.type) }), h("div", { class: "insight-msg", text: t("insight.msg." + i.type, i.params) }),
-          i.params && i.params.caller ? h("div", { class: "insight-where", text: t("sql.caller") + " " + relPath(String(i.params.caller)) }) : null])
+          i.params && i.params.caller ? h("div", { class: "insight-where", text: t("sql.caller") + " " + relPath(String(i.params.caller)) }) : null,
+          hintOf(i) ? h("div", { class: "insight-hint" }, [h("strong", { text: t("hint.title") + ": " }), h("span", { text: hintOf(i) })]) : null])
       ]));
     });
     inner.appendChild(h("section", { class: "section" }, [
@@ -395,6 +396,12 @@ export const CLIENT_SCRIPT = String.raw`
     input.placeholder = serverSlow ? String(serverSlow.defaultSlowMs) : "";
     $("slow-field").setAttribute("title", t("widget.slowMs") + " — " + t("widget.slowMs.hint", { ms: serverSlow ? serverSlow.defaultSlowMs : "…" }));
     showPrivacy(serverSlow);
+  }
+  // ── what to do about an insight: the most specific advice that exists for its kind of call ──
+  function hintOf(i) {
+    var family = i.params && i.params.family ? i.params.family : "sql", keys = ["insight.hint." + i.type + "." + family, "insight.hint." + i.type];
+    for (var n = 0; n < keys.length; n++) { if (MESSAGES.en[keys[n]]) { return t(keys[n]); } }
+    return "";
   }
   // ── where a call was made: a location, and a link that opens it in the editor ──
   var EDITOR_SCHEME = /^(?:vscode|vscode-insiders|cursor|windsurf|zed|idea|webstorm|phpstorm|pycharm|sublime|subl|txmt|atom):\/\//;

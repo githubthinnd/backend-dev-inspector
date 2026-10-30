@@ -344,6 +344,15 @@ describe("where a call was made", () => {
     expect(link.getAttribute("href")).toBe("vscode://file/proj/src/orders.ts:42:7")
   })
 
+  it("shows what to do about an insight, under it", async () => {
+    const { document } = render()
+    await settle()
+    await selectRequest(document)
+    const hint = document.querySelector(".insight-hint")!
+    expect(hint.textContent).toContain("How to fix")
+    expect(hint.textContent).toContain("join")
+  })
+
   it("shows the location without a link when the editor is off, and never links a scheme that is not an editor's", async () => {
     for (const template of ["", "javascript:alert(1)//{path}"]) {
       const { document, sources } = render({ slow: { slowMs: 100, defaultSlowMs: 100, root: "/proj", editor: { name: "none", template }, stack: true } as never })
