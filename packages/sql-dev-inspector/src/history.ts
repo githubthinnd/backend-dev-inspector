@@ -36,7 +36,9 @@ const text = (value: unknown, max = MAX_TEXT) => typeof value === "string" ? val
 const num = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : null
 const ID = /^[0-9a-f]+$/
 
-function callOf(raw: unknown, requestId: string, seq: number): QueryEvent | null {
+const MAX_STATEMENTS = 20
+
+function callOf(raw: unknown, requestId: string, next: () => number, nested = false): QueryEvent | null {
   if (!isObject(raw) || typeof raw.sql !== "string") {
     return null
   }
@@ -46,7 +48,7 @@ function callOf(raw: unknown, requestId: string, seq: number): QueryEvent | null
   const caller = isObject(raw.caller) && typeof raw.caller.file === "string" && num(raw.caller.line) !== null ? { file: raw.caller.file.slice(0, 500), line: raw.caller.line as number, column: num(raw.caller.column) ?? 0, ...(typeof raw.caller.fn === "string" ? { fn: raw.caller.fn.slice(0, 200) } : {}) } : null
   const details = isObject(raw.details) ? Object.fromEntries(Object.entries(raw.details).filter(([key, value]) => key.length < 40 && (typeof value === "number" || typeof value === "string")).slice(0, 20).map(([key, value]) => [key, typeof value === "string" ? value.slice(0, 200) : value])) as Record<string, string | number> : null
   return {
-    seq,
+    seq: next(),
     requestId,
     connectionId: num(raw.connectionId) ?? 0,
     api: text(raw.api, 60) ?? "query",
@@ -69,7 +71,11 @@ function callOf(raw: unknown, requestId: string, seq: number): QueryEvent | null
       savepoint: text(analysis.savepoint, 200)
     },
     ...(caller ? { caller } : {}),
-    ...(details && Object.keys(details).length > 0 ? { details } : {})
+    ...(details && Object.keys(details).length > 0 ? { details } : {}),
+    // what a library ran for this call (the SQL Prisma sent); one level, as the recorder keeps it
+    ...(!nested && Array.isArray(raw.statements) && raw.statements.length > 0
+      ? { statements: raw.statements.slice(-MAX_STATEMENTS).map(inner => callOf(inner, requestId, next, true)).filter((inner): inner is QueryEvent => inner !== null) }
+      : {})
   }
 }
 
@@ -89,7 +95,7 @@ export function importHistory(raw: unknown): RequestTrace[] | null {
       continue
     }
     const id = randomUUID()
-    const queries = item.queries.slice(-MAX_CALLS).map(query => callOf(query, id, seq++)).filter((query): query is QueryEvent => query !== null)
+    const queries = item.queries.slice(-MAX_CALLS).map(query => callOf(query, id, () => seq++)).filter((query): query is QueryEvent => query !== null)
     traces.push({
       id,
       method: text(item.method, 20) ?? "GET",
@@ -97,6 +103,7 @@ export function importHistory(raw: unknown): RequestTrace[] | null {
       status: num(item.status),
       startedAt: num(item.startedAt) ?? Date.now(),
       durationMs: num(item.durationMs),
+      ...(["params", "all", "off"].includes(String(item.redact)) ? { redact: item.redact as "params" } : {}),
       ...(typeof item.traceId === "string" && item.traceId.length === 32 && ID.test(item.traceId) ? { traceId: item.traceId } : {}),
       ...(typeof item.spanId === "string" && item.spanId.length === 16 && ID.test(item.spanId) ? { spanId: item.spanId } : {}),
       ...(typeof item.parentSpanId === "string" && item.parentSpanId.length === 16 && ID.test(item.parentSpanId) ? { parentSpanId: item.parentSpanId } : {}),

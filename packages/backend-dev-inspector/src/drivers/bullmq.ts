@@ -1,7 +1,7 @@
 import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector"
 import { describeOperation, runInOperation } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
-import { quoted } from "./verbs.js"
+import { quoted, lazyRecorder } from "./verbs.js"
 
 /**
  * BullMQ job queues: what the application adds to a queue while it handles a request.
@@ -42,7 +42,7 @@ function jobNames(method: string, args: unknown[]): string[] {
 }
 
 export function instrumentBullmq<T extends object>(queue: T, recorder?: Recorder): T {
-  const rec = recorder ?? active
+  const rec = lazyRecorder(recorder, () => active)
   if (!rec) {
     return queue
   }

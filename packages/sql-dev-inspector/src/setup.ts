@@ -136,6 +136,9 @@ export function startInspector(env: InspectorEnv = pickEnv(), options: StartOpti
         }
       })
     }
+    if (inspector.tokenRejected) {
+      withoutCapture(() => console.log(translate(inspector.locale, "term.tokenRejected")))
+    }
     if (inspector.token && (env.SQL_INSPECTOR_TOKEN ?? "").trim().toLowerCase() === "auto") {
       withoutCapture(() => console.log(translate(inspector.locale, "term.token", { path: `/${inspector.mount}/?token=${inspector.token}` })))
     }

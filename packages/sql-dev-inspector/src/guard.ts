@@ -81,13 +81,23 @@ export function rejectReason(req: Pick<IncomingMessage, "headers" | "method">, a
 export const TOKEN_COOKIE = "sql_inspector_token"
 const MIN_TOKEN = 8
 
-/** `SQL_INSPECTOR_TOKEN`: a secret of at least 8 characters; `auto` makes a random one. Anything shorter is ignored. */
+/** True when `SQL_INSPECTOR_TOKEN` was given but cannot be used (shorter than 8 characters). */
+export function isTokenRejected(raw: string | undefined): boolean {
+  const value = (raw ?? "").trim()
+  return value !== "" && value.toLowerCase() !== "auto" && value.length < MIN_TOKEN
+}
+
+/**
+ * `SQL_INSPECTOR_TOKEN`: a secret of at least 8 characters; `auto` makes a random one; unset means no token. A value that is
+ * set but too short is not "no token": it would leave the page open to someone who believes it is protected. The inspector is
+ * locked instead, behind a random token nobody knows, until the setting is fixed (see `isTokenRejected`).
+ */
 export function parseToken(raw: string | undefined): string | null {
   const value = (raw ?? "").trim()
-  if (value.toLowerCase() === "auto") {
-    return randomBytes(18).toString("base64url")
+  if (value === "") {
+    return null
   }
-  return value.length >= MIN_TOKEN ? value : null
+  return value.toLowerCase() === "auto" || value.length < MIN_TOKEN ? randomBytes(18).toString("base64url") : value
 }
 
 function sameSecret(given: string | undefined, expected: string): boolean {
@@ -125,13 +135,18 @@ export function checkToken(req: Pick<IncomingMessage, "headers" | "url" | "metho
   if (sameSecret(bearer, token) || sameSecret(cookieOf(headers.cookie, TOKEN_COOKIE), token)) {
     return { ok: true }
   }
-  const url = new URL(req.url ?? "/", "http://inspector.invalid")
-  if (req.method === "GET" && sameSecret(url.searchParams.get("token") ?? undefined, token)) {
-    url.searchParams.delete("token")
+  // Split by hand: `new URL("//host/…")` would read the first segment as a host, and the redirect must stay on this server.
+  const raw = req.url ?? "/"
+  const at = raw.indexOf("?")
+  const query = new URLSearchParams(at === -1 ? "" : raw.slice(at + 1))
+  if (req.method === "GET" && sameSecret(query.get("token") ?? undefined, token)) {
+    query.delete("token")
+    const path = `/${(at === -1 ? raw : raw.slice(0, at)).replace(/^[/\\]+/, "")}`
+    const rest = query.toString()
     return {
       ok: true,
       setCookie: `${TOKEN_COOKIE}=${token}; Path=/${mount}; HttpOnly; SameSite=Strict`,
-      redirect: `${url.pathname}${url.search}`
+      redirect: rest ? `${path}?${rest}` : path
     }
   }
   return { ok: false }

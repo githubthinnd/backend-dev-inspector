@@ -249,6 +249,10 @@ Settings (including language) are stored in `localStorage`. The panel loads only
 | `SQL_INSPECTOR_EDITOR` | `vscode` | The editor that location links open: `vscode`, `cursor`, `windsurf`, `zed`, `idea`, `webstorm`, `none`, or a link template |
 | `SQL_INSPECTOR_LOGS` | off | `1` lists what the application prints under its request |
 | `SQL_INSPECTOR_PATH` | `__sql-inspector` | Where the page is served: `_dev/sql` serves it at `/_dev/sql/` |
+| `SQL_INSPECTOR_BUDGETS` | none | Limits per route: `[METHOD ]/path=calls:10,ms:200,callMs:80`, several separated by `;`. A request over its limit gets a warning |
+| `SQL_INSPECTOR_TOKEN` | none | A secret of at least 8 characters (or `auto`): the page, the API and MCP then answer only to requests that carry it. **A value shorter than 8 characters locks the inspector** (401 for everyone) instead of leaving it open |
+| `SQL_INSPECTOR_PROPAGATE` | off | `1`: calls made with `fetch` / undici carry a W3C `traceparent` naming the call, so another service's inspector can follow the trace |
+| `SQL_INSPECTOR_SERVICE_NAME` | `dev-inspector` | `service.name` of the OpenTelemetry export |
 | `NO_COLOR` | — | disables terminal colors |
 
 ### Hiding values
@@ -416,7 +420,7 @@ SQL_INSPECTOR_BUDGETS="/api/**=calls:20,ms:300; GET /api/orders=calls:5,callMs:8
 - **History.** Requests live in memory and are gone when the server restarts. **Save requests** in the settings (or `GET /__sql-inspector/api/history`) writes them to a file you keep; **Load a file** brings them back, to read a profile again or compare it with a new one. The inspector never writes to disk by itself (a rule of this package), so saving is your action, and values are as hidden as they were when recorded.
 - **Editor and DevTools.** In Nuxt the module adds a **Requests** tab to Nuxt DevTools. For VS Code there is a small extension in [`extensions/vscode`](extensions/vscode) (a command and a status bar button that open the page in Simple Browser, with the token kept in secret storage); it is not published, and its logic is tested against a stand-in `vscode` module, not inside VS Code.
 - **OpenTelemetry export.** `GET /__sql-inspector/api/requests/<id>/otlp` (and `/api/otlp` for all) give OTLP/JSON traces to load into Jaeger, Tempo, Grafana or a collector (`curl -X POST -H 'content-type: application/json' --data-binary @file http://localhost:4318/v1/traces`). The inspector builds the document and never sends it: no network call of its own is a rule of this package. `SQL_INSPECTOR_SERVICE_NAME` names the service.
-- **Token.** `SQL_INSPECTOR_TOKEN=<8+ characters>` (or `auto`) makes the page, the API and MCP answer only to requests that carry it: open `/__sql-inspector/?token=<token>` once (it sets an `HttpOnly`, `SameSite=Strict` cookie and redirects), or send `Authorization: Bearer <token>`. With a token set, a non-local `Host` is accepted, so a container or a tunnel can be opened by name. Use it whenever the dev server is reachable by anyone but you.
+- **Token.** `SQL_INSPECTOR_TOKEN=<8+ characters>` (or `auto`; a shorter value locks the inspector rather than leaving it open) makes the page, the API and MCP answer only to requests that carry it: open `/__sql-inspector/?token=<token>` once (it sets an `HttpOnly`, `SameSite=Strict` cookie and redirects), or send `Authorization: Bearer <token>`. With a token set, a non-local `Host` is accepted, so a container or a tunnel can be opened by name. Use it whenever the dev server is reachable by anyone but you.
 
 ### Check your setup
 
@@ -485,7 +489,7 @@ For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "
 ```bash
 npm install
 npm run typecheck
-npm test            # 470 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
+npm test            # 491 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
 npm run build
 ```
 

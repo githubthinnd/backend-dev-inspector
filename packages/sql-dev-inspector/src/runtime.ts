@@ -1,7 +1,7 @@
 import { type InspectorEnv, pickEnv } from "./env.js"
 import { currentTrace } from "./context.js"
 import { formatTraceparent, newSpanId } from "./traceparent.js"
-import { parseAllowedHosts, parseToken } from "./guard.js"
+import { isTokenRejected, parseAllowedHosts, parseToken } from "./guard.js"
 import { chosenLocale, DEFAULT_LOCALE, type Locale } from "./i18n/index.js"
 import { resolveEditor } from "./caller.js"
 import { parseBudgets } from "./budget.js"
@@ -37,6 +37,8 @@ export interface Inspector {
   allowedHosts: string[]
   /** When set, the page, the API and MCP answer only to requests that carry it. */
   token: string | null
+  /** `SQL_INSPECTOR_TOKEN` was set but too short: the inspector is locked, and says so at start. */
+  tokenRejected: boolean
   /** `service.name` of the OpenTelemetry export. */
   serviceName: string
   /** Whether calls to other services carry a `traceparent` header (`SQL_INSPECTOR_PROPAGATE=1`). Off by default: it changes the calls the application makes. */
@@ -116,6 +118,7 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
       defaultSlowMs: slowMs,
       allowedHosts: parseAllowedHosts(env.SQL_INSPECTOR_ALLOWED_HOSTS),
       token: parseToken(env.SQL_INSPECTOR_TOKEN),
+      tokenRejected: isTokenRejected(env.SQL_INSPECTOR_TOKEN),
       serviceName: (env.SQL_INSPECTOR_SERVICE_NAME ?? "").trim().slice(0, 100) || "dev-inspector",
       propagate: ["1", "on", "true", "yes"].includes((env.SQL_INSPECTOR_PROPAGATE ?? "").trim().toLowerCase()),
       brand: null,

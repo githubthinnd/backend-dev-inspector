@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { runInRequest } from "../src/context"
+import { runInOperation, runInRequest } from "../src/context"
 import { exportHistory, HISTORY_FORMAT, importHistory } from "../src/history"
 import { createRecorder } from "../src/recorder"
 import { buildReport } from "../src/report"
@@ -64,6 +64,34 @@ describe("history file", () => {
     expect(trace!.queries[0]).toMatchObject({ sql: "select 1", durationMs: null })
     expect(trace!.queries[0]).not.toHaveProperty("evil")
     expect(trace!.queries[0]!.analysis.kind).toBe("select")
+  })
+
+  it("keeps what a library ran for a call, and the mode the request was recorded under, with seqs that never clash", () => {
+    const store = new TraceStore({ maxRequests: 10, maxQueriesPerRequest: 100 })
+    store.redact = "params"
+    const rec = createRecorder(store)
+    const trace = store.startRequest("GET", "/layered")
+    runInRequest(trace, () => {
+      const outer = rec.begin({ driver: "prisma", api: "findMany", text: "User.findMany {}", connectionId: 0, analysis: analyzeSql("select 1 from User") })!
+      runInOperation(outer.event, () => {
+        rec.begin({ driver: "pg", api: "query", text: "select 1", connectionId: 1, analysis: analyzeSql("select 1") })?.end()
+        rec.begin({ driver: "pg", api: "query", text: "select 2", connectionId: 1, analysis: analyzeSql("select 2") })?.end()
+      })
+      outer.end()
+    })
+    const [back] = importHistory(JSON.parse(JSON.stringify(exportHistory([trace]))))!
+    expect(back!.redact).toBe("params")
+    expect(back!.queries[0]!.statements!.map(s => s.sql)).toEqual(["select 1", "select 2"])
+    const seqs = [...back!.queries, ...back!.queries.flatMap(q => q.statements ?? [])].map(q => q.seq)
+    expect(new Set(seqs).size).toBe(seqs.length)
+  })
+
+  it("is not expired like a live request: a file saved days ago still opens, even with a short expiry", () => {
+    const store = new TraceStore({ maxRequests: 10, maxQueriesPerRequest: 100, maxAgeMs: 60_000 })
+    const old = importHistory({ format: HISTORY_FORMAT, version: 1, requests: [{ method: "GET", url: "/old", startedAt: Date.now() - 3 * 24 * 3600_000, queries: [{ sql: "select 1", startedAt: Date.now() - 3 * 24 * 3600_000 }] }] })!
+    store.load(old)
+    expect(store.list().map(t => t.url)).toEqual(["/old"])
+    expect(store.get(old[0]!.id)).toBeDefined()
   })
 
   it("adds to the store, and the ring still drops the oldest", () => {

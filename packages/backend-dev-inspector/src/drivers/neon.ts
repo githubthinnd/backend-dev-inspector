@@ -1,6 +1,7 @@
 import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector"
 import { analyzeSql } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
+import { lazyRecorder } from "./verbs.js"
 
 /**
  * Neon's serverless driver over HTTP, `neon(url)`: the function it returns runs a query when it is awaited, which no
@@ -85,7 +86,7 @@ function follow(recorder: Recorder, id: number, text: string, params: unknown[] 
 const templateText = (strings: ArrayLike<string>) => Array.from(strings).reduce((text, piece, index, all) => text + piece + (index < all.length - 1 ? `$${index + 1}` : ""), "")
 
 export function instrumentNeon<T extends (...args: never[]) => unknown>(sql: T, recorder?: Recorder): T {
-  const rec = recorder ?? active
+  const rec = lazyRecorder(recorder, () => active)
   if (!rec) {
     return sql
   }

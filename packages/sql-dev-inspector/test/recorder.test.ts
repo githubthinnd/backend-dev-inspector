@@ -112,3 +112,19 @@ describe("calls that are not SQL", () => {
     expect(report.insights.map(i => i.type).sort()).toEqual(["n-plus-one", "slow"])
   })
 })
+
+describe("a callback handed to a pool", () => {
+  it("keeps the request and the layered call it was made in: binding restores the whole async context, not one store", async () => {
+    const { currentOperation, runInOperation } = await import("../src/context")
+    const store = new TraceStore({ maxRequests: 5, maxQueriesPerRequest: 10 })
+    const trace = store.startRequest("GET", "/pool")
+    const operation = { seq: 1 } as never
+    let bound!: () => { trace: unknown, operation: unknown }
+    runInRequest(trace, () => runInOperation(operation, () => {
+      bound = bindToRequest(() => ({ trace: currentTrace(), operation: currentOperation() }))
+    }))
+    // run later, from outside both scopes, as a pool does
+    expect(currentTrace()).toBeUndefined()
+    expect(bound()).toEqual({ trace, operation })
+  })
+})

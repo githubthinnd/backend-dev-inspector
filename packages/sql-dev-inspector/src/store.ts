@@ -32,6 +32,8 @@ export class TraceStore {
   private readonly traces: RequestTrace[] = []
   private readonly listeners = new Set<(change: StoreChange) => void>()
   private background: RequestTrace | null = null
+  /** Requests loaded from a history file: they are old by design, so the expiry that clears live requests leaves them alone (the ring still caps them). */
+  private readonly loaded = new WeakSet<RequestTrace>()
   /**
    * What the recorder keeps of values. A bare store keeps everything; the inspector sets this from
    * `SQL_INSPECTOR_REDACT` (default `params`).
@@ -91,6 +93,7 @@ export class TraceStore {
   /** Adds requests loaded from a history file, oldest first; they take the place of the oldest ones once the ring is full. */
   load(traces: RequestTrace[]) {
     for (const trace of traces) {
+      this.loaded.add(trace)
       this.traces.push(trace)
       if (this.traces.length > this.options.maxRequests) {
         this.traces.shift()
@@ -157,7 +160,7 @@ export class TraceStore {
       return
     }
     const cutoff = Date.now() - maxAge
-    const alive = this.traces.filter(trace => trace === keep || lastActivity(trace) >= cutoff)
+    const alive = this.traces.filter(trace => trace === keep || this.loaded.has(trace) || lastActivity(trace) >= cutoff)
     if (alive.length === this.traces.length) {
       return
     }

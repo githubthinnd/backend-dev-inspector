@@ -1,6 +1,7 @@
 import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector"
 import { analyzeSql } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
+import { lazyRecorder } from "./verbs.js"
 
 /**
  * Cloudflare D1, the database binding of a Worker (`env.DB`):
@@ -57,7 +58,7 @@ function outcomeOf(result: unknown) {
 }
 
 export function instrumentD1<T extends object>(db: T, recorder?: Recorder): T {
-  const rec = recorder ?? active
+  const rec = lazyRecorder(recorder, () => active)
   if (!rec) {
     return db
   }

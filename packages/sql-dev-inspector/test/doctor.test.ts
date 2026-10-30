@@ -82,7 +82,12 @@ describe("the setup check", () => {
     expect(get("/api/requests/nope/otlp").status).toBe(404)
     const saved = JSON.parse(get("/api/history").body)
     expect(saved).toMatchObject({ format: "sql-dev-inspector/history", version: 1 })
-    expect(JSON.parse(get("/api/overview").body)).toMatchObject({ requests: 1, routes: [{ route: "GET /api/x" }] })
+    const first = JSON.parse(get("/api/overview").body)
+    trace.url = "/api/renamed" // not a recorded change: the answer is kept until the store says a request changed
+    expect(JSON.parse(get("/api/overview").body)).toEqual(first)
+    store.touch(trace)
+    expect(JSON.parse(get("/api/overview").body).routes[0].route).toBe("GET /api/renamed")
+    expect(JSON.parse(get("/api/overview").body)).toMatchObject({ requests: 1, routes: [{ route: "GET /api/renamed" }] })
     const other = store.startRequest("GET", "/api/y")
     runInRequest(other, () => createRecorder(store).begin({ driver: "t", api: "q", text: "select 2", connectionId: 1, analysis: analyzeSql("select 2") })?.end())
     const compared = JSON.parse(get(`/api/compare/${trace.id}/${other.id}`).body)

@@ -755,6 +755,39 @@ describe("a request recorded while values were hidden", () => {
   })
 })
 
+describe("redrawing while requests arrive", () => {
+  it("does not fetch a comparison again on every change, nor the overview on every call", async () => {
+    const r = render()
+    await settle()
+    await selectRequest(r.document)
+    const urls: string[] = []
+    const traces = buildTraces()
+    const data = compareReports(buildReport(traces[1]!), buildReport(traces[0]!))
+    const overview = buildOverview(traces.map(t => buildReport(t)))
+    const real = r.window.fetch.bind(r.window)
+    Object.assign(r.window, { fetch: (url: string, init?: RequestInit) => {
+      urls.push(String(url))
+      const body = String(url).includes("overview") ? overview : String(url).includes("compare") ? data : null
+      return body ? Promise.resolve({ json: () => Promise.resolve(body), text: () => Promise.resolve("") }) : real(url, init)
+    } })
+    const select = r.document.querySelector(".compare-select") as HTMLSelectElement
+    select.value = "b"
+    select.dispatchEvent(new r.window.Event("change"))
+    await settle()
+    r.sources[0]!.onmessage!({ data: "{}" })
+    await settle()
+    expect(urls.filter(u => u.includes("compare"))).toHaveLength(1)
+    expect(r.document.querySelector(".compare-result")?.textContent).toContain("About as fast")
+
+    click(r.document.querySelector("#overview"))
+    await settle()
+    const before = urls.filter(u => u.includes("overview")).length
+    for (let i = 0; i < 6; i++) { r.sources[0]!.onmessage!({ data: "{}" }) }
+    await settle()
+    expect(urls.filter(u => u.includes("overview")).length - before).toBeLessThanOrEqual(1)
+  })
+})
+
 describe("the overview", () => {
   it("opens from the top bar, shows the routes and opens the slowest request of one", async () => {
     const { document, window } = render()

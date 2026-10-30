@@ -16,7 +16,7 @@ export interface ReportOptions {
   /** Language of `Insight.message`. The structured fields are language-neutral. */
   locale: Locale
   /** Limits per route; a request over its limit gets a warning. */
-  budgets: Budget[]
+  budgets?: Budget[]
 }
 
 export const DEFAULT_REPORT_OPTIONS: ReportOptions = {

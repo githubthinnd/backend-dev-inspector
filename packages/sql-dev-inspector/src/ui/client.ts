@@ -240,16 +240,20 @@ export const CLIENT_SCRIPT = String.raw`
     }
     select.addEventListener("change", function () {
       var other = select.value;
-      state.compare = other ? { for: tr.id, against: other } : null;
+      var choice = other ? { for: tr.id, against: other, data: null } : null;
+      state.compare = choice;
       result.textContent = "";
       if (!other) { return; }
-      fetch("./api/compare/" + encodeURIComponent(other) + "/" + encodeURIComponent(tr.id)).then(function (r) { return r.json(); }).then(show).catch(function () { toast(t("toast.copyFailed")); });
+      fetch("./api/compare/" + encodeURIComponent(other) + "/" + encodeURIComponent(tr.id)).then(function (r) { return r.json(); }).then(function (data) {
+        if (state.compare === choice) { choice.data = data; show(data); }
+      }).catch(function () { toast(t("toast.copyFailed")); });
     });
     box.appendChild(h("div", { class: "compare-bar" }, [h("strong", { text: t("compare.title") }), select]));
     box.appendChild(result);
+    // The page redraws on every change of the server; a comparison that was already fetched is drawn again from what was fetched.
     if (state.compare && state.compare.for === tr.id) {
       select.value = state.compare.against;
-      if (select.value) { select.dispatchEvent(new Event("change")); }
+      if (select.value && state.compare.data) { show(state.compare.data); }
     }
     return h("section", { class: "section" }, [h("div", { class: "section-head" }, [h("h2", { text: t("compare.heading") })]), box]);
   }
@@ -304,13 +308,20 @@ export const CLIENT_SCRIPT = String.raw`
     }
     detailEl.appendChild(inner);
   }
-  function loadOverview() {
-    return api("overview").then(function (o) { if (state.view === "overview") { detailEl.textContent = ""; renderOverview(o); } }).catch(function () { });
+  // The overview is redrawn as requests arrive, but at most about once a second: every recorded call is a change event.
+  var overviewTimer = null, overviewAt = 0;
+  function loadOverview(now) {
+    if (overviewTimer) { return; }
+    var wait = now ? 0 : Math.max(0, overviewAt + 1000 - Date.now());
+    overviewTimer = setTimeout(function () {
+      overviewTimer = null; overviewAt = Date.now();
+      api("overview").then(function (o) { if (state.view === "overview") { detailEl.textContent = ""; renderOverview(o); } }).catch(function () { });
+    }, wait);
   }
   function renderDetail() {
     var keep = detailEl.scrollTop;
     detailEl.textContent = "";
-    if (state.view === "overview") { loadOverview(); return; }
+    if (state.view === "overview") { loadOverview(true); return; }
     var rep = state.report;
     if (!rep) {
       detailEl.appendChild(h("div", { class: "empty" }, [icon("layers"), h("h3", { text: t("detail.empty.title") }), h("p", { text: t("detail.empty.body") })]));

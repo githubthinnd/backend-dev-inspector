@@ -2,6 +2,7 @@ import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector
 import { tracingChannel } from "node:diagnostics_channel"
 import { analyzeSql } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
+import { lazyRecorder } from "./verbs.js"
 
 /**
  * PostgreSQL through postgres.js (`postgres`), and with it Drizzle, Kysely and Prisma's adapters
@@ -171,7 +172,7 @@ function follow(recorder: Recorder, query: QueryLike, id: number) {
  * the client is postgres.js 4, which needs no wrapper.
  */
 export function instrumentPostgres<T extends (...args: never[]) => unknown>(sql: T, recorder?: Recorder): T {
-  const rec = recorder ?? activeRecorder()
+  const rec = lazyRecorder(recorder, activeRecorder)
   if (!rec) {
     return sql
   }

@@ -262,3 +262,39 @@ describe("BullMQ", () => {
     expect(trace.queries[0]!.statements?.map(s => s.sql)).toEqual(["EVALSHA ? 1 bull:emails:id"])
   })
 })
+
+describe("wrapping before the inspector starts", () => {
+  /** The usual layout: the client is wrapped at the top of a module, the application starts the inspector later. */
+  it("every wrapper reports to the recorder that exists when the call is made", async () => {
+    resetInspectorForTests()
+    const previous = process.env.NODE_ENV
+    process.env.NODE_ENV = "development" // what a dev server runs under; the test runner's own value switches the inspector off
+    const queue = instrumentBullmq({ name: "emails", add: async (name: string) => ({ name }) })
+    const db = instrumentD1({ prepare: (sql: string) => ({ bind: () => ({ first: async () => ({ sql }) }), first: async () => ({ sql }) }) })
+    const wrapped = [queue, db]
+    expect(wrapped.every(w => w !== undefined)).toBe(true)
+    // only now is the inspector started and a driver installed
+    startInspector({ NODE_ENV: "development", SQL_INSPECTOR_LOG: "0", SQL_INSPECTOR_NOTICE: "0", SQL_INSPECTOR_REDACT: "off" }, { drivers: [] })
+    uninstalls.push(bullmqDriver.install(rec())!, d1Driver.install(rec())!)
+    const trace = request("/late")
+    await runInRequest(trace, async () => {
+      await queue.add("welcome")
+      await db.prepare("select 1").first()
+    })
+    process.env.NODE_ENV = previous
+    expect(trace.queries.map(q => q.driver)).toEqual(["bullmq", "d1"])
+  })
+
+  it("leaves a client untouched when the inspector is off for this process", () => {
+    resetInspectorForTests()
+    const original = { name: "q", add: async () => 1 }
+    const previous = process.env.NODE_ENV
+    process.env.NODE_ENV = "production"
+    try {
+      expect(instrumentBullmq(original)).toBe(original)
+      expect(instrumentD1(original)).toBe(original)
+    } finally {
+      process.env.NODE_ENV = previous
+    }
+  })
+})

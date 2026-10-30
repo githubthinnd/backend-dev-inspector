@@ -1,7 +1,7 @@
 import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector"
 import { describeOperation } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
-import { kindOfVerb } from "./verbs.js"
+import { kindOfVerb, lazyRecorder } from "./verbs.js"
 
 /**
  * Elasticsearch and OpenSearch, through the events the client's transport publishes (`client.diagnostic`):
@@ -58,7 +58,7 @@ function kindOf(method: string, path: string) {
 }
 
 export function instrumentElasticsearch<T extends object>(client: T, recorder?: Recorder): T {
-  const rec = recorder ?? active
+  const rec = lazyRecorder(recorder, () => active)
   const diagnostic = (client as { diagnostic?: Diagnostic }).diagnostic
   if (!rec || typeof diagnostic?.on !== "function") {
     return client

@@ -1,16 +1,28 @@
 import { EventEmitter } from "node:events"
 import { afterEach, describe, expect, it } from "vitest"
-import { checkToken, parseToken, rejectReason, TOKEN_COOKIE } from "../src/guard"
+import { checkToken, isTokenRejected, parseToken, rejectReason, TOKEN_COOKIE } from "../src/guard"
 import { handleInspectorRequest } from "../src/inspector-server"
 import { getInspector } from "../src/runtime"
 
 describe("parsing the token", () => {
   it("takes a secret of 8 or more characters, makes one for auto, and ignores the rest", () => {
     expect(parseToken("correct-horse")).toBe("correct-horse")
-    expect(parseToken("short")).toBeNull()
     expect(parseToken(undefined)).toBeNull()
+    expect(parseToken("  ")).toBeNull()
     expect(parseToken("auto")).toMatch(/^[\w-]{20,}$/)
     expect(parseToken("auto")).not.toBe(parseToken("auto"))
+  })
+})
+
+describe("a token that is set but unusable", () => {
+  it("locks the inspector behind a token nobody knows instead of leaving it open", () => {
+    expect(isTokenRejected("secret")).toBe(true)
+    expect(isTokenRejected("long-enough")).toBe(false)
+    expect(isTokenRejected("auto")).toBe(false)
+    expect(isTokenRejected(undefined)).toBe(false)
+    const locked = parseToken("secret")!
+    expect(locked).not.toBe("secret")
+    expect(checkToken({ headers: { authorization: "Bearer secret" }, url: "/x", method: "GET" }, locked, "m")).toEqual({ ok: false })
   })
 })
 
@@ -30,6 +42,15 @@ describe("checking a request", () => {
     const check = checkToken(req({}, `/__sql-inspector/?token=${T}&x=1`), T, "__sql-inspector")
     expect(check).toEqual({ ok: true, setCookie: `${TOKEN_COOKIE}=${T}; Path=/__sql-inspector; HttpOnly; SameSite=Strict`, redirect: "/__sql-inspector/?x=1" })
     expect(checkToken(req({}, `/__sql-inspector/api/clear?token=${T}`, "POST"), T, "__sql-inspector")).toEqual({ ok: false })
+  })
+
+  it("redirects only to a path on this server, whatever the address looks like", () => {
+    for (const url of [`//evil.example/?token=${T}`, `///evil.example/a?token=${T}`, `/\\evil.example/?token=${T}`]) {
+      const check = checkToken(req({}, url), T, "m") as { redirect: string }
+      expect(check.redirect, url).toMatch(/^\/[^/\\]/)
+      expect(check.redirect).not.toContain("token")
+    }
+    expect((checkToken(req({}, `/__sql-inspector/?a=1&token=${T}&b=2`), T, "m") as { redirect: string }).redirect).toBe("/__sql-inspector/?a=1&b=2")
   })
 
   it("lets a non-local Host through only when a token is set", () => {

@@ -1,7 +1,7 @@
 import type { DriverAdapter, OperationHandle, Recorder } from "sql-dev-inspector"
 import { describeOperation } from "sql-dev-inspector"
 import { objectId } from "../patch.js"
-import { kindOfVerb, quoted } from "./verbs.js"
+import { kindOfVerb, quoted, lazyRecorder } from "./verbs.js"
 
 /**
  * AWS SDK for JavaScript v3 (S3, DynamoDB, SQS, SNS, Lambda, …), through the client's own middleware stack:
@@ -76,7 +76,7 @@ function describe(recorder: Recorder, clientId: number, context: MiddlewareConte
  * calling it twice on one client does no harm.
  */
 export function instrumentAws<T extends object>(client: T, recorder?: Recorder): T {
-  const rec = recorder ?? active
+  const rec = lazyRecorder(recorder, () => active)
   const stack = (client as ClientLike).middlewareStack
   if (!rec || !stack) {
     return client

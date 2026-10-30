@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
 import { diagnose } from "./doctor.js"
-import { validBudgetList } from "./budget.js"
+import { budgetKey, validBudgetList } from "./budget.js"
 import { exportHistory, importHistory, MAX_IMPORT_BYTES } from "./history.js"
 import { exportOtlp } from "./otlp.js"
 import { buildOverview } from "./overview.js"
@@ -21,6 +21,7 @@ const TRAILING_SLASHES = /\/+$/
 const REDACT_MODES = new Set(["params", "all", "off"])
 const QUERY_OR_HASH = /[?#]/
 const REQUEST_DETAIL = /^\/api\/requests\/([\w-]+)$/
+const overviews = new WeakMap<object, { key: string, overview: ReturnType<typeof buildOverview> }>()
 const REQUEST_COMPARE = /^\/api\/compare\/([\w-]+)\/([\w-]+)$/
 const REQUEST_OTLP = /^\/api\/requests\/([\w-]+)\/otlp$/
 const REQUEST_EXPORT = /^\/api\/requests\/([\w-]+)\/export$/
@@ -269,7 +270,16 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
   }
 
   if (req.method === "GET" && path === "/api/overview") {
-    sendJson(res, buildOverview(store.list().map(trace => cachedReport(store, trace, inspector.report))))
+    // The same answer until a request changes or a report option does: the page asks again after every recorded call.
+    const traces = store.list()
+    const options = inspector.report
+    const key = `${traces.map(trace => `${trace.id}:${store.versionOf(trace)}`).join("|")}#${options.slowMs}|${options.nPlusOneThreshold}|${options.manyQueriesThreshold}|${options.transactionConvention}|${options.locale}|${budgetKey(options.budgets ?? [])}`
+    let cached = overviews.get(inspector)
+    if (cached?.key !== key) {
+      cached = { key, overview: buildOverview(traces.map(trace => cachedReport(store, trace, options))) }
+      overviews.set(inspector, cached)
+    }
+    sendJson(res, cached.overview)
     return
   }
 

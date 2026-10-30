@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- **Token that is too short.** `SQL_INSPECTOR_TOKEN` shorter than 8 characters used to be ignored, leaving the inspector open to someone who believed it was protected. It now locks the inspector (401 for everyone, with a message at start) until the setting is fixed. The `?token=` redirect always stays on this server.
+- **History files.** Loaded requests are no longer expired by the live-request TTL (a file saved days ago opened and vanished at the next read), and a saved request keeps the SQL a library sent for it and the mode it was recorded under.
+- **The page redraws less.** The overview is rebuilt at most once a second and cached on the server until a request changes; a comparison already fetched is not fetched again on every change.
+- `ReportOptions.budgets` is optional again, so code that builds options by hand still compiles.
 - **Hiding values: what the page says.** A request keeps the values it was recorded with, so switching to "Show all" does not reveal what an earlier request hid; the request now says so (`RequestTrace.redact` is the most hidden mode it was recorded under). A prepared statement (`where id = ?`) is sent with its values apart from the text, so a call recorded under "Show all" has a **With values** view that puts them where the `?` are (strings quoted, `'` doubled, placeholders inside quotes left alone), for reading only.
 - **The calling line under a dev server's bundle.** In Nuxt / Nitro dev the application runs as one bundle, so a call's stack said `.nuxt/dev/index.mjs:3323` (often a line of the inspector itself, bundled in) instead of the file you wrote. A frame in a bundle is now looked up in the source map the bundle points at (read-only, from the bundle's own folder or inline, once per bundle, at most 64 MB), so it reads as `server/api/orders.get.ts:12`, and a frame that turns out to be a library or the inspector is skipped like any other. Nothing changes when Node already maps stacks (`--enable-source-maps`) or when there is no map.
 
