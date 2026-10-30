@@ -19,7 +19,7 @@
 </p>
 <p align="center"><sub>The inspector as a panel inside your own app (a debug bar). Open it with the floating button or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>. Recorded on the <a href="https://github.com/githubthinnd/backend-dev-inspector/tree/main/playground">playground</a>, which runs without a database.</sub></p>
 
-When a client calls your API, `backend-dev-inspector` shows **what the server did to answer it**: which queries ran and in what order, inside which transaction, how long each took, how many rows came back, which line of your code made each call, and which calls were repeated, slow or failed. It works the same for PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis, cloud SDKs and outbound HTTP, so one request that touches several of them reads as one tree.
+When a client calls your API, `backend-dev-inspector` shows **what the server did to answer it**: which queries ran and in what order, inside which transaction, how long each took, how many rows came back, which line of your code made each call, and which calls were repeated, slow or failed. It works the same for PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis, cloud SDKs and outbound HTTP, and for the ORMs and query builders on top of them (Drizzle, Prisma, Kysely, Knex, Sequelize, TypeORM, Mongoose), so one request that touches several of them reads as one tree.
 
 You see it in three places: **a tree in your terminal**, **a page** at `/__sql-inspector/`, and **a panel inside your app**. In production it does nothing.
 

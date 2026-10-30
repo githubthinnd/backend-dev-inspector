@@ -58,7 +58,7 @@ export const CLIENT_SCRIPT = String.raw`
     chart: "<svg viewBox='0 0 24 24'><path d='M4 20V10M10 20V4M16 20v-7M22 20H2'/></svg>",
     gear: "<svg viewBox='0 0 24 24'><circle cx='12' cy='12' r='3'/><path d='M12 2.5v2.2M12 19.3v2.2M4.2 6.5l1.9 1.1M17.9 16.4l1.9 1.1M2.5 12h2.2M19.3 12h2.2M4.2 17.5l1.9-1.1M17.9 7.6l1.9-1.1'/></svg>"
   };
-  function icon(name) { var s = document.createElement("span"); s.innerHTML = ICONS[name] || ""; return s.firstChild; }
+  function icon(name) { var s = document.createElement("span"); s.innerHTML = ICONS[name] || ""; var svg = s.firstChild; if (svg && svg.setAttribute) { svg.setAttribute("aria-hidden", "true"); svg.setAttribute("focusable", "false"); } return svg; }
 
   // ── i18n ──────────────────────────────────────────────────────────
   function matchLocale(tag) {
@@ -703,6 +703,7 @@ export const CLIENT_SCRIPT = String.raw`
   function setSettingsOpen(open, restoreFocus) {
     var pop = $("settings-pop"), btn = $("settings");
     pop.hidden = !open; btn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) { pop.focus(); } // so the keyboard is in it: Escape closes it and Tab walks it
     if (!open && restoreFocus) { btn.focus(); }
   }
   function setupSettings() {
@@ -846,7 +847,7 @@ export const CLIENT_SCRIPT = String.raw`
     Array.prototype.forEach.call(document.querySelectorAll("[data-mode]"), function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-mode") === mode ? "true" : "false"); });
     renderList();
   }
-  function fitLayout() { appEl.classList.toggle("narrow", window.innerWidth < 760); appEl.classList.toggle("compact", window.innerWidth < 1440); document.documentElement.style.setProperty("--wf", window.innerWidth < 1100 ? "140px" : "220px"); }
+  function fitLayout() { try { appEl.classList.toggle("embedded", window.self !== window.top); } catch (e) { appEl.classList.add("embedded"); } appEl.classList.toggle("narrow", window.innerWidth < 760); appEl.classList.toggle("compact", window.innerWidth < 1440); document.documentElement.style.setProperty("--wf", window.innerWidth < 1100 ? "140px" : "220px"); }
 
   // ── wiring ────────────────────────────────────────────────────────
   Array.prototype.forEach.call(document.querySelectorAll("[data-icon]"), function (el) { el.replaceWith(icon(el.getAttribute("data-icon"))); });
@@ -862,7 +863,24 @@ export const CLIENT_SCRIPT = String.raw`
     state.theme = state.theme === "auto" ? "light" : state.theme === "light" ? "dark" : "auto";
     storage.set(KEY_THEME, state.theme); applyTheme();
   });
+  // Clearing cannot be undone: the first click asks, the second (within four seconds) does it.
+  var clearTimer = null;
+  function resetClear() {
+    clearTimeout(clearTimer); clearTimer = null;
+    var label = $("clear").querySelector(".label"); $("clear").removeAttribute("data-confirm");
+    if (label) { label.textContent = t("action.clear"); }
+    $("clear").setAttribute("title", t("action.clear.title"));
+  }
   $("clear").addEventListener("click", function () {
+    if (!clearTimer) {
+      var label = $("clear").querySelector(".label"); $("clear").setAttribute("data-confirm", "true");
+      if (label) { label.textContent = t("action.clear.confirm"); }
+      $("clear").setAttribute("title", t("action.clear.confirm"));
+      clearTimer = setTimeout(resetClear, 4000);
+      toast(t("action.clear.confirm"));
+      return;
+    }
+    resetClear();
     api("clear", { method: "POST" }).then(function () { state.selectedId = null; state.report = null; renderDetail(); refresh(); });
   });
   $("follow").addEventListener("click", function () { setFollow(!state.follow); });
@@ -873,6 +891,7 @@ export const CLIENT_SCRIPT = String.raw`
   document.addEventListener("keydown", function (e) {
     var tag = (e.target && e.target.tagName) || "";
     if (e.target && e.target.closest && e.target.closest(".dd")) { return; }
+    if (e.key === "Escape" && !$("settings-pop").hidden) { e.preventDefault(); setSettingsOpen(false, true); return; }
     if (e.key === "Escape" && e.target === search) { search.value = ""; state.term = ""; renderList(); search.blur(); return; }
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || e.metaKey || e.ctrlKey || e.altKey) { return; }
     if (e.key === "/") { e.preventDefault(); search.focus(); }

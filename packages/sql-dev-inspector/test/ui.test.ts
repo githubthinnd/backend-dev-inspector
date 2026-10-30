@@ -334,6 +334,8 @@ describe("inspector page", () => {
       return original(url, init)
     }
     await settle()
+    click(document.getElementById("clear")) // the first click only asks
+    expect(calls).not.toContain("POST ./api/clear")
     click(document.getElementById("clear"))
     await settle()
     expect(calls).toContain("POST ./api/clear")
@@ -650,7 +652,8 @@ describe("page document", () => {
   it("is self-contained: no external requests, no inline event handlers, JSON that cannot break out of the script", () => {
     const html = renderPage(null)
     expect(html).not.toMatch(/https?:\/\//)
-    expect(html).not.toMatch(/<link\b/i)
+    // the one link is the tab icon, and it is data in the page, not a fetch
+    expect(html.match(/<link\b[^>]*>/gi)).toEqual([expect.stringMatching(/^<link rel="icon" href="data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+">$/)])
     expect(html).not.toMatch(/\son\w+="/)
     expect(html.match(/<script>/g)).toHaveLength(1)
     const config = /var __SQLI__ = (.*);\n/.exec(html)![1]!
@@ -1051,5 +1054,38 @@ describe("a top bar that does not fit", () => {
     const wide = render({ width: 1600 })
     await settle()
     expect(wide.document.querySelector("#app")?.classList.contains("compact")).toBe(false)
+  })
+})
+
+describe("clearing the history", () => {
+  it("asks first, says so on the button, and forgets the question when it is not answered", async () => {
+    vi.useFakeTimers()
+    try {
+      const { document } = render()
+      await vi.advanceTimersByTimeAsync(50)
+      const button = document.getElementById("clear")!
+      click(button)
+      expect(button.getAttribute("data-confirm")).toBe("true")
+      expect(button.getAttribute("title")).toBe("Click again to clear")
+      await vi.advanceTimersByTimeAsync(4100)
+      expect(button.hasAttribute("data-confirm")).toBe(false)
+      expect(button.getAttribute("title")).toBe("Clear captured history")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe("the page's accessibility basics", () => {
+  it("hides its decorative icons from assistive technology, has a favicon, and puts the keyboard in the settings when they open", async () => {
+    const { document } = render()
+    await settle()
+    expect(Array.from(document.querySelectorAll("svg")).every(svg => svg.getAttribute("aria-hidden") === "true")).toBe(true)
+    expect(document.querySelector("link[rel=icon]")?.getAttribute("href")).toMatch(/^data:image\/svg\+xml;base64,/)
+    click(document.getElementById("settings"))
+    expect(document.activeElement?.id).toBe("settings-pop")
+    document.dispatchEvent(new (document.defaultView as unknown as { KeyboardEvent: typeof KeyboardEvent }).KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    expect((document.getElementById("settings-pop") as HTMLElement).hidden).toBe(true)
+    expect(document.activeElement?.id).toBe("settings")
   })
 })

@@ -445,7 +445,8 @@ export function mountSqlInspectorWidget(options: WidgetOptions): WidgetHandle {
     panel.classList.toggle("right", settings.dock === "right")
     $<HTMLElement>(`[data-act="dock-bottom"]`).setAttribute("aria-pressed", String(settings.dock === "bottom"))
     $<HTMLElement>(`[data-act="dock-right"]`).setAttribute("aria-pressed", String(settings.dock === "right"))
-    const max = (settings.dock === "bottom" ? win.innerHeight : win.innerWidth) * 0.9
+    // never more than two thirds of the window: the app it is debugging must stay in view
+    const max = (settings.dock === "bottom" ? win.innerHeight : win.innerWidth) * 0.66
     const size = `${clamp(settings.size, 160, Math.max(160, max))}px`
     panel.style.height = settings.dock === "bottom" ? size : ""
     panel.style.width = settings.dock === "right" ? size : ""

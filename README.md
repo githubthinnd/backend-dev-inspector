@@ -64,7 +64,7 @@ This repository holds two npm packages.
 
 | | [`backend-dev-inspector`](packages/backend-dev-inspector) | [`sql-dev-inspector`](packages/sql-dev-inspector) |
 |---|---|---|
-| **Covers** | PostgreSQL, MySQL / MariaDB, SQLite, libSQL / Turso, MongoDB, Redis, outbound HTTP, Prisma, db0, AWS SDK, Elasticsearch, BullMQ, Neon, Cloudflare D1 | MySQL / MariaDB through `mysql2` (and Drizzle, Knex, Sequelize, TypeORM on top of it) |
+| **Covers** | **Databases:** PostgreSQL, MySQL / MariaDB, SQLite, libSQL / Turso, MongoDB, Redis, Neon, Cloudflare D1. **ORMs and builders:** Drizzle, Prisma, Kysely, Knex, Sequelize, TypeORM, Mongoose. **Also:** outbound HTTP, AWS SDK, Elasticsearch, BullMQ, db0 | MySQL / MariaDB through `mysql2` (and Drizzle, Knex, Sequelize, TypeORM on top of it) |
 | **Frameworks** | Express, NestJS, Fastify, Koa, Hono, tRPC, Nuxt / Nitro, Next.js, SvelteKit, Astro, Remix / React Router, Vite, plain Node | Express, Nuxt / Nitro, plain Node |
 | **Relation** | builds on `sql-dev-inspector` and exports everything it does | the base of the other package; works on its own |
 | **Install** | `npm i -D backend-dev-inspector` | `npm i -D sql-dev-inspector` |
@@ -176,7 +176,7 @@ npm run typecheck
 npm test               # Node 22+; run `npm rebuild better-sqlite3` if you installed with --ignore-scripts
 ```
 
-Tests drive the real client libraries against in-memory protocol servers, so no database or open port is needed: 521 tests in `sql-dev-inspector`, 184 in `backend-dev-inspector`. The playground has its own tests (`npm run playground:test`). See [CONTRIBUTING.md](CONTRIBUTING.md).
+Tests drive the real client libraries against in-memory protocol servers, so no database or open port is needed: 523 tests in `sql-dev-inspector`, 184 in `backend-dev-inspector`. The playground has its own tests (`npm run playground:test`). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Releases are tagged `<package>@<version>` (for example `sql-dev-inspector@1.3.0`); a tag starts the publish workflow. Publish `sql-dev-inspector` before `backend-dev-inspector`.
 

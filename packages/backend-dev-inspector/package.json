@@ -2,7 +2,7 @@
   "name": "backend-dev-inspector",
   "version": "1.1.0",
   "type": "module",
-  "description": "Dev-only inspector for what your backend talks to: PostgreSQL, MySQL/MariaDB, SQLite, MongoDB, Redis and outbound HTTP, with the same request tree, N+1 and slow-call warnings, web UI and in-app launcher as sql-dev-inspector, plus adapters for Fastify, Koa, Hono, Next.js, SvelteKit and Vite.",
+  "description": "Dev-only inspector for what your backend talks to: PostgreSQL, MySQL/MariaDB, SQLite, MongoDB, Redis and outbound HTTP, including through Drizzle, Prisma, Kysely, Knex, Sequelize, TypeORM and Mongoose, with the same request tree, N+1 and slow-call warnings, web UI and in-app launcher as sql-dev-inspector, plus adapters for Fastify, Koa, Hono, Next.js, SvelteKit and Vite.",
   "author": "Nhu Duy Thin",
   "license": "MIT",
   "repository": {

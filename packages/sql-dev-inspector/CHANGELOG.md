@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **Page polish.** The top bar wraps instead of overflowing, which also makes the page usable on a phone-width window; the title is not repeated inside the floating panel; text is at least 12 px; the grey and red text colours and the light theme's amber now meet contrast; switches and trace chips are at least 24 px tall; the footer hints are hidden on touch screens; icons are hidden from screen readers; the page has an icon; the settings popover takes focus and closes on Escape; the empty-state copy no longer names one database.
+- **Clear asks twice.** The first click on Clear asks "Click again to clear" and the second one clears (it resets after 4 seconds), so a stray click no longer wipes the requests. The floating panel is at most 66% of the window instead of 90%.
 - **Top bar of the page and the panel.** Below 1440 px wide the buttons lose their words (the icons stay), so the last button is no longer clipped at the edge of the panel.
 - Names that are also properties of every object (`constructor`, `hasOwnProperty`) are no longer taken for an editor, a driver, a family or a SQL keyword; the muting of the inspector's own console output is shared by every copy of the package.
 - **Loads under Workers, Deno and Bun.** The source-map lookup takes `node:fs` and `node:module` from the running Node when a map is first needed instead of importing them, so a runtime without `SourceMap` in `node:module` can still load the package (positions then stay as they are).

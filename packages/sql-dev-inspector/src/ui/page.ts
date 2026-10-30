@@ -2,6 +2,11 @@ import { type Locale, LOCALES, MESSAGES } from "../i18n/index.js"
 import { CLIENT_SCRIPT } from "./client.js"
 import { STYLES } from "./styles.js"
 
+/** The tab icon, as a data URI (nothing is fetched). Base64, so the page contains no address of any kind. */
+const FAVICON = `data:image/svg+xml;base64,${Buffer.from(
+  "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\"><rect width=\"32\" height=\"32\" rx=\"8\" fill=\"#6a5af0\"/><ellipse cx=\"16\" cy=\"10\" rx=\"7\" ry=\"3\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2\"/><path d=\"M9 10v12c0 1.7 3.1 3 7 3s7-1.3 7-3V10M9 16c0 1.7 3.1 3 7 3s7-1.3 7-3\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2\"/></svg>"
+).toString("base64")}`
+
 /** Keeps a JSON blob inert inside an inline <script>: no `</script>`, no `<!--`. */
 // Written as escapes: a literal U+2028 / U+2029 inside a regex literal is itself a line terminator in older engines.
 const LINE_SEPARATORS = /[\u2028\u2029]/g
@@ -22,6 +27,7 @@ export function renderPage(localeHint: Locale | null = null, title: string | nul
 <meta name="color-scheme" content="light dark">
 <meta name="referrer" content="no-referrer">
 <title>SQL Inspector</title>
+<link rel="icon" href="${FAVICON}">
 <style>${STYLES}</style>
 </head>
 <body>
@@ -49,7 +55,7 @@ export function renderPage(localeHint: Locale | null = null, title: string | nul
     <span class="dd" id="settings-dd">
       <button type="button" class="btn ghost" id="overview" aria-pressed="false" data-i18n-title="overview.title"><span data-icon="chart"></span><span class="label" data-i18n="overview.title"></span></button>
     <button type="button" class="btn icon ghost" id="settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings-pop" data-i18n-aria="settings.title" data-i18n-title="settings.title"><span data-icon="gear"></span></button>
-      <div class="pop" id="settings-pop" role="dialog" aria-labelledby="settings-title" hidden>
+      <div class="pop" id="settings-pop" role="dialog" tabindex="-1" aria-labelledby="settings-title" hidden>
         <h2 class="pop-title" id="settings-title" data-i18n="settings.title"></h2>
         <section class="pop-sec">
           <h3 data-i18n="settings.redact"></h3>
