@@ -37,6 +37,8 @@ export interface Inspector {
   allowedHosts: string[]
   /** When set, the page, the API and MCP answer only to requests that carry it. */
   token: string | null
+  /** `service.name` of the OpenTelemetry export. */
+  serviceName: string
   /** Whether calls to other services carry a `traceparent` header (`SQL_INSPECTOR_PROPAGATE=1`). Off by default: it changes the calls the application makes. */
   propagate: boolean
   /** What the UI calls itself; a package built on this one sets it (`Backend Inspector`). Null keeps the default. */
@@ -114,6 +116,7 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
       defaultSlowMs: slowMs,
       allowedHosts: parseAllowedHosts(env.SQL_INSPECTOR_ALLOWED_HOSTS),
       token: parseToken(env.SQL_INSPECTOR_TOKEN),
+      serviceName: (env.SQL_INSPECTOR_SERVICE_NAME ?? "").trim().slice(0, 100) || "dev-inspector",
       propagate: ["1", "on", "true", "yes"].includes((env.SQL_INSPECTOR_PROPAGATE ?? "").trim().toLowerCase()),
       brand: null,
       store,

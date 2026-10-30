@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import { resolveEditor } from "./caller.js"
 import { diagnose } from "./doctor.js"
 import { validBudgetList } from "./budget.js"
+import { exportOtlp } from "./otlp.js"
 import { buildOverview } from "./overview.js"
 import { compareReports } from "./compare.js"
 import { exportJson, exportMarkdown } from "./export.js"
@@ -20,6 +21,7 @@ const REDACT_MODES = new Set(["params", "all", "off"])
 const QUERY_OR_HASH = /[?#]/
 const REQUEST_DETAIL = /^\/api\/requests\/([\w-]+)$/
 const REQUEST_COMPARE = /^\/api\/compare\/([\w-]+)\/([\w-]+)$/
+const REQUEST_OTLP = /^\/api\/requests\/([\w-]+)\/otlp$/
 const REQUEST_EXPORT = /^\/api\/requests\/([\w-]+)\/export$/
 const REQUEST_MARKDOWN = /^\/api\/requests\/([\w-]+)\/markdown$/
 
@@ -279,6 +281,25 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
       return
     }
     sendJson(res, compareReports(cachedReport(store, first, inspector.report), cachedReport(store, second, inspector.report)))
+    return
+  }
+
+  const sendOtlp = (traces: ReturnType<typeof store.list>, name: string) => {
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-disposition": `attachment; filename="${name}.otlp.json"`, "cache-control": "no-store", "x-content-type-options": "nosniff" })
+    res.end(JSON.stringify(exportOtlp(traces.map(trace => cachedReport(store, trace, inspector.report)), { serviceName: inspector.serviceName, root: inspector.root }), null, 2))
+  }
+  if (req.method === "GET" && path === "/api/otlp") {
+    sendOtlp(store.list(), "requests")
+    return
+  }
+  const otlp = REQUEST_OTLP.exec(path)
+  if (req.method === "GET" && otlp) {
+    const trace = store.get(otlp[1]!)
+    if (!trace) {
+      sendJson(res, { message: "Request not found (evicted or cleared)" }, 404)
+      return
+    }
+    sendOtlp([trace], `request-${trace.id.slice(0, 8)}`)
     return
   }
 

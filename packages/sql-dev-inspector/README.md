@@ -410,6 +410,12 @@ SQL_INSPECTOR_BUDGETS="/api/**=calls:20,ms:300; GET /api/orders=calls:5,callMs:8
 
 `calls` is the number of calls, `ms` the time of the request, `callMs` the time spent in calls; the path takes the same `*` and `**` as the route filters, and the first budget that matches applies. A request over its limit gets a warning that names the route, the limit and the actual value, with advice. Also a `budgets` option (`startInspector`, the Nuxt module) and a field in the settings. In tests, [`toBeWithinBudget`](https://www.npmjs.com/package/backend-dev-inspector#query-budgets-in-tests) does the same for a `capture()`.
 
+### Trace context, OpenTelemetry and a token
+
+- **Trace context.** Every request has a `traceId` and a `spanId` (shown in the request detail, searchable in the list). A request that arrives with a W3C `traceparent` joins its caller's trace. With `SQL_INSPECTOR_PROPAGATE=1`, calls made with `fetch` / undici carry a `traceparent` that names the call as a span, so the other service's inspector shows which call of which request it answers; search each service's list by the trace id to follow one operation across them. It is off by default because it adds a header to your calls, and `node:http` clients (axios, got on `http`) cannot carry it.
+- **OpenTelemetry export.** `GET /__sql-inspector/api/requests/<id>/otlp` (and `/api/otlp` for all) give OTLP/JSON traces to load into Jaeger, Tempo, Grafana or a collector (`curl -X POST -H 'content-type: application/json' --data-binary @file http://localhost:4318/v1/traces`). The inspector builds the document and never sends it: no network call of its own is a rule of this package. `SQL_INSPECTOR_SERVICE_NAME` names the service.
+- **Token.** `SQL_INSPECTOR_TOKEN=<8+ characters>` (or `auto`) makes the page, the API and MCP answer only to requests that carry it: open `/__sql-inspector/?token=<token>` once (it sets an `HttpOnly`, `SameSite=Strict` cookie and redirects), or send `Authorization: Bearer <token>`. With a token set, a non-local `Host` is accepted, so a container or a tunnel can be opened by name. Use it whenever the dev server is reachable by anyone but you.
+
 ### Check your setup
 
 When nothing shows up, ask the inspector. In the page, the settings have a **Check the setup** button and a list of the drivers that are watching. From the terminal:
