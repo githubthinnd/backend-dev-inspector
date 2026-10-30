@@ -1,6 +1,7 @@
 import type { QueryEvent, RequestTrace } from "./types.js"
 import type { RedactMode } from "./redact.js"
 import { randomUUID } from "node:crypto"
+import { newSpanId, newTraceId, parseTraceparent } from "./traceparent.js"
 
 export interface StoreOptions {
   maxRequests: number
@@ -43,8 +44,12 @@ export class TraceStore {
 
   constructor(private readonly options: StoreOptions) {}
 
-  startRequest(method: string, url: string): RequestTrace {
+  startRequest(method: string, url: string, traceparent?: string | readonly string[]): RequestTrace {
+    const parent = parseTraceparent(traceparent)
     return {
+      traceId: parent?.traceId ?? newTraceId(),
+      spanId: newSpanId(),
+      ...(parent ? { parentSpanId: parent.parentSpanId } : {}),
       id: randomUUID(),
       method,
       url,

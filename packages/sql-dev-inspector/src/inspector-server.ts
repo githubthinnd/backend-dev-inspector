@@ -250,6 +250,7 @@ export function handleInspectorRequest(req: IncomingMessage, res: ServerResponse
       const { totals, insights } = cachedReport(store, trace, inspector.report)
       return {
         id: trace.id,
+        traceId: trace.traceId,
         method: trace.method,
         url: trace.url,
         status: trace.status,

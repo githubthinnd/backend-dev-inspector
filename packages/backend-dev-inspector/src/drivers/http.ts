@@ -1,6 +1,6 @@
 import type { DriverAdapter, OperationHandle, Recorder, StatementKind } from "sql-dev-inspector"
 import { channel, unsubscribe } from "node:diagnostics_channel"
-import { describeOperation } from "sql-dev-inspector"
+import { describeOperation, outgoingTraceparent } from "sql-dev-inspector"
 
 /**
  * Outbound HTTP: what the backend asks other services. Node publishes every client request on
@@ -65,13 +65,23 @@ function begin(recorder: Recorder, driver: string, method: string, url: string, 
   } catch {
     // keep the raw value
   }
-  return recorder.begin({
+  const handle = recorder.begin({
     driver,
     api: verb,
     text,
     connectionId: addressId(authority),
     analysis: describeOperation({ kind: kindOf(verb), label: verb, targets: [target], text })
   })
+  return handle
+}
+
+/** With propagation on, the call carries a `traceparent` naming this call as the span the other service's request answers. */
+function propagate(handle: OperationHandle | null, setHeader: (value: string) => void) {
+  const next = handle ? outgoingTraceparent() : null
+  if (handle && next) {
+    setHeader(next.header)
+    handle.event.details = { ...handle.event.details, spanId: next.spanId }
+  }
 }
 
 const MAX_VALUE = 120
@@ -169,6 +179,8 @@ export const httpDriver: DriverAdapter = {
           const handle = begin(recorder, "http", request.method ?? "GET", `${request.protocol ?? "http:"}//${authority}${request.path ?? "/"}`, authority)
           if (handle) {
             open.set(request as object, handle)
+            // `http.client.request.start` is published once the headers are already stored: node:http cannot carry a
+            // traceparent from here (only fetch and undici can, below).
           }
         } catch {
           // best effort
@@ -208,6 +220,7 @@ interface UndiciRequestLike {
   path?: string
   headers?: string | unknown[]
   contentLength?: number | null
+  addHeader?: (name: string, value: string) => unknown
 }
 
 /** The global fetch function of Node (which bundles undici) and the `undici` package, which publish the same channels. */
@@ -223,6 +236,10 @@ export const fetchDriver: DriverAdapter = {
           const handle = begin(recorder, "fetch", request.method ?? "GET", `${origin}${request.path ?? "/"}`, origin)
           if (handle) {
             open.set(request as object, handle)
+            const sent = typeof request.headers === "string" ? request.headers.toLowerCase().includes("traceparent:") : Array.isArray(request.headers) && request.headers.some(item => String(item).toLowerCase() === "traceparent")
+            if (!sent) {
+              propagate(handle, value => request.addHeader?.("traceparent", value))
+            }
           }
         } catch {
           // best effort

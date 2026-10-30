@@ -51,7 +51,7 @@ export function createSqlInspector(options: StartOptions = {}): SqlInspector {
     if (!isTracked(inspector.filters, url)) {
       return runIgnored(fn)
     }
-    const trace = store.startRequest(req.method ?? "GET", url)
+    const trace = store.startRequest(req.method ?? "GET", url, req.headers?.traceparent)
     res.once("close", () => store.finishRequest(trace, res.statusCode))
     return runInRequest(trace, fn)
   }

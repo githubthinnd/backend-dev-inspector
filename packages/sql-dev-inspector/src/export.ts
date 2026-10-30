@@ -75,7 +75,7 @@ export interface RequestExport {
   exportedAt: string
   /** What was done to values before they were recorded: `params`, `all` or `off`. */
   redact: string
-  request: { id: string, method: string, url: string, status: number | null, startedAt: string, durationMs: number | null, droppedCalls: number }
+  request: { id: string, traceId?: string, spanId?: string, parentSpanId?: string, method: string, url: string, status: number | null, startedAt: string, durationMs: number | null, droppedCalls: number }
   totals: RequestReport["totals"]
   findings: Array<{ type: string, severity: string, message: string, hint?: string, calls: number[], from?: string }>
   calls: Array<{
@@ -103,7 +103,7 @@ export function exportJson(report: RequestReport, options: { root?: string, reda
     exportedAt: (options.now ?? new Date()).toISOString(),
     redact: options.redact ?? "params",
     request: {
-      id: trace.id, method: trace.method, url: trace.url, status: trace.status,
+      id: trace.id, ...(trace.traceId ? { traceId: trace.traceId, spanId: trace.spanId } : {}), ...(trace.parentSpanId ? { parentSpanId: trace.parentSpanId } : {}), method: trace.method, url: trace.url, status: trace.status,
       startedAt: new Date(trace.startedAt).toISOString(), durationMs: trace.durationMs, droppedCalls: trace.droppedQueries
     },
     totals,

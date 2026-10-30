@@ -76,6 +76,11 @@ export interface RequestTrace {
   status: number | null
   startedAt: number
   durationMs: number | null
+  /** W3C trace context: the trace this request belongs to (the caller's when it sent a `traceparent`), and this request's own span. */
+  traceId?: string
+  spanId?: string
+  /** The span of the call in another service that this request answers. */
+  parentSpanId?: string
   queries: QueryEvent[]
   /** Statements dropped from the front of `queries` once the per-request cap was hit. */
   droppedQueries: number

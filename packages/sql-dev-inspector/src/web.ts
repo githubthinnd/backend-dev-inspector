@@ -119,7 +119,7 @@ export function createWebInspector(options: StartOptions = {}): WebInspector {
     if (!isTracked(inspector.filters, new URL(request.url).pathname)) {
       return await runIgnored(handler)
     }
-    const trace = store.startRequest(request.method, pathOf(request.url))
+    const trace = store.startRequest(request.method, pathOf(request.url), request.headers.get("traceparent") ?? undefined)
     try {
       const response = await runInRequest(trace, handler)
       store.finishRequest(trace, response.status)

@@ -1,4 +1,6 @@
 import { type InspectorEnv, pickEnv } from "./env.js"
+import { currentTrace } from "./context.js"
+import { formatTraceparent, newSpanId } from "./traceparent.js"
 import { parseAllowedHosts, parseToken } from "./guard.js"
 import { chosenLocale, DEFAULT_LOCALE, type Locale } from "./i18n/index.js"
 import { resolveEditor } from "./caller.js"
@@ -35,6 +37,8 @@ export interface Inspector {
   allowedHosts: string[]
   /** When set, the page, the API and MCP answer only to requests that carry it. */
   token: string | null
+  /** Whether calls to other services carry a `traceparent` header (`SQL_INSPECTOR_PROPAGATE=1`). Off by default: it changes the calls the application makes. */
+  propagate: boolean
   /** What the UI calls itself; a package built on this one sets it (`Backend Inspector`). Null keeps the default. */
   brand: Brand | null
   logToTerminal: boolean
@@ -110,6 +114,7 @@ export function getInspector(env: InspectorEnv = pickEnv()): Inspector {
       defaultSlowMs: slowMs,
       allowedHosts: parseAllowedHosts(env.SQL_INSPECTOR_ALLOWED_HOSTS),
       token: parseToken(env.SQL_INSPECTOR_TOKEN),
+      propagate: ["1", "on", "true", "yes"].includes((env.SQL_INSPECTOR_PROPAGATE ?? "").trim().toLowerCase()),
       brand: null,
       store,
       report: {
@@ -145,4 +150,18 @@ export function textOfBudgets(raw: string | readonly string[] | undefined): stri
 export function setBudgets(inspector: Inspector, list: readonly string[]) {
   inspector.budgets = textOfBudgets(list)
   inspector.report.budgets = parseBudgets(inspector.budgets)
+}
+
+/**
+ * The `traceparent` for a call the current request is about to make to another service, and the span that call is, or
+ * null when propagation is off or there is no traced request.
+ */
+export function outgoingTraceparent(): { header: string, spanId: string } | null {
+  const inspector = (globalThis as unknown as Record<symbol, Inspector | undefined>)[KEY]
+  const trace = currentTrace()
+  if (!inspector?.propagate || !trace?.traceId || trace.id === "ignored") {
+    return null
+  }
+  const spanId = newSpanId()
+  return { header: formatTraceparent(trace.traceId, spanId), spanId }
 }

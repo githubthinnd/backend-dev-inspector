@@ -152,7 +152,7 @@ export const CLIENT_SCRIPT = String.raw`
     return state.requests.filter(function (r) {
       if (state.mode === "issues" && !(r.warnings || r.errors)) { return false; }
       if (state.mode === "errors" && !r.errors) { return false; }
-      return !term || (r.method + " " + r.url + " " + (r.status === null ? "" : r.status)).toLowerCase().indexOf(term) >= 0;
+      return !term || (r.method + " " + r.url + " " + (r.status === null ? "" : r.status) + " " + (r.traceId || "")).toLowerCase().indexOf(term) >= 0;
     });
   }
   function urlLabel(r) { return r.id === "background" ? t("requests.background") : r.url; }
@@ -325,6 +325,7 @@ export const CLIENT_SCRIPT = String.raw`
       h("span", { class: "method " + tr.method, text: tr.method }),
       h("h1", { text: tr.id === "background" ? t("requests.background") : tr.url }),
       statusEl(tr.status),
+      tr.traceId ? h("button", { class: "chip trace", title: t("trace.title"), onclick: function () { copy(tr.traceId); } }, [document.createTextNode("trace " + tr.traceId.slice(0, 8) + (tr.parentSpanId ? " ← " + tr.parentSpanId.slice(0, 8) : ""))]) : null,
       h("button", { class: "btn sm export", title: t("detail.copyMarkdown.title"), onclick: function () {
         fetch("./api/requests/" + encodeURIComponent(tr.id) + "/markdown").then(function (r) { return r.text(); }).then(copy).catch(function () { toast(t("toast.copyFailed")); });
       } }, [icon("copy"), h("span", { text: t("detail.copyMarkdown") })]),
@@ -510,6 +511,7 @@ export const CLIENT_SCRIPT = String.raw`
     if (d.contentType) { parts.push(d.contentType); }
     if (d.retryAfter) { parts.push(t("http.retryAfter") + " " + d.retryAfter); }
     if (d.requestId) { parts.push("x-request-id " + d.requestId); }
+    if (d.spanId) { parts.push("span " + d.spanId); }
     return h("div", { class: "params http-details", text: parts.join(" · ") });
   }
   function setExpandAll(open) {

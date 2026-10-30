@@ -42,6 +42,7 @@ export function startMockHttp(): MockHttp {
         const body = buffer.subarray(end + 4, end + 4 + length).toString()
         buffer = buffer.subarray(end + 4 + length)
         const [method, url] = head.split("\r\n")[0]!.split(" ") as [string, string]
+        const headers = Object.fromEntries(head.split("\r\n").slice(1).map(line => [line.slice(0, line.indexOf(":")).toLowerCase(), line.slice(line.indexOf(":") + 1).trim()]))
         requests.push({ method, url, body })
         chain = chain.then(async () => {
           const path = url.split("?")[0]
@@ -57,7 +58,7 @@ export function startMockHttp(): MockHttp {
           } else if (path === "/boom") {
             respond(500, "{\"error\":\"boom\"}")
           } else if (path === "/echo") {
-            respond(200, JSON.stringify({ method, url, body }))
+            respond(200, JSON.stringify({ method, url, body, headers }))
           } else {
             respond(200, "{\"ok\":true}")
           }

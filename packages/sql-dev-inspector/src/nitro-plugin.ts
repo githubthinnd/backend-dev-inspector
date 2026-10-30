@@ -38,7 +38,7 @@ export function createNitroPlugin(options: StartOptions = {}) {
       if (!isTracked(inspector.filters, req.url ?? "/")) {
         return runIgnored(() => next(event))
       }
-      const trace = store.startRequest(req.method ?? "GET", req.url ?? "/")
+      const trace = store.startRequest(req.method ?? "GET", req.url ?? "/", req.headers?.traceparent)
       // `close` fires on a finished response and on an aborted one alike.
       res.once("close", () => store.finishRequest(trace, res.statusCode))
       return runInRequest(trace, () => next(event))

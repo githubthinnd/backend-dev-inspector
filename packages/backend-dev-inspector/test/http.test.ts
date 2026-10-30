@@ -39,6 +39,7 @@ afterEach(() => {
   uninstall = null
   restoreNetwork?.()
   restoreNetwork = null
+  getInspector().propagate = false
   getInspector().store.clear()
   resetInspectorForTests()
 })
@@ -213,5 +214,33 @@ describe("fetch and undici", () => {
     ])
     expect(a.queries.map(q => q.sql)).toEqual(["GET http://api.test/slow?ms=30"])
     expect(b.queries.map(q => q.sql)).toEqual(["GET http://api.test/ok?who=b"])
+  })
+})
+
+describe("trace context between services", () => {
+  it("fetch and undici requests carry a traceparent that names the call as a span of the request's trace, when propagation is on", async () => {
+    restoreNetwork = fakeNetwork(server.serve)
+    uninstall = fetchDriver.install(recorder())
+    getInspector().propagate = true
+    const trace = request("/fetch-gateway")
+    let echoed = ""
+    await runInRequest(trace, async () => { echoed = await (await fetch("http://api.test/echo", { method: "POST", body: "x" })).text() })
+    expect(JSON.parse(echoed).headers.traceparent).toBe(`00-${trace.traceId}-${trace.queries[0]!.details!.spanId}-01`)
+  })
+
+  it("does not add one when propagation is off, nor over a traceparent the application set", async () => {
+    restoreNetwork = fakeNetwork(server.serve)
+    uninstall = fetchDriver.install(recorder())
+    const quiet = request("/quiet")
+    let echoed = ""
+    await runInRequest(quiet, async () => { echoed = await (await fetch("http://api.test/echo", { method: "POST", body: "x" })).text() })
+    expect(JSON.parse(echoed).headers.traceparent).toBeUndefined()
+    expect(quiet.queries[0]!.details!.spanId).toBeUndefined()
+
+    getInspector().propagate = true
+    const own = request("/own")
+    const mine = `00-${"1".repeat(32)}-${"2".repeat(16)}-01`
+    await runInRequest(own, async () => { echoed = await (await fetch("http://api.test/echo", { method: "POST", body: "x", headers: { traceparent: mine } })).text() })
+    expect(JSON.parse(echoed).headers.traceparent).toBe(mine)
   })
 })

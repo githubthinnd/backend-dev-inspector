@@ -79,6 +79,8 @@ function summary(inspector: Inspector, trace: ReturnType<Inspector["store"]["lis
   const { totals, insights } = cachedReport(inspector.store, trace, inspector.report)
   return {
     id: trace.id,
+    ...(trace.traceId ? { traceId: trace.traceId } : {}),
+    ...(trace.parentSpanId ? { parentSpanId: trace.parentSpanId } : {}),
     method: trace.method,
     url: trace.url,
     status: trace.status,
