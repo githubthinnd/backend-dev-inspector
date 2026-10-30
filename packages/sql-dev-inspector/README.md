@@ -48,6 +48,7 @@ GET /api/orders/42 → 200  163ms total · 12 queries · 148ms in SQL
 - [How it works](#how-it-works)
 - [Languages](#languages)
 - [Styling and isolation](#styling--isolation)
+- [Beyond the tree](#beyond-the-tree)
 - [Security and privacy](#security--privacy)
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
@@ -62,6 +63,7 @@ GET /api/orders/42 → 200  163ms total · 12 queries · 148ms in SQL
 - **Three views**: terminal tree, live web page, floating in-app panel with keyboard shortcuts. Light, dark and system themes; responsive down to a narrow docked panel.
 - **English, Vietnamese and Japanese** in the terminal, the page and the panel; adding a language is one block of text (see [Languages](#languages)).
 - **Nothing changes in your code**: it works at the `mysql2` driver level, so every library built on `mysql2` is covered.
+- **Finds the line of code** that made each call and opens it in your editor, **advises how to fix** each warning, and has a read-only **MCP server** for coding agents ([Beyond the tree](#beyond-the-tree)).
 - **Values hidden by default**: bind parameters are shown as their type and size, and a stricter mode masks the whole statement; N+1 detection still works ([Hiding values](#hiding-values)).
 - **Choose what to follow**: include or exclude requests by route, and serve the page from a path of your choosing ([Choosing which requests are traced](#choosing-which-requests-are-traced)).
 - **Safe by default**: never active when `NODE_ENV=production`; local only; in memory only.
@@ -243,6 +245,9 @@ Settings (including language) are stored in `localStorage`. The panel loads only
 | `SQL_INSPECTOR_REDACT` | `params` | What is kept of values: `params` (bind parameters become their type and size), `all` (the statement is shown with every value masked), `off` (everything as sent) |
 | `SQL_INSPECTOR_INCLUDE` | — | Comma-separated route patterns: only matching requests are traced (`/api/**`) |
 | `SQL_INSPECTOR_EXCLUDE` | — | Comma-separated route patterns that are never traced (`/health,/assets/**`) |
+| `SQL_INSPECTOR_STACK` | on | `0` stops looking for the line of code that made each call |
+| `SQL_INSPECTOR_EDITOR` | `vscode` | The editor that location links open: `vscode`, `cursor`, `windsurf`, `zed`, `idea`, `webstorm`, `none`, or a link template |
+| `SQL_INSPECTOR_LOGS` | off | `1` lists what the application prints under its request |
 | `SQL_INSPECTOR_PATH` | `__sql-inspector` | Where the page is served: `_dev/sql` serves it at `/_dev/sql/` |
 | `NO_COLOR` | — | disables terminal colors |
 
@@ -360,6 +365,47 @@ The tool must never make your app look worse, so:
 - Respects `prefers-color-scheme`, `prefers-reduced-motion`, and keyboard focus (`:focus-visible`).
 - If your app sets a strict Content-Security-Policy, the floating button needs `style-src 'unsafe-inline'` (it injects one `<style>` into its shadow root) and `frame-src 'self'`. This is a dev-only tool; relax the policy for development only.
 
+## Beyond the tree
+
+### Finding the line of code
+
+Every call records **the first line of your own code that made it**: not a library, not the inspector. It shows on each statement as `src/orders.ts:42`, a link that opens your editor at that line, on the N+1, duplicate, slow and error warnings, and in the terminal tree (`↳ src/orders.ts:42`). Finding it costs about 9 microseconds a call.
+
+| Setting | Meaning |
+|---|---|
+| `SQL_INSPECTOR_STACK` | `0` turns the search off (default on). Also a switch in the settings |
+| `SQL_INSPECTOR_EDITOR` | `vscode` (default), `cursor`, `windsurf`, `zed`, `idea`, `webstorm`, `vscode-insiders`, `none`, or a link template of one of those editors' schemes, with `{file}`, `{path}`, `{line}`, `{column}`. Also a choice in the settings |
+
+A call made inside a library alone has no line. The inspector never turns a location into a link of any other scheme.
+
+### Advice on every warning
+
+Each warning says what to do about it, in the language of the page and the terminal, and what it advises depends on what was called: an N+1 over SQL points at joins, `IN` lists and your ORM's eager loading (Drizzle `with`, Prisma `include`); over Redis at `MGET` and pipelines; over MongoDB at `$in` and `$lookup`; over HTTP at batch endpoints. It shows under the warning in the page ("How to fix"), in the terminal, in the API (`hint`) and for agents.
+
+### Console output
+
+`SQL_INSPECTOR_LOGS=1` (or the switch in the settings) lists what your application prints while it handles a request (`console.log`, `info`, `warn`, `error`, `debug`) under that request, with its level, time and calling line. It is **off by default**, because a log line can hold a token or a person's data. At most 200 lines of 2000 characters per request. Your console keeps printing as before, and is not touched until you switch this on.
+
+### Check your setup
+
+When nothing shows up, ask the inspector. In the page, the settings have a **Check the setup** button and a list of the drivers that are watching. From the terminal:
+
+From the terminal, `npx backend-dev-inspector doctor` (from [`backend-dev-inspector`](https://www.npmjs.com/package/backend-dev-inspector)) runs the same check and also finds duplicate copies of your libraries. It says whether it is on, which drivers are watching, whether a library the inspector cannot load is in your project, **whether two copies of one library are loaded** (the usual silent failure: the inspector patches one, your code calls the other), and, in the page, whether calls reach requests.
+
+### Query budgets in tests
+
+[`backend-dev-inspector/testing`](https://www.npmjs.com/package/backend-dev-inspector#query-budgets-in-tests) has `capture()` and matchers (`toHaveNoNPlusOne`, `toHaveMaxQueries`…) that fail a test when code adds an N+1; they work with this package's `mysql2` support too.
+
+### Use it from an AI agent
+
+The inspector serves a read-only [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/__sql-inspector/mcp`, so a coding agent can ask the running application what it did:
+
+```bash
+claude mcp add --transport http dev-inspector http://localhost:3000/__sql-inspector/mcp
+```
+
+For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "http://localhost:3000/__sql-inspector/mcp" } } }` to their `mcp.json`. Five tools, none of which can change anything: `find_problems`, `list_requests`, `get_request`, `get_settings`, `diagnose`. Values are redacted as you configured, and the same guards as the page apply (local `Host` only). [`skills/dev-inspector`](https://github.com/githubthinnd/backend-dev-inspector/tree/main/skills/dev-inspector) is an agent skill that teaches the workflow: find the problem, read the line it came from, fix it, call the endpoint again and compare.
+
 ## Security & privacy
 
 - `NODE_ENV=production` is a hard stop: nothing is patched and the middleware only calls `next()`.
@@ -407,7 +453,7 @@ The tool must never make your app look worse, so:
 ```bash
 npm install
 npm run typecheck
-npm test            # 362 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
+npm test            # 405 tests: real mysql2 + Drizzle against an in-memory MySQL protocol server
 npm run build
 ```
 

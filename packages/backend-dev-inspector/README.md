@@ -42,6 +42,7 @@ You see it in three places: **a tree in your terminal**, **a live page** at `/__
 - [What it tells you](#what-it-tells-you)
 - [Configuration](#configuration)
 - [API](#api)
+- [Beyond the tree](#beyond-the-tree)
 - [What it records and what it hides](#what-it-records-and-what-it-hides)
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
@@ -57,6 +58,8 @@ You see it in three places: **a tree in your terminal**, **a live page** at `/__
 - **Three views**: terminal tree, live web page (search, filters, timeline waterfall, formatted SQL), floating in-app panel with keyboard shortcuts.
 - **Works with what you already use**: it observes your existing libraries (`pg`, `postgres.js`, `mysql2`, `better-sqlite3`, `libSQL` / Turso, `mongodb`, `ioredis`, `fetch`…), so your code does not change.
 - **Adapters** for Express, Fastify, Koa, Hono, Nuxt / Nitro, Next.js, SvelteKit, Astro, Vite and plain Node `http`.
+- **Finds the line of code** that made each call and opens it in your editor, and **advises how to fix** each warning. [Details](#beyond-the-tree).
+- **Built for the tools around you**: a read-only **MCP server** for coding agents, **query budgets for tests** that fail a pull request adding an N+1, and a `doctor` command. [Details](#beyond-the-tree).
 - **Values hidden by default**: bind parameters are shown as their type and size (`<string:12>`), and a stricter mode masks the whole statement. N+1 detection still works. [Details](#hiding-values).
 - **Choose what to follow**: include or exclude requests by route (`/api/**`), and serve the page from a path of your choosing. [Details](#choosing-which-requests-are-traced).
 - **Safe by default**: off in production, local only, in memory only, secrets kept out of what it records. [Details](#what-it-records-and-what-it-hides).
@@ -319,6 +322,9 @@ Every `SQL_INSPECTOR_*` variable below is read from the environment through an a
 | `SQL_INSPECTOR_REDACT` | `params` | What is kept of values: `params` (bind parameters become their type and size), `all` (the statement is shown with every value masked), `off` (everything as sent). See [Hiding values](#hiding-values) |
 | `SQL_INSPECTOR_INCLUDE` | — | Comma-separated route patterns: only matching requests are traced (`/api/**`). See [Choosing which requests are traced](#choosing-which-requests-are-traced) |
 | `SQL_INSPECTOR_EXCLUDE` | — | Comma-separated route patterns that are never traced (`/health,/assets/**`) |
+| `SQL_INSPECTOR_STACK` | on | `0` stops looking for the line of code that made each call. See [Finding the line of code](#finding-the-line-of-code) |
+| `SQL_INSPECTOR_EDITOR` | `vscode` | The editor that location links open: `vscode`, `cursor`, `windsurf`, `zed`, `idea`, `webstorm`, `none`, or a link template |
+| `SQL_INSPECTOR_LOGS` | off | `1` lists what the application prints under its request. See [Console output](#console-output) |
 | `SQL_INSPECTOR_PATH` | `__sql-inspector` | Where the page is served: `_dev/sql` serves it at `/_dev/sql/` |
 | `SQL_INSPECTOR_SLOW_MS` | `100` | Slow-call threshold in milliseconds |
 | `SQL_INSPECTOR_LANG` | `en` | Terminal language and the page's starting language: `en`, `vi`, `ja`. Your machine's `LANG` is deliberately ignored |
@@ -423,10 +429,77 @@ interface SqlInspector {
 | `/nuxt` `/nitro` | Nuxt module, Nitro plugin |
 | `/prisma` | `prismaExtension()` |
 | `/client` | `mountSqlInspectorWidget({ baseURL })`, the floating button |
+| `/testing` | `capture()` and the matchers for query budgets in tests |
 
 Lower level, for custom integrations: `startInspector`, `getInspector`, `buildReport`, `TraceStore`, `analyzeSql`, `describeOperation`, the `DriverAdapter` and `Recorder` types, and the rest of what [`sql-dev-inspector`](https://www.npmjs.com/package/sql-dev-inspector#api) exports.
 
 The page's HTTP routes, all under `/__sql-inspector/`: `GET /` (page), `GET /api/requests`, `GET /api/requests/:id`, `GET /api/stream` (server-sent events), `GET` / `POST /api/settings`, `POST /api/clear`.
+
+## Beyond the tree
+
+### Finding the line of code
+
+Every call records **the first line of your own code that made it**: not a library, not the inspector. It shows on each statement as `src/orders.ts:42`, a link that opens your editor at that line, on the N+1, duplicate, slow and error warnings, and in the terminal tree (`↳ src/orders.ts:42`). Finding it costs about 9 microseconds a call.
+
+| Setting | Meaning |
+|---|---|
+| `SQL_INSPECTOR_STACK` | `0` turns the search off (default on). Also a switch in the settings |
+| `SQL_INSPECTOR_EDITOR` | `vscode` (default), `cursor`, `windsurf`, `zed`, `idea`, `webstorm`, `vscode-insiders`, `none`, or a link template of one of those editors' schemes, with `{file}`, `{path}`, `{line}`, `{column}`. Also a choice in the settings |
+
+A call made inside a library alone has no line. The inspector never turns a location into a link of any other scheme.
+
+### Advice on every warning
+
+Each warning says what to do about it, in the language of the page and the terminal, and what it advises depends on what was called: an N+1 over SQL points at joins, `IN` lists and your ORM's eager loading (Drizzle `with`, Prisma `include`); over Redis at `MGET` and pipelines; over MongoDB at `$in` and `$lookup`; over HTTP at batch endpoints. It shows under the warning in the page ("How to fix"), in the terminal, in the API (`hint`) and for agents.
+
+### Console output
+
+`SQL_INSPECTOR_LOGS=1` (or the switch in the settings) lists what your application prints while it handles a request (`console.log`, `info`, `warn`, `error`, `debug`) under that request, with its level, time and calling line. It is **off by default**, because a log line can hold a token or a person's data. At most 200 lines of 2000 characters per request. Your console keeps printing as before, and is not touched until you switch this on.
+
+### Check your setup
+
+When nothing shows up, ask the inspector. In the page, the settings have a **Check the setup** button and a list of the drivers that are watching. From the terminal:
+
+```bash
+npx backend-dev-inspector doctor
+```
+
+It says whether it is on, which drivers are watching, whether a library the inspector cannot load is in your project, **whether two copies of one library are loaded** (the usual silent failure: the inspector patches one, your code calls the other), and, in the page, whether calls reach requests.
+
+### Query budgets in tests
+
+Fail a pull request that adds an N+1:
+
+```ts
+import { capture, matchers } from "backend-dev-inspector/testing"
+
+expect.extend(matchers) // once, in your test setup
+
+it("lists the orders without an N+1", async () => {
+  const run = await capture(() => app.get("/orders"))
+  expect(run).toHaveNoNPlusOne()
+  expect(run).toHaveMaxQueries(5)
+})
+```
+
+`capture(fn)` runs `fn` and returns what it did (SQL, Redis, MongoDB, HTTP) as the inspector sees it; it needs nothing from your application, and switches the inspector on even under `NODE_ENV=test`. The matchers are `toHaveNoNPlusOne`, `toHaveNoDuplicates`, `toHaveNoSlowQueries`, `toHaveNoErrors`, `toHaveNoInsights`, `toHaveMaxQueries(n)` and `toRunQueries(n)`. A failure lists what was found, where it was called from and how to fix it. For types in Vitest:
+
+```ts
+import type { InspectorMatchers } from "backend-dev-inspector/testing"
+declare module "vitest" {
+  interface Assertion<R extends void | Promise<void> = void, T = unknown> extends InspectorMatchers<R> {}
+}
+```
+
+### Use it from an AI agent
+
+The inspector serves a read-only [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/__sql-inspector/mcp`, so a coding agent can ask the running application what it did:
+
+```bash
+claude mcp add --transport http dev-inspector http://localhost:3000/__sql-inspector/mcp
+```
+
+For Cursor and other clients, add `{ "mcpServers": { "dev-inspector": { "url": "http://localhost:3000/__sql-inspector/mcp" } } }` to their `mcp.json`. Five tools, none of which can change anything: `find_problems`, `list_requests`, `get_request`, `get_settings`, `diagnose`. Values are redacted as you configured, and the same guards as the page apply (local `Host` only). [`skills/dev-inspector`](https://github.com/githubthinnd/backend-dev-inspector/tree/main/skills/dev-inspector) is an agent skill that teaches the workflow: find the problem, read the line it came from, fix it, call the endpoint again and compare.
 
 ## What it records and what it hides
 
@@ -461,6 +534,8 @@ The page's HTTP routes, all under `/__sql-inspector/`: `GET /` (page), `GET /api
 | A library's calls are missing | See the support tables; for MariaDB and Prisma you must add the helper line |
 | Two copies of a library in `node_modules` | The inspector patches the copy it can import; make sure the app and the inspector share one (a hoisted peer) |
 | The floating button is missing | Outside Nuxt you must call `mountSqlInspectorWidget`. Try `Alt+Shift+D`, or clear the `sqlDevInspector.widget` key in `localStorage` |
+| No line of code on a call, or the link does not open | The call was made inside a library alone (no line), `SQL_INSPECTOR_STACK=0`, or `SQL_INSPECTOR_EDITOR=none` |
+| Nothing is recorded and nothing says why | Run `npx backend-dev-inspector doctor`, or open the settings and press **Check the setup** |
 | Calls show `<number>` / `<string:5>` instead of values | That is `SQL_INSPECTOR_REDACT` at its default; set it to `off` to see values |
 | Requests I excluded still appear | The pattern must match the path (`/api/**` matches `/api` and below); the query string is ignored |
 | `403` on the inspector page | The `Host` is not local: add it to `SQL_INSPECTOR_ALLOWED_HOSTS` |

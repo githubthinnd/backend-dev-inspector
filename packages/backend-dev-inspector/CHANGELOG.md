@@ -7,6 +7,9 @@
 - **libSQL / Turso** (`@libsql/client` 0.14 or newer): the local, HTTP and WebSocket clients, in both their ESM and CommonJS copies, with transactions listed as BEGIN … COMMIT and the statements of a `batch` listed one by one. Driver name `libsql`.
 - **postgres.js** (`postgres`): version 4 is reported through its own tracing channel, with nothing to set up; version 3 through `instrumentPostgres(sql)`, which also covers `sql.unsafe()` and the `sql` of `begin()` / `savepoint()` / `reserve()` callbacks. Driver name `postgres`.
 - **db0** (Nitro `useDatabase()`, NuxtHub): calls through a connector whose driver is already watched (`better-sqlite3`, libSQL, `pg`, `mysql2`) are recorded once, at the driver. For other connectors (PGlite, Neon, D1…) the `db0.query` tracing channel of `withTracing(db)` is followed, leaving the watched connectors out so nothing is listed twice. Driver name `db0`.
+- **Query budgets for tests** (`backend-dev-inspector/testing`): `capture(fn)` and the matchers `toHaveNoNPlusOne`, `toHaveNoDuplicates`, `toHaveNoSlowQueries`, `toHaveNoErrors`, `toHaveNoInsights`, `toHaveMaxQueries`, `toRunQueries`; a failure lists the findings, where they were called from and how to fix them.
+- **`npx backend-dev-inspector doctor`**, and library checks for the settings' "Check the setup": a library the inspector cannot load, or two copies of one. Optional peers are now loaded from the application's folder first.
+- Errors raised while a SQLite statement is prepared (a syntax error, a missing table) are recorded.
 - Optional peer dependencies `@libsql/client` and `postgres`; `tryImport` for libraries with a separate ESM copy.
 - Everything new in `sql-dev-inspector` 1.3: value redaction, route filters, a custom path, and the Nuxt module options.
 
