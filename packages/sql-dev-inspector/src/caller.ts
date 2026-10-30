@@ -1,3 +1,5 @@
+import { originalPosition } from "./sourcemap.js"
+
 /**
  * Where in the application a call was made. The statement is recorded synchronously inside the call
  * the application made (`pool.query(...)`, or the `await` of a lazy builder), so the stack at that moment
@@ -25,6 +27,40 @@ function isApplicationFile(file: string): boolean {
   return !NOT_APPLICATION.some(part => file.includes(part))
 }
 
+/**
+ * The first application frame of a stack. A frame in a bundle (the dev server's `.nuxt/dev/index.mjs`) is looked up in the
+ * bundle's source map, so it reads as the file you wrote; a source that turns out to be a library is skipped like any other.
+ */
+export function callerFromStack(stack: string): Caller | undefined {
+  for (const line of stack.split("\n").slice(1)) {
+    const match = FRAME.exec(line)
+    if (!match) {
+      continue
+    }
+    let file = match[2]!
+    if (FILE_URL.test(file)) {
+      file = decodeURI(file.replace(FILE_URL, ""))
+    }
+    if (!isApplicationFile(file)) {
+      continue
+    }
+    let position = { file, line: Number(match[3]), column: Number(match[4]) }
+    const original = originalPosition(file, position.line, position.column)
+    if (original) {
+      if (!isApplicationFile(original.file)) {
+        continue
+      }
+      position = original
+    }
+    const caller: Caller = position
+    if (match[1] && !match[1].includes("<anonymous>")) {
+      caller.fn = match[1]
+    }
+    return caller
+  }
+  return undefined
+}
+
 /** The first application frame of the current stack, or undefined (the call came from a library alone). */
 export function findCaller(): Caller | undefined {
   try {
@@ -33,27 +69,11 @@ export function findCaller(): Caller | undefined {
     const holder: { stack?: string } = {}
     Error.captureStackTrace(holder, findCaller)
     Error.stackTraceLimit = limit
-    for (const line of String(holder.stack ?? "").split("\n").slice(1)) {
-      const match = FRAME.exec(line)
-      if (!match) {
-        continue
-      }
-      let file = match[2]!
-      if (FILE_URL.test(file)) {
-        file = decodeURI(file.replace(FILE_URL, ""))
-      }
-      if (isApplicationFile(file)) {
-        const caller: Caller = { file, line: Number(match[3]), column: Number(match[4]) }
-        if (match[1] && !match[1].includes("<anonymous>")) {
-          caller.fn = match[1]
-        }
-        return caller
-      }
-    }
+    return callerFromStack(String(holder.stack ?? ""))
   } catch {
     // never get in the way of the call
+    return undefined
   }
-  return undefined
 }
 
 /** `src/server/api/orders.ts:42`: the file relative to `root` when it is under it. */

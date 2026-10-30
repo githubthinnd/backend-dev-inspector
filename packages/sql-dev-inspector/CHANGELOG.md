@@ -2,6 +2,10 @@
 
 ## [1.3.0] - 2026-10-30
 
+### Fixed
+
+- **The calling line under a dev server's bundle.** In Nuxt / Nitro dev the application runs as one bundle, so a call's stack said `.nuxt/dev/index.mjs:3323` (often a line of the inspector itself, bundled in) instead of the file you wrote. A frame in a bundle is now looked up in the source map the bundle points at (read-only, from the bundle's own folder or inline, once per bundle, at most 64 MB), so it reads as `server/api/orders.get.ts:12`, and a frame that turns out to be a library or the inspector is skipped like any other. Nothing changes when Node already maps stacks (`--enable-source-maps`) or when there is no map.
+
 ### Added
 
 - **Hiding values**: `SQL_INSPECTOR_REDACT` (`params`, `all`, `off`; or the `redact` option). In `params` mode bind parameters are shown as their type and size (`<string:12>`, `<number>`), and `mysql2`'s `query(sql, values)` is shown as the statement with its `?`. In `all` mode the statement is shown with every value masked. N+1 and duplicate detection are unchanged: the report compares the calls as they were, from a hash kept outside the event.

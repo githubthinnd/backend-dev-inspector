@@ -497,7 +497,7 @@ Every call records **the first line of your own code that made it**: not a libra
 | `SQL_INSPECTOR_STACK` | `0` turns the search off (default on). Also a switch in the settings |
 | `SQL_INSPECTOR_EDITOR` | `vscode` (default), `cursor`, `windsurf`, `zed`, `idea`, `webstorm`, `vscode-insiders`, `none`, or a link template of one of those editors' schemes, with `{file}`, `{path}`, `{line}`, `{column}`. Also a choice in the settings |
 
-A call made inside a library alone has no line. The inspector never turns a location into a link of any other scheme.
+Under a dev server that bundles your code (Nuxt / Nitro, Vite), the line is looked up in the bundle's source map, so it is the `.ts` / `.vue` file you wrote and not `.nuxt/dev/index.mjs`; the map is read from disk, read-only, once per bundle. A call made inside a library alone has no line. The inspector never turns a location into a link of any other scheme.
 
 ### Advice on every warning
 

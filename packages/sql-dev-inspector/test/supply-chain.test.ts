@@ -75,6 +75,13 @@ describe("what the package does", () => {
     }
   })
 
+  it("touches the file system only to read a bundle's source map, and never writes", () => {
+    expect(files.filter(file => /from "node:fs"/.test(file.text)).map(file => file.name).sort()).toEqual(["src/nuxt.ts", "src/sourcemap.ts"])
+    for (const file of files) {
+      expect(file.text, file.name).not.toMatch(/\b(?:writeFile|writeFileSync|appendFile|appendFileSync|createWriteStream|unlink|unlinkSync|rm|rmSync|rename|renameSync|mkdir|mkdirSync|copyFile|copyFileSync)\b/)
+    }
+  })
+
   it("loads optional peers in one place, by literal name, and only the ones the package declares", () => {
     const declared = Object.keys((pkg.peerDependencies ?? {}) as Record<string, string>)
     expect(files.filter(file => file.text.includes("createRequire")).map(file => file.name)).toEqual(["src/peer.ts"])
